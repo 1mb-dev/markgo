@@ -120,6 +120,41 @@ func TestEmailService_GenerateTestEmailBody(t *testing.T) {
 	assert.Contains(t, body, "Email Service Test")
 	assert.Contains(t, body, cfg.From)
 	assert.Contains(t, body, cfg.Host)
+	assert.Contains(t, body, testBlogTitle, "test email body should carry blog title")
+	assert.NotContains(t, body, "markgo", "engine name should not leak into test email body")
+}
+
+func TestEmailService_ContactSubject(t *testing.T) {
+	cases := []struct {
+		blogTitle string
+		input     string
+		want      string
+	}{
+		{"TestBlog", "Hello", "[TestBlog] Contact Form: Hello"},
+		{"notes.1mb.dev", "Bug report", "[notes.1mb.dev] Contact Form: Bug report"},
+		{"My Awesome Blog", "Question about post", "[My Awesome Blog] Contact Form: Question about post"},
+		{"TestBlog", "", "[TestBlog] Contact Form: "},
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	for _, tc := range cases {
+		t.Run(tc.blogTitle+"|"+tc.input, func(t *testing.T) {
+			svc := NewEmailService(&config.EmailConfig{}, tc.blogTitle, logger)
+			assert.Equal(t, tc.want, svc.contactSubject(tc.input))
+		})
+	}
+}
+
+func TestEmailService_TestEmailSubject(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	cases := map[string]string{
+		"TestBlog":        "TestBlog Email Service Test",
+		"notes.1mb.dev":   "notes.1mb.dev Email Service Test",
+		"My Awesome Blog": "My Awesome Blog Email Service Test",
+	}
+	for title, want := range cases {
+		svc := NewEmailService(&config.EmailConfig{}, title, logger)
+		assert.Equal(t, want, svc.testEmailSubject(), "blogTitle=%q", title)
+	}
 }
 
 func TestEmailService_ValidateConfig(t *testing.T) {
