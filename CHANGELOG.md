@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   addition to absolute URLs and slug-relative upload paths. Lets editorial
   banners ship as source-controlled assets under `web/static/` without
   coupling frontmatter to `BASE_URL`. Closes #54.
+- Color preset picker now live-previews on hover/focus: the document updates
+  as you hover each swatch and reverts when the cursor or keyboard focus
+  leaves the popover. Click still persists. Closes part of #56.
+
+### Changed
+
+- Dark-mode contrast lift extended to `ocean`, `forest`, and `sunset` color
+  presets (previously only `berry` had a lift). Primary text/links now clear
+  WCAG AA comfortably on the dark slate surface in all four presets. Closes
+  part of #56.
 
 ---
 

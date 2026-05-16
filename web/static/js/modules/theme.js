@@ -36,15 +36,28 @@ function getSavedMode() {
 // Color theme
 // ---------------------------------------------------------------------------
 
-function setColorTheme(preset) {
+// Split intentionally: applyColorThemeToDOM mutates the document only;
+// setColorTheme persists to localStorage too. Hover/focus preview calls the
+// apply-only helper so the document reflects the previewed preset without
+// overwriting the user's saved choice; mouseleave/popover-close restores
+// the persisted value. Do not collapse these back into one function.
+function applyColorThemeToDOM(preset) {
     const html = document.documentElement;
     if (preset && preset !== 'default') {
         html.setAttribute('data-color-theme', preset);
     } else {
         html.removeAttribute('data-color-theme');
     }
-    try { localStorage.setItem('colorTheme', preset || 'default'); } catch (e) { /* ignore */ }
     requestAnimationFrame(updateThemeColor);
+}
+
+function setColorTheme(preset) {
+    applyColorThemeToDOM(preset);
+    try { localStorage.setItem('colorTheme', preset || 'default'); } catch (e) { /* ignore */ }
+}
+
+function persistedColorTheme() {
+    try { return localStorage.getItem('colorTheme') || 'default'; } catch (e) { return 'default'; }
 }
 
 function updateSwatchActive(container, preset) {
@@ -102,6 +115,8 @@ export function init() {
         function closePopover() {
             popover.hidden = true;
             trigger.setAttribute('aria-expanded', 'false');
+            // If a preview was active (hover/focus on a swatch), snap back to persisted
+            applyColorThemeToDOM(persistedColorTheme());
         }
 
         trigger.addEventListener('click', (e) => {
@@ -131,6 +146,27 @@ export function init() {
         // Mutual exclusion — close when another popover opens
         document.addEventListener('popover:exclusive', (e) => {
             if (e.detail !== 'theme-popover' && !popover.hidden) closePopover();
+        });
+
+        // Live preview — hover/focus a swatch applies the preset to the document
+        // without persisting; mouseleave/focusout-outside-popover and popover
+        // close restore the persisted preset. Click still persists via setColorTheme.
+        popover.addEventListener('mouseover', (e) => {
+            const swatch = e.target.closest('.color-swatch');
+            if (swatch) applyColorThemeToDOM(swatch.dataset.color);
+        });
+        popover.addEventListener('mouseleave', () => {
+            applyColorThemeToDOM(persistedColorTheme());
+        });
+        popover.addEventListener('focusin', (e) => {
+            const swatch = e.target.closest('.color-swatch');
+            if (swatch) applyColorThemeToDOM(swatch.dataset.color);
+        });
+        popover.addEventListener('focusout', (e) => {
+            const swatch = e.target.closest('.color-swatch');
+            if (swatch && !popover.contains(e.relatedTarget)) {
+                applyColorThemeToDOM(persistedColorTheme());
+            }
         });
 
         // Mode selection
