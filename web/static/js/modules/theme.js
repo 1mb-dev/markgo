@@ -163,8 +163,10 @@ export function init() {
             if (swatch) applyColorThemeToDOM(swatch.dataset.color);
         });
         popover.addEventListener('focusout', (e) => {
-            const swatch = e.target.closest('.color-swatch');
-            if (swatch && !popover.contains(e.relatedTarget)) {
+            // Restore whenever focus leaves the popover entirely, regardless of
+            // which element was last focused. Tab-out from a mode button after
+            // a swatch preview was applied would otherwise strand the preview.
+            if (!popover.contains(e.relatedTarget)) {
                 applyColorThemeToDOM(persistedColorTheme());
             }
         });

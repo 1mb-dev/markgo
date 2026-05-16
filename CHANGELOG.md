@@ -25,6 +25,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   WCAG AA comfortably on the dark slate surface in all four presets. Closes
   part of #56.
 
+### Fixed
+
+- Color preset visibility in auto-dark mode: in v3.8, the dark-mode base rule
+  `:root:not([data-theme="light"])` (specificity 0,1,1) silently overrode the
+  preset rule `[data-color-theme=...]` (0,1,0), so `ocean`/`forest`/`sunset`
+  users on system-dark saw default blue-400 regardless of their preset. The
+  new per-preset selectors at specificity (0,2,1) restore preset visibility.
+  `berry` was unaffected (had its own (0,2,1) override since v3.8).
+- Color picker keyboard focus could strand a preview color on the document
+  when Tab-out of the popover happened from a non-swatch element after a
+  swatch had been previewed. Restore now triggers on any focus exit from
+  the popover.
+
 ---
 
 ## [3.10.0] - 2026-05-16
