@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v3"
 )
 
 func TestArticleToListView(t *testing.T) {
@@ -93,6 +94,25 @@ func TestPagination(t *testing.T) {
 	assert.Equal(t, 1, pagination.CurrentPage)
 	assert.True(t, pagination.HasNext)
 	assert.False(t, pagination.HasPrevious)
+}
+
+func TestArticleBannerYAMLRoundTrip(t *testing.T) {
+	src := []byte("title: Post\nbanner: hero.jpg\nbanner_alt: A red sunset\n")
+	var a Article
+	if err := yaml.Unmarshal(src, &a); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	assert.Equal(t, "hero.jpg", a.Banner)
+	assert.Equal(t, "A red sunset", a.BannerAlt)
+
+	// Empty banner fields should be omitted on re-marshal (yaml.omitempty).
+	a2 := Article{Title: "no banner"}
+	out, err := yaml.Marshal(&a2)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	assert.NotContains(t, string(out), "banner:")
+	assert.NotContains(t, string(out), "banner_alt:")
 }
 
 func TestSearchResult(t *testing.T) {

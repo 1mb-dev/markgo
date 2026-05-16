@@ -23,6 +23,8 @@ type Article struct {
 	LinkURL      string    `yaml:"link_url,omitempty" json:"link_url,omitempty"`
 	Asker        string    `yaml:"asker,omitempty" json:"asker,omitempty"`
 	AskerEmail   string    `yaml:"asker_email,omitempty" json:"asker_email,omitempty"`
+	Banner       string    `yaml:"banner,omitempty" json:"banner,omitempty"`
+	BannerAlt    string    `yaml:"banner_alt,omitempty" json:"banner_alt,omitempty"`
 	Content      string    `yaml:"-" json:"content"`
 	ReadingTime  int       `yaml:"-" json:"reading_time"`
 	WordCount    int       `yaml:"-" json:"word_count"`
@@ -151,6 +153,7 @@ type FeedItem struct {
 	ContentHTML string    `json:"content_html"`
 	URL         string    `json:"url"`
 	Summary     string    `json:"summary"`
+	Image       string    `json:"image,omitempty"`
 	Published   time.Time `json:"date_published"`
 	Modified    time.Time `json:"date_modified"`
 	Tags        []string  `json:"tags"`
