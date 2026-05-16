@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Engine name personalized in user-facing surfaces** (#48) — install banner,
+  contact-form email subject, admin test-email subject, and test email body
+  now use `Blog.Title` instead of the hardcoded `markgo`. Owners on
+  multi-instance setups see their blog identity, not the engine name.
+- **Client storage namespaced per blog** — `localStorage` keys and the
+  `IndexedDB` database name move from the flat `markgo:` prefix to
+  `markgo:${urlSlug}:` (slug derived server-side from `BaseURL`). Same-origin
+  path-mounted MarkGo instances no longer collide. Existing v3.8 data is
+  auto-migrated on first load; the legacy `markgo` IndexedDB is drained
+  into the new database, then deleted. Migration is idempotent and
+  fail-closed.
+- **Note:** browsers with `localStorage` disabled (Safari private mode,
+  quota exhausted) skip the migration. Existing v3.8 data remains under
+  legacy keys but is unreadable by v3.9 — these browsers start with empty
+  drafts and a fresh install-banner state.
+
 ---
 
 ## [3.8.0] - 2026-05-16
