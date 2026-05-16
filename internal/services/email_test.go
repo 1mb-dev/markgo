@@ -12,9 +12,11 @@ import (
 	"github.com/1mb-dev/markgo/internal/models"
 )
 
+const testBlogTitle = "TestBlog"
+
 func newTestEmailService(cfg *config.EmailConfig) *EmailService {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	return NewEmailService(cfg, logger)
+	return NewEmailService(cfg, testBlogTitle, logger)
 }
 
 func TestNewEmailService(t *testing.T) {
