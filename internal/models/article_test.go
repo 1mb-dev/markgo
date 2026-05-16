@@ -96,6 +96,27 @@ func TestPagination(t *testing.T) {
 	assert.False(t, pagination.HasPrevious)
 }
 
+func TestArticleBannerSrc(t *testing.T) {
+	tests := []struct {
+		name   string
+		banner string
+		slug   string
+		want   string
+	}{
+		{"empty banner returns empty", "", "x", ""},
+		{"https URL passes through", "https://cdn.example.com/foo.png", "x", "https://cdn.example.com/foo.png"},
+		{"http URL passes through", "http://example.com/foo.png", "x", "http://example.com/foo.png"},
+		{"server-absolute path passes through", "/static/img/foo.png", "x", "/static/img/foo.png"},
+		{"relative path resolves under uploads", "foo.png", "myslug", "/uploads/myslug/foo.png"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a := Article{Slug: tc.slug, Banner: tc.banner}
+			assert.Equal(t, tc.want, a.BannerSrc())
+		})
+	}
+}
+
 func TestArticleBannerAltText(t *testing.T) {
 	tests := []struct {
 		name      string

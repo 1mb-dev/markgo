@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Server-absolute banner paths: `banner` now accepts values starting with `/`
+  (e.g. `/static/img/banners/foo.png`) served by the static handler, in
+  addition to absolute URLs and slug-relative upload paths. Lets editorial
+  banners ship as source-controlled assets under `web/static/` without
+  coupling frontmatter to `BASE_URL`. Closes #54.
+
 ---
 
 ## [3.10.0] - 2026-05-16

@@ -38,14 +38,21 @@ type Article struct {
 // mdSyntax matches common markdown formatting syntax for stripping.
 var mdSyntax = regexp.MustCompile(`[*_~` + "`" + `\[\]#>]+`)
 
-// BannerSrc returns the HTTP-servable URL for the banner image.
-// Absolute URLs (http/https) pass through; relative paths resolve to
-// /uploads/<slug>/<banner>. Returns empty string when banner is unset.
+// BannerSrc returns the HTTP-servable URL for the banner image. Three branches:
+//   - Absolute URL (http/https): pass through.
+//   - Server-absolute (leading slash, e.g. /static/img/foo.png): pass through;
+//     the static or uploads handler serves the asset.
+//   - Relative path: resolve to /uploads/<slug>/<banner>.
+//
+// Returns empty string when banner is unset.
 func (a *Article) BannerSrc() string {
 	if a.Banner == "" {
 		return ""
 	}
 	if strings.HasPrefix(a.Banner, "http://") || strings.HasPrefix(a.Banner, "https://") {
+		return a.Banner
+	}
+	if strings.HasPrefix(a.Banner, "/") {
 		return a.Banner
 	}
 	return "/uploads/" + a.Slug + "/" + a.Banner
