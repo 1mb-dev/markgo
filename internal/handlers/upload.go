@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	apperrors "github.com/1mb-dev/markgo/internal/errors"
 	"github.com/1mb-dev/markgo/internal/services/compose"
 )
 
@@ -105,7 +106,7 @@ func (h *ComposeHandler) Upload(c *gin.Context) {
 
 	uploadDir, containErr := compose.ContainSlugPath(h.config.Upload.Path, slug)
 	if containErr != nil {
-		if errors.Is(containErr, compose.ErrPathEscape) {
+		if errors.Is(containErr, apperrors.ErrPathEscape) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid slug"})
 			return
 		}

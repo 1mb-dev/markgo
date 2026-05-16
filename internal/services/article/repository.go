@@ -441,7 +441,7 @@ func (r *FileSystemRepository) validateBanner(article *models.Article) error {
 	if !strings.HasPrefix(bannerAbs, absBase+string(os.PathSeparator)) {
 		r.logger.Error("Banner path escapes upload base; article rejected",
 			"slug", article.Slug, "banner", article.Banner)
-		return fmt.Errorf("banner %q: %w", article.Banner, compose.ErrPathEscape)
+		return fmt.Errorf("banner %q: %w", article.Banner, apperrors.ErrPathEscape)
 	}
 
 	if _, statErr := os.Stat(bannerAbs); errors.Is(statErr, os.ErrNotExist) {

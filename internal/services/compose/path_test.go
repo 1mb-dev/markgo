@@ -4,6 +4,8 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+
+	apperrors "github.com/1mb-dev/markgo/internal/errors"
 )
 
 func TestContainSlugPath(t *testing.T) {
@@ -17,8 +19,8 @@ func TestContainSlugPath(t *testing.T) {
 	}{
 		{name: "clean slug", slug: "my-post", wantInBase: true},
 		{name: "clean slug with digits", slug: "2026-01-15-welcome", wantInBase: true},
-		{name: "traversal", slug: "../escape", wantErr: ErrPathEscape},
-		{name: "deep traversal", slug: "../../etc/passwd", wantErr: ErrPathEscape},
+		{name: "traversal", slug: "../escape", wantErr: apperrors.ErrPathEscape},
+		{name: "deep traversal", slug: "../../etc/passwd", wantErr: apperrors.ErrPathEscape},
 		{name: "empty slug", slug: "", wantInBase: false}, // resolves to base itself, not contained
 	}
 
