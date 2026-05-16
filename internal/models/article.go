@@ -38,6 +38,19 @@ type Article struct {
 // mdSyntax matches common markdown formatting syntax for stripping.
 var mdSyntax = regexp.MustCompile(`[*_~` + "`" + `\[\]#>]+`)
 
+// BannerSrc returns the HTTP-servable URL for the banner image.
+// Absolute URLs (http/https) pass through; relative paths resolve to
+// /uploads/<slug>/<banner>. Returns empty string when banner is unset.
+func (a *Article) BannerSrc() string {
+	if a.Banner == "" {
+		return ""
+	}
+	if strings.HasPrefix(a.Banner, "http://") || strings.HasPrefix(a.Banner, "https://") {
+		return a.Banner
+	}
+	return "/uploads/" + a.Slug + "/" + a.Banner
+}
+
 // DisplayTitle returns the article title, or synthesizes one from content
 // for titleless posts (thoughts). Strips markdown syntax for clean display
 // in meta tags, feeds, and other plain-text contexts.

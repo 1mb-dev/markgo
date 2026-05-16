@@ -27,6 +27,7 @@ type ServiceContainer struct {
 // Config holds configuration for the article services
 type Config struct {
 	ArticlesPath string
+	UploadPath   string
 	CacheEnabled bool
 	CacheConfig  *CacheConfig
 	SearchIndex  bool
@@ -69,7 +70,7 @@ func (c *ServiceContainer) initializeServices() {
 	}
 
 	// 2. Initialize base repository (data access layer)
-	baseRepository := NewFileSystemRepository(c.config.ArticlesPath, c.logger)
+	baseRepository := NewFileSystemRepository(c.config.ArticlesPath, c.config.UploadPath, c.logger)
 
 	// 3. Wrap repository with caching if available
 	if c.cacheCoordinator != nil {

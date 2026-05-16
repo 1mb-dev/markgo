@@ -23,10 +23,11 @@ func NewServiceFactory(logger *slog.Logger) *ServiceFactory {
 // CreateService creates a new article service using the modular architecture.
 // Returns a ServiceAdapter that implements services.ArticleServiceInterface (defined in parent package).
 // Note: We avoid importing parent package to prevent import cycles; structural typing handles interface compatibility.
-func (f *ServiceFactory) CreateService(articlesPath string) (*ServiceAdapter, error) {
+func (f *ServiceFactory) CreateService(articlesPath, uploadPath string) (*ServiceAdapter, error) {
 	// Create configuration
 	config := &Config{
 		ArticlesPath: articlesPath,
+		UploadPath:   uploadPath,
 		CacheEnabled: true,
 		CacheConfig:  DefaultCacheConfig(),
 		SearchIndex:  true,
