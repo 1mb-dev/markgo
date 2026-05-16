@@ -450,8 +450,9 @@ func (h *Helper) GenerateArticleSchema(article *models.Article, baseURL string) 
 		return nil, fmt.Errorf("failed to build article URL: %w", err)
 	}
 
-	// Extract first image from content if available
-	imageURL := extractFirstImage(article.Content, baseURL, &h.siteConfig)
+	// Resolve image via the same 3-tier precedence as og:image so banner
+	// intent flows through to Schema.org consumers (Google Knowledge Graph, etc.).
+	imageURL := h.resolveOGImage(article, baseURL)
 
 	schema := map[string]interface{}{
 		"@context": "https://schema.org",

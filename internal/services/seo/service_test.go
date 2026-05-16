@@ -232,6 +232,28 @@ func TestResolveOGImage_Tiers(t *testing.T) {
 	})
 }
 
+func TestGenerateArticleSchema_BannerPrecedence(t *testing.T) {
+	helper, _ := createTestHelper()
+	a := &models.Article{
+		Slug:    "post",
+		Title:   "Post",
+		Banner:  "hero.jpg",
+		Date:    time.Now(),
+		Content: "![inline](/img/inline.png)\n\nbody",
+	}
+	schema, err := helper.GenerateArticleSchema(a, "https://example.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	img, ok := schema["image"].(map[string]any)
+	if !ok {
+		t.Fatal("schema image must be an ImageObject map")
+	}
+	if !strings.Contains(img["url"].(string), "/uploads/post/hero.jpg") {
+		t.Errorf("schema image should resolve to banner, got %q", img["url"])
+	}
+}
+
 func TestGenerateOpenGraphTags_EmitsSingleOGImage(t *testing.T) {
 	helper, _ := createTestHelper()
 	a := &models.Article{
