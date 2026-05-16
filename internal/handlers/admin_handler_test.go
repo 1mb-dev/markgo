@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/1mb-dev/markgo/internal/middleware"
 	"github.com/1mb-dev/markgo/internal/models"
 )
 
@@ -240,4 +241,135 @@ func TestFormatDuration(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// SoftSessionAuth chain regression — GHSA / #42
+//
+// Pre-fix, an unauthenticated GET with Accept: application/json to any admin
+// route under SoftSessionAuth returned the handler's JSON payload with 200,
+// because SoftSessionAuth called c.Next() and the handler's JSON branch ran.
+// These tests mount the real middleware in the chain and assert 401 + no
+// leaky body keys. Earlier tests in this file exercise the handler in
+// isolation (without the middleware) — they would not have caught the bypass.
+// ---------------------------------------------------------------------------
+
+func TestAdmin_SoftSessionAuth_JSONBypass_Closed(t *testing.T) {
+	cfg := createTestConfig()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	base := NewBaseHandler(cfg, logger, &MockTemplateService{}, &BuildInfo{Version: "test"}, &MockSEOService{})
+
+	svc := &AdminHomeArticleService{
+		Published: []*models.Article{{Slug: "pub-1", Title: "Published", Draft: false, Date: time.Now()}},
+		Drafts:    []*models.Article{{Slug: "draft-1", Title: "Secret Draft", Draft: true, Date: time.Now()}},
+	}
+	handler := NewAdminHandler(base, svc, time.Now())
+
+	// Wire the real middleware chain — empty session store = no valid sessions exist.
+	store := middleware.NewSessionStore()
+	router := gin.New()
+	adminGroup := router.Group("/admin", middleware.SoftSessionAuth(store, false))
+	adminGroup.GET("", handler.AdminHome)
+	adminGroup.GET("/writing", handler.Writing)
+	adminGroup.GET("/drafts", handler.Drafts)
+	adminGroup.GET("/stats", handler.Stats)
+	adminGroup.GET("/metrics", handler.Metrics) // moved from bare-router /metrics (secondary bypass)
+
+	// Each route × {no cookie, invalid cookie}: must return 401 + no leaky body keys.
+	routes := []struct {
+		path      string
+		leakyKeys []string // keys whose presence in the body would indicate the bypass returned
+	}{
+		{"/admin", []string{`"stats"`, `"published"`, `"drafts"`}},
+		{"/admin/writing", []string{`"articles"`, `"article_count"`, `"pub-1"`}},
+		{"/admin/drafts", []string{`"drafts"`, `"draft_count"`, `"Secret Draft"`}},
+		{"/admin/stats", []string{`"published"`, `"drafts"`, `"tags"`}},
+		{"/admin/metrics", []string{`"memory"`, `"goroutines"`, `"uptime"`, `"environment"`}},
+	}
+
+	cookieCases := []struct {
+		name   string
+		cookie *http.Cookie
+	}{
+		{"no_cookie", nil},
+		{"invalid_cookie", &http.Cookie{Name: "_session", Value: "bogus-token"}},
+	}
+
+	for _, r := range routes {
+		for _, cc := range cookieCases {
+			t.Run(r.path+"_"+cc.name, func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, r.path, http.NoBody)
+				req.Header.Set("Accept", "application/json")
+				if cc.cookie != nil {
+					req.AddCookie(cc.cookie)
+				}
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, req)
+
+				assert.Equal(t, http.StatusUnauthorized, w.Code, "JSON request without session must be 401")
+				body := w.Body.String()
+				for _, key := range r.leakyKeys {
+					assert.NotContains(t, body, key, "401 body must not leak %q from %s", key, r.path)
+				}
+			})
+		}
+	}
+}
+
+func TestAdmin_SoftSessionAuth_AuthenticatedJSON_Passes(t *testing.T) {
+	// Targeted-fix check: authenticated JSON callers continue to work.
+	cfg := createTestConfig()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	base := NewBaseHandler(cfg, logger, &MockTemplateService{}, &BuildInfo{Version: "test"}, &MockSEOService{})
+
+	svc := &WritingArticleService{
+		Articles: []*models.Article{
+			{Slug: "ok", Title: "OK", Draft: false, Date: time.Now()},
+		},
+	}
+	handler := NewAdminHandler(base, svc, time.Now())
+
+	store := middleware.NewSessionStore()
+	token, err := store.Create("admin")
+	require.NoError(t, err)
+
+	router := gin.New()
+	adminGroup := router.Group("/admin", middleware.SoftSessionAuth(store, false))
+	adminGroup.GET("/writing", handler.Writing)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/writing", http.NoBody)
+	req.Header.Set("Accept", "application/json")
+	req.AddCookie(&http.Cookie{Name: "_session", Value: token})
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code, "valid session JSON request must succeed")
+	assert.Contains(t, w.Body.String(), `"articles"`, "handler payload must be present for authenticated caller")
+}
+
+func TestAdmin_SoftSessionAuth_UnauthenticatedHTML_StillRenders(t *testing.T) {
+	// Targeted-fix check: HTML callers continue through the soft-fail path
+	// (login overlay), they do NOT get the new 401. This is the asymmetric
+	// design — see SoftSessionAuth comment in internal/middleware/session.go.
+	cfg := createTestConfig()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	base := NewBaseHandler(cfg, logger, &MockTemplateService{}, &BuildInfo{Version: "test"}, &MockSEOService{})
+
+	svc := &WritingArticleService{Articles: []*models.Article{}}
+	handler := NewAdminHandler(base, svc, time.Now())
+
+	store := middleware.NewSessionStore()
+	router := gin.New()
+	adminGroup := router.Group("/admin", middleware.SoftSessionAuth(store, false))
+	adminGroup.GET("/writing", handler.Writing)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/writing", http.NoBody)
+	req.Header.Set("Accept", "text/html")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// HTML callers reach the handler; 200 with the (mock-template) HTML response.
+	// The login overlay is rendered by the template layer, which is mocked here.
+	// We only verify the chain did NOT abort with 401.
+	assert.NotEqual(t, http.StatusUnauthorized, w.Code, "HTML callers must take the soft-fail path, not the JSON-401 path")
 }

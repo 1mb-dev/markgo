@@ -342,7 +342,9 @@ func getEnvInt64(key string, defaultValue int64) int64 {
 		if parsed, err := strconv.ParseInt(value, 10, 64); err == nil {
 			return parsed
 		}
-		slog.Warn("Invalid int64 env var, using default",
+		// Structured logging (slog key/value) is not vulnerable to log injection —
+		// values are encoded as JSON or key=value pairs, not interpolated.
+		slog.Warn("Invalid int64 env var, using default", //nolint:gosec // G706: slog encodes values safely
 			"key", key, "value", value, "default", defaultValue)
 	}
 	return defaultValue

@@ -1,0 +1,4 @@
+# Test fixture in TestSessionAware_ReusesExistingCSRF — a 64-char hex string
+# used as a CSRF cookie value. Not a real secret; introduced in d8d6942
+# (the public-compose CSRF hardening release).
+d8d6942022d5d201546660fd42839e810ef094b6:internal/middleware/session_test.go:generic-api-key:190

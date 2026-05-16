@@ -220,6 +220,7 @@ func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *service
 		middleware.Security(),
 		middleware.RateLimit(cfg.RateLimit.General.Requests, cfg.RateLimit.General.Window),
 		middleware.ErrorHandler(logger),
+		middleware.DiscardBodyOnHEAD(),
 	)
 
 	if cfg.Environment == envDevelopment {
@@ -282,6 +283,16 @@ func configureGinMode(cfg *config.Config, logger *slog.Logger) {
 	}
 }
 
+// registerGET registers the handler on both GET and HEAD. The global
+// DiscardBodyOnHEAD middleware suppresses the response body on HEAD so
+// uptime probes and conditional requests work without per-route changes.
+// Use for any route that should be HEAD-probeable; skip for admin debug
+// and pprof endpoints (not monitor targets).
+func registerGET(r gin.IRoutes, path string, handlerFuncs ...gin.HandlerFunc) {
+	r.GET(path, handlerFuncs...)
+	r.HEAD(path, handlerFuncs...)
+}
+
 func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middleware.SessionStore, secureCookie bool, cfg *config.Config, logger *slog.Logger) { //nolint:funlen // route wiring is inherently long
 	// Static files — filesystem first, embedded fallback
 	if dirExists(cfg.StaticPath) {
@@ -296,7 +307,7 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 		httpFS := http.FS(staticFS)
 		router.StaticFS("/static", httpFS)
 		// Serve sw.js directly from embedded FS (SW scope requires root path)
-		router.GET("/sw.js", func(c *gin.Context) {
+		registerGET(router, "/sw.js", func(c *gin.Context) {
 			c.FileFromFS("sw.js", httpFS)
 		})
 		slog.Info("Using embedded static assets", "checked_path", cfg.StaticPath)
@@ -334,31 +345,32 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 	}
 
 	// Redirect legacy /favicon.ico to SVG favicon
-	router.GET("/favicon.ico", func(c *gin.Context) {
+	registerGET(router, "/favicon.ico", func(c *gin.Context) {
 		c.Redirect(http.StatusMovedPermanently, "/static/img/favicon.svg")
 	})
-	router.GET("/robots.txt", h.Syndication.RobotsTxt)
-	router.GET("/humans.txt", h.Syndication.HumansTxt)
+	registerGET(router, "/robots.txt", h.Syndication.RobotsTxt)
+	registerGET(router, "/humans.txt", h.Syndication.HumansTxt)
 
-	// Health check, metrics, manifest, offline
-	router.GET("/health", h.Health.Health)
-	router.GET("/manifest.json", h.Health.Manifest)
-	router.GET("/offline", h.Health.Offline)
-	router.GET("/metrics", h.Admin.Metrics)
+	// Health check, manifest, offline (public — used by uptime probes + PWA)
+	// /metrics moved into the admin group (line ~419) — it returns admin-tier
+	// data (memory, goroutines, environment) and must not be public.
+	registerGET(router, "/health", h.Health.Health)
+	registerGET(router, "/manifest.json", h.Health.Manifest)
+	registerGET(router, "/offline", h.Health.Offline)
 
 	// Public routes
-	router.GET("/", h.Feed.Home)
-	router.GET("/writing", h.Post.Articles)
-	router.GET("/writing/:slug", h.Post.Article)
-	router.GET("/tags", h.Taxonomy.Tags)
-	router.GET("/tags/:tag", h.Taxonomy.ArticlesByTag)
-	router.GET("/categories", h.Taxonomy.Categories)
-	router.GET("/categories/:category", h.Taxonomy.ArticlesByCategory)
-	router.GET("/search", h.Search.Search)
-	router.GET("/about", h.About.ShowAbout)
+	registerGET(router, "/", h.Feed.Home)
+	registerGET(router, "/writing", h.Post.Articles)
+	registerGET(router, "/writing/:slug", h.Post.Article)
+	registerGET(router, "/tags", h.Taxonomy.Tags)
+	registerGET(router, "/tags/:tag", h.Taxonomy.ArticlesByTag)
+	registerGET(router, "/categories", h.Taxonomy.Categories)
+	registerGET(router, "/categories/:category", h.Taxonomy.ArticlesByCategory)
+	registerGET(router, "/search", h.Search.Search)
+	registerGET(router, "/about", h.About.ShowAbout)
 
 	// /contact redirects to about page; POST stays for form submission
-	router.GET("/contact", func(c *gin.Context) {
+	registerGET(router, "/contact", func(c *gin.Context) {
 		c.Redirect(http.StatusMovedPermanently, "/about#contact")
 	})
 	// Contact: no CSRF (public form, no session side effects, JSON-only, rate-limited)
@@ -374,16 +386,16 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 	}
 
 	// Feeds and SEO
-	router.GET("/feed.xml", h.Syndication.RSS)
-	router.GET("/feed.json", h.Syndication.JSONFeed)
-	router.GET("/sitemap.xml", h.Syndication.Sitemap)
+	registerGET(router, "/feed.xml", h.Syndication.RSS)
+	registerGET(router, "/feed.json", h.Syndication.JSONFeed)
+	registerGET(router, "/sitemap.xml", h.Syndication.Sitemap)
 
 	// Login/logout routes (public, CSRF on login POST)
 	if h.Auth != nil {
 		loginGroup := router.Group("/login")
 		loginGroup.Use(middleware.CSRF(secureCookie))
 		loginGroup.POST("", h.Auth.HandleLogin)
-		router.GET("/logout", h.Auth.HandleLogout)
+		registerGET(router, "/logout", h.Auth.HandleLogout)
 	}
 
 	// Compose routes — all gated behind auth (owner-only feature)
@@ -395,9 +407,9 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 			middleware.NoCache(),
 			middleware.CSRF(secureCookie),
 		)
-		composeGroup.GET("", h.Compose.ShowCompose)
+		registerGET(composeGroup, "", h.Compose.ShowCompose)
 		composeGroup.POST("", h.Compose.HandleSubmit)
-		composeGroup.GET("/edit/:slug", h.Compose.ShowEdit)
+		registerGET(composeGroup, "/edit/:slug", h.Compose.ShowEdit)
 		composeGroup.POST("/edit/:slug", h.Compose.HandleEdit)
 		composeGroup.POST("/preview", h.Compose.Preview)
 		composeGroup.POST("/upload/:slug",
@@ -416,16 +428,17 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 			middleware.NoCache(),
 			middleware.CSRF(secureCookie),
 		)
-		adminGroup.GET("", h.Admin.AdminHome)
-		adminGroup.GET("/writing", h.Admin.Writing)
-		adminGroup.GET("/drafts", h.Admin.Drafts)
+		registerGET(adminGroup, "", h.Admin.AdminHome)
+		registerGET(adminGroup, "/writing", h.Admin.Writing)
+		registerGET(adminGroup, "/drafts", h.Admin.Drafts)
 		adminGroup.POST("/cache/clear", h.ClearCache)
-		adminGroup.GET("/stats", h.Admin.Stats)
+		registerGET(adminGroup, "/stats", h.Admin.Stats)
+		registerGET(adminGroup, "/metrics", h.Admin.Metrics)
 		adminGroup.POST("/articles/reload", h.Admin.ReloadArticles)
 
 		// AMA moderation routes
 		if h.AMA != nil {
-			adminGroup.GET("/ama", h.AMA.ListPending)
+			registerGET(adminGroup, "/ama", h.AMA.ListPending)
 			adminGroup.POST("/ama/:slug/answer", h.AMA.Answer)
 			adminGroup.POST("/ama/:slug/delete", h.AMA.Delete)
 		}
