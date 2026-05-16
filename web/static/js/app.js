@@ -7,7 +7,7 @@
  * Router intercepts links and swaps <main> content without full reloads.
  */
 
-import { NS, key } from './modules/blog-storage.js';
+import { NS, key, BLOG_TITLE } from './modules/blog-storage.js';
 import { init as initNavigation } from './modules/navigation.js';
 import { init as initTheme } from './modules/theme.js';
 import { init as initHighlight } from './modules/highlight.js';
@@ -139,7 +139,7 @@ function showInstallBanner() {
 
     const text = document.createElement('span');
     text.className = 'install-banner-text';
-    text.textContent = 'Install MarkGo for quick access';
+    text.textContent = `Install ${BLOG_TITLE || 'this site'} for quick access`;
 
     const installBtn = document.createElement('button');
     installBtn.className = 'install-banner-btn';
