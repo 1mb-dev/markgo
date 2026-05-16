@@ -2,9 +2,11 @@ package article
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,6 +20,7 @@ import (
 
 	"github.com/1mb-dev/markgo/internal/constants"
 	"github.com/1mb-dev/markgo/internal/models"
+	"github.com/1mb-dev/markgo/internal/services/compose"
 )
 
 // isMarkdownFile checks if a file has a supported Markdown extension
@@ -56,6 +59,7 @@ type Repository interface {
 // FileSystemRepository implements Repository using file system storage
 type FileSystemRepository struct {
 	articlesPath string
+	uploadPath   string
 	logger       *slog.Logger
 	articles     []*models.Article
 	cache        map[string]*models.Article
@@ -64,9 +68,10 @@ type FileSystemRepository struct {
 }
 
 // NewFileSystemRepository creates a new file system-based repository
-func NewFileSystemRepository(articlesPath string, logger *slog.Logger) *FileSystemRepository {
+func NewFileSystemRepository(articlesPath, uploadPath string, logger *slog.Logger) *FileSystemRepository {
 	return &FileSystemRepository{
 		articlesPath: articlesPath,
+		uploadPath:   uploadPath,
 		logger:       logger,
 		cache:        make(map[string]*models.Article),
 		articles:     make([]*models.Article, 0),
@@ -370,12 +375,80 @@ func (r *FileSystemRepository) parseArticleFile(filePath string) (*models.Articl
 		}
 	}
 
+	// Validate banner field. Rejection here causes the caller to skip the article.
+	if err := r.validateBanner(&article); err != nil {
+		return nil, fmt.Errorf("banner validation: %w", err)
+	}
+
 	// Infer post type if not explicitly set
 	if article.Type == "" {
 		article.Type = inferPostType(&article)
 	}
 
+	// Banner is rendered only on essays ("article" type). Warn loudly when set
+	// on other types so writers notice the mismatch instead of wondering why
+	// their banner doesn't show up. See `.claude/CLAUDE.md` for the design rule.
+	if article.Banner != "" && article.Type != "article" {
+		r.logger.Warn("Banner field is essay-only and was ignored",
+			"slug", article.Slug, "type", article.Type, "banner", article.Banner)
+	}
+
 	return &article, nil
+}
+
+// validateBanner enforces banner-field rules. Returns an error to reject the
+// article when banner is malformed (bad scheme, path traversal). A missing
+// file on disk is treated as a soft failure: a warning is logged and the
+// article is kept (the rendered <img> will show a broken-image in the browser,
+// which is the visible failure signal).
+func (r *FileSystemRepository) validateBanner(article *models.Article) error {
+	article.Banner = strings.TrimSpace(article.Banner)
+	article.BannerAlt = strings.TrimSpace(article.BannerAlt)
+	if article.Banner == "" {
+		return nil
+	}
+
+	u, err := url.Parse(article.Banner)
+	if err != nil {
+		r.logger.Error("Banner URL unparseable; article rejected",
+			"slug", article.Slug, "banner", article.Banner, "error", err)
+		return fmt.Errorf("parse banner: %w", err)
+	}
+	if u.Scheme != "" {
+		if u.Scheme != "http" && u.Scheme != "https" {
+			r.logger.Error("Banner scheme not allowed; article rejected",
+				"slug", article.Slug, "banner", article.Banner, "scheme", u.Scheme)
+			return fmt.Errorf("banner scheme %q not allowed", u.Scheme)
+		}
+		return nil
+	}
+
+	// Relative path: containment-check against uploadPath/<slug>/.
+	slugDir, err := compose.ContainSlugPath(r.uploadPath, article.Slug)
+	if err != nil {
+		r.logger.Error("Banner slug containment failed; article rejected",
+			"slug", article.Slug, "error", err)
+		return fmt.Errorf("slug containment: %w", err)
+	}
+	absBase, err := filepath.Abs(r.uploadPath)
+	if err != nil {
+		return fmt.Errorf("resolve upload base: %w", err)
+	}
+	bannerAbs, err := filepath.Abs(filepath.Join(slugDir, article.Banner))
+	if err != nil {
+		return fmt.Errorf("resolve banner path: %w", err)
+	}
+	if !strings.HasPrefix(bannerAbs, absBase+string(os.PathSeparator)) {
+		r.logger.Error("Banner path escapes upload base; article rejected",
+			"slug", article.Slug, "banner", article.Banner)
+		return fmt.Errorf("banner %q: %w", article.Banner, apperrors.ErrPathEscape)
+	}
+
+	if _, statErr := os.Stat(bannerAbs); errors.Is(statErr, os.ErrNotExist) {
+		r.logger.Warn("Banner file not found; rendering anyway",
+			"slug", article.Slug, "banner", article.Banner, "expected_at", bannerAbs)
+	}
+	return nil
 }
 
 // Helper functions

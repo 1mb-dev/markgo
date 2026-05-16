@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	apperrors "github.com/1mb-dev/markgo/internal/errors"
+	"github.com/1mb-dev/markgo/internal/services/compose"
 )
 
 var (
@@ -100,22 +104,14 @@ func (h *ComposeHandler) Upload(c *gin.Context) {
 	}
 	filename := fmt.Sprintf("%d-%s-%s%s", time.Now().UnixMilli(), safeName, hex.EncodeToString(randBytes), ext)
 
-	uploadDir := filepath.Join(h.config.Upload.Path, slug)
-
-	// Containment check: ensure resolved path stays within the configured upload directory.
-	// Prevents path traversal via crafted slugs that resolve outside the upload root.
-	absUploadDir, absErr := filepath.Abs(uploadDir)
-	if absErr != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid upload path"})
-		return
-	}
-	absBasePath, absBaseErr := filepath.Abs(h.config.Upload.Path)
-	if absBaseErr != nil {
+	uploadDir, containErr := compose.ContainSlugPath(h.config.Upload.Path, slug)
+	if containErr != nil {
+		if errors.Is(containErr, apperrors.ErrPathEscape) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid slug"})
+			return
+		}
+		h.logger.Error("Upload containment check failed", "error", containErr)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Server configuration error"})
-		return
-	}
-	if !strings.HasPrefix(absUploadDir, absBasePath+string(os.PathSeparator)) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid slug"})
 		return
 	}
 

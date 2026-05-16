@@ -186,6 +186,96 @@ func TestContentAnalysis(t *testing.T) {
 	}
 }
 
+func TestResolveOGImage_Tiers(t *testing.T) {
+	helper, _ := createTestHelper()
+	baseURL := "https://example.com"
+
+	t.Run("banner takes precedence over inline and default", func(t *testing.T) {
+		a := &models.Article{
+			Slug:    "post",
+			Banner:  "hero.jpg",
+			Content: "![inline](/img/inline.png)\n\nbody",
+		}
+		got := helper.resolveOGImage(a, baseURL)
+		want := "https://example.com/uploads/post/hero.jpg"
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("absolute URL banner passes through", func(t *testing.T) {
+		a := &models.Article{Slug: "post", Banner: "https://cdn.example.com/hero.jpg"}
+		got := helper.resolveOGImage(a, baseURL)
+		if got != "https://cdn.example.com/hero.jpg" {
+			t.Errorf("got %q", got)
+		}
+	})
+
+	t.Run("falls back to first inline image when no banner", func(t *testing.T) {
+		a := &models.Article{
+			Slug:    "post",
+			Content: "intro\n![alt](/img/inline.png)\n\nbody",
+		}
+		got := helper.resolveOGImage(a, baseURL)
+		if !strings.Contains(got, "/img/inline.png") {
+			t.Errorf("expected inline image URL, got %q", got)
+		}
+	})
+
+	t.Run("falls back to static default when no banner and no inline", func(t *testing.T) {
+		a := &models.Article{Slug: "post", Content: "no images here"}
+		got := helper.resolveOGImage(a, baseURL)
+		want := "https://example.com/static/img/og-article-default.png"
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+}
+
+func TestGenerateArticleSchema_BannerPrecedence(t *testing.T) {
+	helper, _ := createTestHelper()
+	a := &models.Article{
+		Slug:    "post",
+		Title:   "Post",
+		Banner:  "hero.jpg",
+		Date:    time.Now(),
+		Content: "![inline](/img/inline.png)\n\nbody",
+	}
+	schema, err := helper.GenerateArticleSchema(a, "https://example.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	img, ok := schema["image"].(map[string]any)
+	if !ok {
+		t.Fatal("schema image must be an ImageObject map")
+	}
+	if !strings.Contains(img["url"].(string), "/uploads/post/hero.jpg") {
+		t.Errorf("schema image should resolve to banner, got %q", img["url"])
+	}
+}
+
+func TestGenerateOpenGraphTags_EmitsSingleOGImage(t *testing.T) {
+	helper, _ := createTestHelper()
+	a := &models.Article{
+		Slug:    "post",
+		Title:   "Post",
+		Banner:  "hero.jpg",
+		Date:    time.Now(),
+		Content: "body",
+	}
+	tags, err := helper.GenerateOpenGraphTags(a, "https://example.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := tags["og:image"]; !ok {
+		t.Fatal("og:image must be present")
+	}
+	// Map keys are unique by definition — but check the value matches banner precedence.
+	if !strings.Contains(tags["og:image"], "/uploads/post/hero.jpg") {
+		t.Errorf("og:image should resolve to banner, got %q", tags["og:image"])
+	}
+}
+
 func TestDisabledHelper(t *testing.T) {
 	mockArticles := &MockArticleService{}
 	siteConfig := services.SiteConfig{BaseURL: "https://example.com"}

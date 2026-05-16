@@ -218,12 +218,9 @@ func (h *Helper) GenerateOpenGraphTags(article *models.Article, baseURL string) 
 		tags["og:description"] = description
 	}
 
-	// Image
-	imageURL := extractFirstImage(article.Content, baseURL, &h.siteConfig)
-	if imageURL != "" {
-		tags["og:image"] = imageURL
-		tags["og:image:alt"] = fmt.Sprintf("Featured image for %s", article.Title)
-	}
+	// Image: 3-tier precedence — banner (declarative) > first inline image > static default.
+	tags["og:image"] = h.resolveOGImage(article, baseURL)
+	tags["og:image:alt"] = fmt.Sprintf("Featured image for %s", article.Title)
 
 	// Article-specific tags
 	tags["article:published_time"] = article.Date.Format("2006-01-02T15:04:05Z07:00")
@@ -272,15 +269,11 @@ func (h *Helper) GenerateTwitterCardTags(article *models.Article, baseURL string
 
 	tags := make(map[string]string)
 
-	// Determine card type based on content
-	imageURL := extractFirstImage(article.Content, baseURL, &h.siteConfig)
-	if imageURL != "" {
-		tags["twitter:card"] = "summary_large_image"
-		tags["twitter:image"] = imageURL
-		tags["twitter:image:alt"] = fmt.Sprintf("Featured image for %s", article.Title)
-	} else {
-		tags["twitter:card"] = "summary"
-	}
+	// Image: 3-tier precedence matches OG (banner > inline > default).
+	// Always emit summary_large_image since we always have *some* image now.
+	tags["twitter:card"] = "summary_large_image"
+	tags["twitter:image"] = h.resolveOGImage(article, baseURL)
+	tags["twitter:image:alt"] = fmt.Sprintf("Featured image for %s", article.Title)
 
 	// Basic Twitter tags
 	tags["twitter:title"] = article.Title
@@ -457,8 +450,9 @@ func (h *Helper) GenerateArticleSchema(article *models.Article, baseURL string) 
 		return nil, fmt.Errorf("failed to build article URL: %w", err)
 	}
 
-	// Extract first image from content if available
-	imageURL := extractFirstImage(article.Content, baseURL, &h.siteConfig)
+	// Resolve image via the same 3-tier precedence as og:image so banner
+	// intent flows through to Schema.org consumers (Google Knowledge Graph, etc.).
+	imageURL := h.resolveOGImage(article, baseURL)
 
 	schema := map[string]interface{}{
 		"@context": "https://schema.org",
@@ -688,6 +682,27 @@ func (h *Helper) AnalyzeContent(content string) (*services.SEOAnalysis, error) {
 }
 
 // Private helper functions
+
+// resolveOGImage applies the 3-tier OG image precedence:
+//  1. article.Banner (declarative; writer's explicit choice)
+//  2. first inline image found in content (graceful auto-fallback)
+//  3. /static/img/og-article-default.png (static default)
+//
+// Returns an absolute URL. The banner tier preserves writer intent; the
+// inline-image tier preserves pre-banner behavior for articles that didn't
+// opt into the new field.
+func (h *Helper) resolveOGImage(article *models.Article, baseURL string) string {
+	if src := article.BannerSrc(); src != "" {
+		if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
+			return src
+		}
+		return strings.TrimRight(baseURL, "/") + src
+	}
+	if inline := extractFirstImage(article.Content, baseURL, &h.siteConfig); inline != "" {
+		return inline
+	}
+	return strings.TrimRight(baseURL, "/") + "/static/img/og-article-default.png"
+}
 
 func (h *Helper) buildArticleURL(slug string) (string, error) {
 	baseURL, err := url.Parse(h.siteConfig.BaseURL)

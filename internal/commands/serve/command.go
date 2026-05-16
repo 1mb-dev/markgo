@@ -158,7 +158,7 @@ func Run(args []string) {
 
 func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *services.TemplateService, error) {
 	// Initialize services
-	articleService, err := services.NewArticleService(cfg.ArticlesPath, logger)
+	articleService, err := services.NewArticleService(cfg.ArticlesPath, cfg.Upload.Path, logger)
 	if err != nil {
 		return nil, nil, fmt.Errorf("article service: %w", err)
 	}

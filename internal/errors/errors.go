@@ -18,6 +18,7 @@ var (
 	ErrCLIValidation      = errors.New("CLI validation failed")
 	ErrConfigValidation   = errors.New("configuration validation failed")
 	ErrMissingConfig      = errors.New("missing required configuration")
+	ErrPathEscape         = errors.New("path escapes containment base")
 )
 
 // ConfigError represents a configuration-related error

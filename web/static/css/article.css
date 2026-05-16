@@ -3,6 +3,20 @@
    Type-aware reading layout: article, thought, link
    ========================================================================== */
 
+/* Banner (essay-only). Appears above .article-header when frontmatter sets banner. */
+.article-banner {
+    margin-bottom: var(--spacing-6);
+}
+
+.article-banner img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 1;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+    background-color: var(--color-border);
+}
+
 /* Header */
 .article-header {
     margin-bottom: var(--spacing-6);

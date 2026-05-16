@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Per-article banner image: optional `banner` + `banner_alt` frontmatter fields
+render a hero image above the title on essays and drive social-share previews
+(#51). Image sources flow through the same containment invariant as compose
+uploads, so banners travel alongside other slug-scoped assets without a new
+storage location to learn.
+
+### Added
+
+- **Banner image on essays** (#51) — set `banner: hero.jpg` in frontmatter to
+  render a header image above the article title. Banner accepts a relative
+  path (resolved against `uploads/<slug>/`) or an absolute `http(s)://` URL.
+  `banner_alt` provides alt text; if omitted, the article title is used.
+  Banner is the top-precedence source for `og:image` and Twitter card image;
+  it also populates the `image` field on JSON Feed entries.
+- **3-tier OG image precedence** — banner (declarative override) → first
+  inline image in content (graceful fallback for pre-banner articles) →
+  static default. Every article now emits exactly one `og:image` regardless
+  of content shape.
+- **`compose.ContainSlugPath` helper** — shared path-traversal containment
+  for slug-scoped asset paths. Extracted from the upload handler so banner
+  load-time validation enforces the same invariant.
+
+### Notes
+
+- **Essay-only by design.** Banner renders only on `type: article`. Setting
+  it on thoughts, links, or AMA posts logs a warning and is otherwise
+  ignored — each non-essay type has its own visual shape.
+- **Validation.** Disallowed URL schemes (`javascript:`, `data:`, `file://`)
+  and path-traversal attempts reject the article at load time. Missing files
+  for relative paths log a warning and render anyway (browser broken-image
+  is the visible failure signal).
+- **Known limitation:** uploads associated with a deleted article (banner,
+  inline images) are not cleaned up automatically. This is a pre-existing
+  condition that predates the banner feature; a hygiene PR will address it
+  separately.
+
 ---
 
 ## [3.9.0] - 2026-05-16

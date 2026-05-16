@@ -1,7 +1,9 @@
 package article
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -66,12 +68,51 @@ This is a featured article.
 func setupTestRepo(t *testing.T, files map[string]string) *FileSystemRepository {
 	t.Helper()
 	dir := t.TempDir()
+	uploadDir := t.TempDir()
 	for name, content := range files {
 		path := filepath.Join(dir, name)
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
 		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 	}
-	return NewFileSystemRepository(dir, slog.Default())
+	return NewFileSystemRepository(dir, uploadDir, slog.Default())
+}
+
+// setupRepoWithUploads creates a repo with article files AND banner asset files
+// under uploads/<slug>/. Returns the repo and a captured-log buffer for assertions.
+func setupRepoWithUploads(t *testing.T, articles map[string]string, uploads map[string][]byte) (*FileSystemRepository, *bytes.Buffer) {
+	t.Helper()
+	articlesDir := t.TempDir()
+	uploadDir := t.TempDir()
+	for name, content := range articles {
+		path := filepath.Join(articlesDir, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	}
+	for relPath, content := range uploads {
+		full := filepath.Join(uploadDir, relPath)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o750))
+		require.NoError(t, os.WriteFile(full, content, 0o600))
+	}
+	logBuf := &bytes.Buffer{}
+	logger := slog.New(slog.NewTextHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	return NewFileSystemRepository(articlesDir, uploadDir, logger), logBuf
+}
+
+// articleWithBanner builds a minimal valid article markdown with banner fields.
+func articleWithBanner(slug, banner, bannerAlt string) string {
+	return fmt.Sprintf(`---
+title: "Post %s"
+description: "post"
+date: 2025-06-15T10:00:00Z
+slug: "%s"
+banner: "%s"
+banner_alt: "%s"
+---
+
+# %s
+
+Body content here for word count.
+`, slug, slug, banner, bannerAlt, slug)
 }
 
 func TestLoadAll_ValidFiles(t *testing.T) {
@@ -375,4 +416,93 @@ func TestIsMarkdownFile(t *testing.T) {
 	assert.True(t, isMarkdownFile("article.mkd"))
 	assert.False(t, isMarkdownFile("article.txt"))
 	assert.False(t, isMarkdownFile("article.html"))
+}
+
+func TestBannerValidation_TraversalRejected(t *testing.T) {
+	repo, _ := setupRepoWithUploads(t,
+		map[string]string{"post.md": articleWithBanner("malicious", "../../../etc/passwd", "")},
+		nil,
+	)
+	articles, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, articles, "article with traversal banner must be rejected")
+}
+
+func TestBannerValidation_DangerousSchemeRejected(t *testing.T) {
+	repo, _ := setupRepoWithUploads(t,
+		map[string]string{"post.md": articleWithBanner("xss-attempt", "javascript:alert(1)", "")},
+		nil,
+	)
+	articles, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, articles, "article with javascript: scheme must be rejected")
+}
+
+func TestBannerValidation_AbsoluteURLAccepted(t *testing.T) {
+	repo, _ := setupRepoWithUploads(t,
+		map[string]string{"post.md": articleWithBanner("cdn-banner", "https://cdn.example.com/img/hero.jpg", "Cover")},
+		nil,
+	)
+	articles, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+	require.Len(t, articles, 1)
+	assert.Equal(t, "https://cdn.example.com/img/hero.jpg", articles[0].Banner)
+	assert.Equal(t, "https://cdn.example.com/img/hero.jpg", articles[0].BannerSrc())
+}
+
+func TestBannerValidation_RelativePathFileExists(t *testing.T) {
+	repo, _ := setupRepoWithUploads(t,
+		map[string]string{"post.md": articleWithBanner("local-banner", "hero.jpg", "Cover")},
+		map[string][]byte{"local-banner/hero.jpg": []byte("fakeimg")},
+	)
+	articles, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+	require.Len(t, articles, 1)
+	assert.Equal(t, "hero.jpg", articles[0].Banner)
+	assert.Equal(t, "/uploads/local-banner/hero.jpg", articles[0].BannerSrc())
+}
+
+func TestBannerValidation_RelativePathMissingFile(t *testing.T) {
+	repo, logBuf := setupRepoWithUploads(t,
+		map[string]string{"post.md": articleWithBanner("missing-banner", "ghost.jpg", "")},
+		nil, // no upload file
+	)
+	articles, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+	require.Len(t, articles, 1, "article should load despite missing banner file")
+	assert.Equal(t, "ghost.jpg", articles[0].Banner)
+	assert.Contains(t, logBuf.String(), "Banner file not found")
+}
+
+func TestBannerValidation_WarnOnNonEssayType(t *testing.T) {
+	thoughtMD := `---
+date: 2025-06-15T10:00:00Z
+slug: "just-a-thought"
+banner: "ignored.jpg"
+---
+
+Short thought.
+`
+	repo, logBuf := setupRepoWithUploads(t,
+		map[string]string{"thought.md": thoughtMD},
+		map[string][]byte{"just-a-thought/ignored.jpg": []byte("img")},
+	)
+	articles, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+	require.Len(t, articles, 1)
+	assert.Equal(t, "thought", articles[0].Type)
+	assert.Contains(t, logBuf.String(), "Banner field is essay-only")
+}
+
+func TestBannerValidation_EmptyFieldsNoBanner(t *testing.T) {
+	repo, logBuf := setupRepoWithUploads(t,
+		map[string]string{"post.md": articleWithBanner("no-banner", "", "")},
+		nil,
+	)
+	articles, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+	require.Len(t, articles, 1)
+	assert.Empty(t, articles[0].Banner)
+	assert.Empty(t, articles[0].BannerSrc())
+	assert.NotContains(t, logBuf.String(), `msg="Banner`)
 }

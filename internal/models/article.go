@@ -23,6 +23,8 @@ type Article struct {
 	LinkURL      string    `yaml:"link_url,omitempty" json:"link_url,omitempty"`
 	Asker        string    `yaml:"asker,omitempty" json:"asker,omitempty"`
 	AskerEmail   string    `yaml:"asker_email,omitempty" json:"asker_email,omitempty"`
+	Banner       string    `yaml:"banner,omitempty" json:"banner,omitempty"`
+	BannerAlt    string    `yaml:"banner_alt,omitempty" json:"banner_alt,omitempty"`
 	Content      string    `yaml:"-" json:"content"`
 	ReadingTime  int       `yaml:"-" json:"reading_time"`
 	WordCount    int       `yaml:"-" json:"word_count"`
@@ -35,6 +37,29 @@ type Article struct {
 
 // mdSyntax matches common markdown formatting syntax for stripping.
 var mdSyntax = regexp.MustCompile(`[*_~` + "`" + `\[\]#>]+`)
+
+// BannerSrc returns the HTTP-servable URL for the banner image.
+// Absolute URLs (http/https) pass through; relative paths resolve to
+// /uploads/<slug>/<banner>. Returns empty string when banner is unset.
+func (a *Article) BannerSrc() string {
+	if a.Banner == "" {
+		return ""
+	}
+	if strings.HasPrefix(a.Banner, "http://") || strings.HasPrefix(a.Banner, "https://") {
+		return a.Banner
+	}
+	return "/uploads/" + a.Slug + "/" + a.Banner
+}
+
+// BannerAltText returns the alt text for the banner. Falls back to the
+// article title when banner_alt is unset; intentionally avoids template-side
+// branching so the fallback is testable in isolation.
+func (a *Article) BannerAltText() string {
+	if a.BannerAlt != "" {
+		return a.BannerAlt
+	}
+	return a.Title
+}
 
 // DisplayTitle returns the article title, or synthesizes one from content
 // for titleless posts (thoughts). Strips markdown syntax for clean display
