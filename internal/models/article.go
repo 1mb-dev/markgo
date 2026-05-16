@@ -51,6 +51,16 @@ func (a *Article) BannerSrc() string {
 	return "/uploads/" + a.Slug + "/" + a.Banner
 }
 
+// BannerAltText returns the alt text for the banner. Falls back to the
+// article title when banner_alt is unset; intentionally avoids template-side
+// branching so the fallback is testable in isolation.
+func (a *Article) BannerAltText() string {
+	if a.BannerAlt != "" {
+		return a.BannerAlt
+	}
+	return a.Title
+}
+
 // DisplayTitle returns the article title, or synthesizes one from content
 // for titleless posts (thoughts). Strips markdown syntax for clean display
 // in meta tags, feeds, and other plain-text contexts.

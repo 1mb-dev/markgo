@@ -50,6 +50,13 @@
 
             {{ else }}
             <!-- Article detail -->
+            {{ if .article.Banner }}
+            <header class="article-banner">
+                <img src="{{ .article.BannerSrc }}"
+                     alt="{{ .article.BannerAltText }}"
+                     loading="lazy" decoding="async">
+            </header>
+            {{ end }}
             <header class="article-header">
                 <div class="article-meta">
                     <time class="article-date" datetime="{{ .article.Date.Format "2006-01-02T15:04:05Z07:00" }}">

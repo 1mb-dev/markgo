@@ -96,6 +96,25 @@ func TestPagination(t *testing.T) {
 	assert.False(t, pagination.HasPrevious)
 }
 
+func TestArticleBannerAltText(t *testing.T) {
+	tests := []struct {
+		name      string
+		title     string
+		bannerAlt string
+		want      string
+	}{
+		{"explicit alt wins", "My Post", "A red sunset", "A red sunset"},
+		{"empty alt falls back to title", "My Post", "", "My Post"},
+		{"empty alt and empty title", "", "", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a := Article{Title: tc.title, BannerAlt: tc.bannerAlt}
+			assert.Equal(t, tc.want, a.BannerAltText())
+		})
+	}
+}
+
 func TestArticleBannerYAMLRoundTrip(t *testing.T) {
 	src := []byte("title: Post\nbanner: hero.jpg\nbanner_alt: A red sunset\n")
 	var a Article
