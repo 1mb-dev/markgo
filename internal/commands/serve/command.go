@@ -340,11 +340,12 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 	router.GET("/robots.txt", h.Syndication.RobotsTxt)
 	router.GET("/humans.txt", h.Syndication.HumansTxt)
 
-	// Health check, metrics, manifest, offline
+	// Health check, manifest, offline (public — used by uptime probes + PWA)
+	// /metrics moved into the admin group (line ~419) — it returns admin-tier
+	// data (memory, goroutines, environment) and must not be public.
 	router.GET("/health", h.Health.Health)
 	router.GET("/manifest.json", h.Health.Manifest)
 	router.GET("/offline", h.Health.Offline)
-	router.GET("/metrics", h.Admin.Metrics)
 
 	// Public routes
 	router.GET("/", h.Feed.Home)
@@ -421,6 +422,7 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 		adminGroup.GET("/drafts", h.Admin.Drafts)
 		adminGroup.POST("/cache/clear", h.ClearCache)
 		adminGroup.GET("/stats", h.Admin.Stats)
+		adminGroup.GET("/metrics", h.Admin.Metrics)
 		adminGroup.POST("/articles/reload", h.Admin.ReloadArticles)
 
 		// AMA moderation routes

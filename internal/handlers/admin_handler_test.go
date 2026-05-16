@@ -273,6 +273,7 @@ func TestAdmin_SoftSessionAuth_JSONBypass_Closed(t *testing.T) {
 	adminGroup.GET("/writing", handler.Writing)
 	adminGroup.GET("/drafts", handler.Drafts)
 	adminGroup.GET("/stats", handler.Stats)
+	adminGroup.GET("/metrics", handler.Metrics) // moved from bare-router /metrics (secondary bypass)
 
 	// Each route × {no cookie, invalid cookie}: must return 401 + no leaky body keys.
 	routes := []struct {
@@ -283,6 +284,7 @@ func TestAdmin_SoftSessionAuth_JSONBypass_Closed(t *testing.T) {
 		{"/admin/writing", []string{`"articles"`, `"article_count"`, `"pub-1"`}},
 		{"/admin/drafts", []string{`"drafts"`, `"draft_count"`, `"Secret Draft"`}},
 		{"/admin/stats", []string{`"published"`, `"drafts"`, `"tags"`}},
+		{"/admin/metrics", []string{`"memory"`, `"goroutines"`, `"uptime"`, `"environment"`}},
 	}
 
 	cookieCases := []struct {
