@@ -6,6 +6,10 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <script>try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);var c=localStorage.getItem("colorTheme");if(c)document.documentElement.setAttribute("data-color-theme",c)}catch(e){}</script>
 
+    <!-- Blog identity for JS (install banner, storage namespacing) -->
+    <meta name="application-name" content="{{ .config.Blog.Title }}">
+    <meta name="markgo-storage-namespace" content="{{ storageNamespace .config.BaseURL }}">
+
     <!-- Primary Meta Tags -->
     <title>{{ if .title }}{{ .title }}{{ else }}{{ .config.Blog.Title }}{{ end }}</title>
 

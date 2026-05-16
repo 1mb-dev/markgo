@@ -518,6 +518,21 @@ func TestTemplateFunctions_UtilityOperations(t *testing.T) {
 	result = slugifyFunc("Hello World! This is a Test")
 	assert.Equal(t, "hello-world-this-is-a-test", result)
 
+	// Test storageNamespace function
+	nsFunc := funcMap["storageNamespace"].(func(string) string)
+	cases := map[string]string{
+		"":                              "markgo:default",
+		"https://blog.example-a.com":    "markgo:blog-example-a-com",
+		"https://blog.example-b.com":    "markgo:blog-example-b-com",
+		"https://blog.example.com/":     "markgo:blog-example-com",
+		"https://site.com/blog-a":       "markgo:site-com-blog-a",
+		"http://localhost:3000":         "markgo:localhost-3000",
+		"https://blog.example.com:8443": "markgo:blog-example-com-8443",
+	}
+	for input, want := range cases {
+		assert.Equal(t, want, nsFunc(input), "input=%q", input)
+	}
+
 	// Test isNil function
 	isNilFunc := funcMap["isNil"].(func(any) bool)
 	assert.True(t, isNilFunc(nil))

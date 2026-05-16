@@ -526,6 +526,34 @@ var templateFuncs = template.FuncMap{
 		}
 		return b.String()
 	},
+	// storageNamespace derives a client-storage namespace from the install's BaseURL.
+	// URL-aware: '.', '/', ':' all become '-' (slugify would drop them).
+	// Used to namespace localStorage keys and IndexedDB names so same-origin
+	// path-mounted MarkGo instances don't collide. Empty BaseURL → "markgo:default".
+	"storageNamespace": func(baseURL string) string {
+		src := strings.TrimPrefix(baseURL, "https://")
+		src = strings.TrimPrefix(src, "http://")
+		src = strings.TrimSuffix(src, "/")
+		if src == "" {
+			return "markgo:default"
+		}
+		var b strings.Builder
+		b.WriteString("markgo:")
+		dashed := true // suppress leading dash
+		for _, r := range strings.ToLower(src) {
+			switch {
+			case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+				b.WriteRune(r)
+				dashed = false
+			default:
+				if !dashed {
+					b.WriteRune('-')
+					dashed = true
+				}
+			}
+		}
+		return strings.TrimSuffix(b.String(), "-")
+	},
 	"timeAgo": func(date time.Time) string {
 		if date.IsZero() {
 			return ""
