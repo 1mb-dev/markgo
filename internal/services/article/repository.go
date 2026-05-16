@@ -544,7 +544,7 @@ func (r *FileSystemRepository) writeFileAtomically(filePath, content string) err
 
 	// Create backup of original file before writing
 	backupPath := filePath + ".backup"
-	if err := os.WriteFile(backupPath, originalContent, 0o600); err != nil {
+	if err := os.WriteFile(backupPath, originalContent, 0o600); err != nil { //nolint:gosec // G703: backupPath is filePath+".backup"; filePath is already validated upstream (see G304 nosec on prior line)
 		r.logger.Warn("Failed to create backup file", "original", filePath, "backup", backupPath, "error", err)
 	}
 

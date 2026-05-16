@@ -159,26 +159,26 @@ func (h *Helper) GenerateRobotsTxt() ([]byte, error) {
 	if userAgent == "" {
 		userAgent = "*"
 	}
-	builder.WriteString(fmt.Sprintf("User-agent: %s\n", userAgent))
+	fmt.Fprintf(&builder, "User-agent: %s\n", userAgent)
 
 	// Allow directives
 	for _, allow := range h.robotsConfig.Allow {
-		builder.WriteString(fmt.Sprintf("Allow: %s\n", allow))
+		fmt.Fprintf(&builder, "Allow: %s\n", allow)
 	}
 
 	// Disallow directives
 	for _, disallow := range h.robotsConfig.Disallow {
-		builder.WriteString(fmt.Sprintf("Disallow: %s\n", disallow))
+		fmt.Fprintf(&builder, "Disallow: %s\n", disallow)
 	}
 
 	// Crawl delay
 	if h.robotsConfig.CrawlDelay > 0 {
-		builder.WriteString(fmt.Sprintf("Crawl-delay: %d\n", h.robotsConfig.CrawlDelay))
+		fmt.Fprintf(&builder, "Crawl-delay: %d\n", h.robotsConfig.CrawlDelay)
 	}
 
 	// Sitemap URL
 	if h.robotsConfig.SitemapURL != "" {
-		builder.WriteString(fmt.Sprintf("\nSitemap: %s\n", h.robotsConfig.SitemapURL))
+		fmt.Fprintf(&builder, "\nSitemap: %s\n", h.robotsConfig.SitemapURL)
 	}
 
 	h.logger.Debug("Generated robots.txt", "size", builder.Len())
