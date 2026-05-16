@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [3.10.0] - 2026-05-16
+
 Per-article banner image: optional `banner` + `banner_alt` frontmatter fields
 render a hero image above the title on essays and drive social-share previews
 (#51). Image sources flow through the same containment invariant as compose
