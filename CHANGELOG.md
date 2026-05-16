@@ -19,7 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path-mounted MarkGo instances no longer collide. Existing v3.8 data is
   auto-migrated on first load; the legacy `markgo` IndexedDB is drained
   into the new database, then deleted. Migration is idempotent and
-  fail-closed.
+  fail-closed. **Breaking change for downgrades** — once migration runs,
+  rolling back to v3.8 finds an empty legacy `markgo` IndexedDB; any offline
+  posts that were drained are not readable by v3.8 and would be lost.
 - **Note:** browsers with `localStorage` disabled (Safari private mode,
   quota exhausted) skip the migration. Existing v3.8 data remains under
   legacy keys but is unreadable by v3.9 — these browsers start with empty

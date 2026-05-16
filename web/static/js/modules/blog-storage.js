@@ -1,10 +1,15 @@
 /**
- * Blog Storage — single source of truth for client-side storage namespacing.
+ * Blog Storage — namespacing for engine-owned client storage.
  *
  * The server computes a per-install namespace from Config.BaseURL and exposes
- * it via <meta name="markgo-storage-namespace" content="markgo:slug">. This
- * module is the sole consumer; all localStorage keys and the IndexedDB name
- * derive from `NS` so same-origin path-mounted MarkGo installs don't collide.
+ * it via <meta name="markgo-storage-namespace" content="markgo:slug">. All
+ * `markgo:`-prefixed localStorage keys and the IndexedDB DB name derive from
+ * `NS` here, so same-origin path-mounted MarkGo installs don't collide on
+ * compose drafts, install-banner state, or offline post queues.
+ *
+ * Out of scope: `theme` and `colorTheme` localStorage keys are intentionally
+ * bare so the FOUC inline script in base.html can read them before any
+ * module loads. They share across path-mounted instances by design.
  *
  * Update this module and `storageNamespace` in internal/services/template.go
  * in sync — they're two ends of the same contract.

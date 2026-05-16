@@ -42,10 +42,19 @@ try {
             }
             const newK = key(suffix);
             const v = localStorage.getItem(k);
-            if (v !== null && localStorage.getItem(newK) === null) {
+            const existing = localStorage.getItem(newK);
+            if (v === null || existing === v) {
+                // Empty source or identical target — safe to drop source.
+                localStorage.removeItem(k);
+            } else if (existing === null) {
+                // Migrate: copy then drop.
                 localStorage.setItem(newK, v);
+                localStorage.removeItem(k);
             }
-            localStorage.removeItem(k);
+            // else: conflict (target already has a different value) — keep
+            // both. FLAG below skips this loop on next session, so the
+            // orphaned source key persists for manual inspection rather than
+            // silently losing user data.
         }
         localStorage.setItem(FLAG, '1');
     }
