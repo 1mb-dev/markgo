@@ -9,6 +9,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.8.0] - 2026-05-16
+
+**Upgrade priority: HIGH** — closes an authentication bypass that allowed
+unauthenticated `Accept: application/json` requests to read admin data
+(drafts, article list, memory/goroutine stats, pending AMA submissions).
+Self-hosted operators on <= v3.7.0 should upgrade immediately. Also lifts
+HEAD probes to first-class, fixes AMA filename mislabeling, and brings
+dark mode link contrast to WCAG AA.
+
+### Security
+
+- **Admin JSON auth bypass fixed** (#42) — `Accept: application/json` requests
+  to `SoftSessionAuth`-mounted routes (`/admin/*`, `/compose/*`) previously
+  bypassed the HTML login overlay and returned data without authentication.
+  Fix is at the middleware layer; all current and future routes under this
+  middleware are now protected by default. The HTML soft-fail path (login
+  overlay) is preserved for browser callers.
+- **`/metrics` moved behind admin auth** — secondary bypass discovered during
+  fix review. Memory, goroutine, uptime, and environment JSON was reachable
+  on the bare router with no authentication. Now mounted under the admin
+  group at `/admin/metrics`. **Breaking change for `/metrics` consumers** —
+  scrapers must now authenticate via admin session cookie.
+
+### Added
+
+- **HEAD method support on all public + admin routes** (#43) — uptime probes
+  (UptimeRobot, Pingdom, Better Stack) and conditional requests now return
+  proper status codes instead of 404. Implemented via global
+  `DiscardBodyOnHEAD` middleware that wraps the response writer for HEAD,
+  plus a `registerGET` helper that registers each public/admin GET on both
+  methods. Debug and pprof groups deliberately skipped (admin tooling, not
+  monitor targets).
+- **SECURITY.md** — disclosure policy with threat model, reporting channels,
+  supported-versions table, and 90-day coordinated disclosure window.
+
+### Fixed
+
+- **AMA submission filenames** (#44) — files were written as
+  `<date>-thought-<id>.md` regardless of content type. New `slugPrefixFor`
+  helper derives the prefix from `input.Type` so AMA submissions land as
+  `<date>-ama-<id>.md`. Empty type still maps to `thought` (preserves
+  historical default); truly unknown types fall back to neutral `post`.
+- **Dark mode link contrast** — default and Berry presets failed WCAG AA
+  (3.3:1) against the dark surface. Dark mode now overrides
+  `--color-primary` to lighter shades (default 7.0:1, Berry 6.8:1);
+  Ocean, Forest, and Sunset already passed and are untouched.
+
+### Tests
+
+- **SoftSessionAuth JSON-bypass regression net** — 19 cases at the
+  middleware level (Accept-header variants, auth state combinations) and
+  10 cases wiring real middleware + admin handlers (no leaky keys
+  assertions). Earlier admin tests exercised handlers without middleware
+  and would not have caught the bypass.
+- **Authenticated AMA happy-path E2E** — public submit, unauthenticated
+  moderation rejected, authenticated moderation persists answer to disk.
+
+### Changed
+
+- **Lint**: 14 pre-existing staticcheck findings cleared (`WriteString(fmt.Sprintf(...))`
+  → `fmt.Fprintf(...)`); two gosec warnings annotated with reasoning (log
+  injection false positive on structured slog; G703 already covered by
+  sibling G304 nosec).
+- **CI**: `golangci-lint` pinned from v2.9.0 to v2.11.4 to match local;
+  future bumps via dependabot.
+- **Branch protection**: `main` now requires 4 CI checks (Lint, Test,
+  Security, Build) — enables dependabot auto-merge.
+
+### Deferred to v3.9
+
+Items intentionally left for the next cycle (rationale in
+`todos/releases/v3.8.0/`):
+
+- JavaScript test framework decision (architecture pending)
+- Tests for `compose.js` and `router.js` (depends on framework choice)
+- HTML fallback for unauthenticated XHR responses (low-value progressive
+  enhancement)
+- Robust handling of malformed URLs in link-type submissions
+
+---
+
 ## [3.7.0] - 2026-02-15
 
 AMA (Ask Me Anything) — a fourth content type. Readers submit questions via FAB or bottom nav, author moderates and answers from admin, published Q&As flow into the home feed.
