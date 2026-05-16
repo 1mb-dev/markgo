@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [3.10.1] - 2026-05-17
+
+Patch release with two bundled improvements. Banner addressing gains a
+third form: server-absolute paths (`/static/img/...`) for source-controlled
+editorial assets shipped alongside the deploy harness (#54). Color preset
+picker becomes responsive — hovering or focusing a swatch live-previews
+the change on the whole page, and dark-mode contrast is finally
+AA-comfortable on all four presets, not just berry (#56).
+
 ### Added
 
 - Server-absolute banner paths: `banner` now accepts values starting with `/`
