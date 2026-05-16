@@ -8,13 +8,15 @@
  * Uses e.submitter + FormData to distinguish which button was clicked.
  *
  * Auto-save: debounced localStorage save for all form fields.
- * Separate key (markgo:compose-full-draft) from quick compose.
+ * Separate key (compose-full-draft) from quick compose (compose-draft);
+ * both namespaced via blog-storage.js.
  */
 
 import { showToast } from './modules/toast.js';
 import { authenticatedFetch } from './modules/auth-fetch.js';
+import { key } from './modules/blog-storage.js';
 
-const FULL_DRAFT_KEY = 'markgo:compose-full-draft';
+const FULL_DRAFT_KEY = key('compose-full-draft');
 const SAVE_DELAY = 2000;
 
 let ac = null;
