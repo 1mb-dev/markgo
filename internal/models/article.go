@@ -176,7 +176,6 @@ type FeedItem struct {
 	ContentHTML string    `json:"content_html"`
 	URL         string    `json:"url"`
 	Summary     string    `json:"summary"`
-	Image       string    `json:"image,omitempty"`
 	Published   time.Time `json:"date_published"`
 	Modified    time.Time `json:"date_modified"`
 	Tags        []string  `json:"tags"`
