@@ -1073,13 +1073,44 @@ html {
     --color-success: #10b981;
 }
 
-/* Berry dark-mode override — light-mode #9333ea scores 3.3:1 on #0f172a (fails AA).
-   Lift to purple-400 (#c084fc) for 6.8:1; hover to purple-300 (#d8b4fe) for separation. */
+/* Dark-mode contrast lifts — light-mode -600 primaries fail or borderline-fail
+   WCAG AA (4.5:1) on #0f172a (berry 3.3:1 fails; ocean 4.8:1 and forest 4.7:1
+   are borderline; sunset 5.1:1 passes but lifted for consistency). Lift to
+   the -400 step (primary) and -300 (hover) for AA-comfortable contrast and
+   natural lighter-on-hover affordance. --color-accent is intentionally left
+   alone — accent appears in narrow contexts where the light-mode value still
+   reads adequately, and the cosmetic collision with the lifted primary is
+   acceptable. Auto-mode (@media) and manual-mode ([data-theme="dark"]) carry
+   the same values. */
 @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"])[data-color-theme="ocean"] {
+        --color-primary: #22d3ee;
+        --color-primary-dark: #67e8f9;
+    }
+    :root:not([data-theme="light"])[data-color-theme="forest"] {
+        --color-primary: #34d399;
+        --color-primary-dark: #6ee7b7;
+    }
+    :root:not([data-theme="light"])[data-color-theme="sunset"] {
+        --color-primary: #fb923c;
+        --color-primary-dark: #fdba74;
+    }
     :root:not([data-theme="light"])[data-color-theme="berry"] {
         --color-primary: #c084fc;
         --color-primary-dark: #d8b4fe;
     }
+}
+[data-theme="dark"][data-color-theme="ocean"] {
+    --color-primary: #22d3ee;
+    --color-primary-dark: #67e8f9;
+}
+[data-theme="dark"][data-color-theme="forest"] {
+    --color-primary: #34d399;
+    --color-primary-dark: #6ee7b7;
+}
+[data-theme="dark"][data-color-theme="sunset"] {
+    --color-primary: #fb923c;
+    --color-primary-dark: #fdba74;
 }
 [data-theme="dark"][data-color-theme="berry"] {
     --color-primary: #c084fc;
