@@ -186,8 +186,8 @@ func TestSessionAware_ReusesExistingCSRF(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	store := NewSessionStore()
 
-	// Valid 64-char hex token (32 bytes encoded)
-	validToken := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+	// Valid 64-char hex token (32 bytes encoded) — test fixture, not a real secret
+	validToken := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789" //gitleaks:allow
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
