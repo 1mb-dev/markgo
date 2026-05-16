@@ -163,8 +163,20 @@ func SoftSessionAuth(store *SessionStore, secureCookie bool) gin.HandlerFunc {
 			c.SetCookie(sessionCookieName, "", -1, "/", "", secureCookie, true)
 		}
 
-		// Not authenticated
+		// Not authenticated.
+		//
+		// Asymmetric handling on GET/HEAD is intentional:
+		//   HTML callers → soft-fail with the login overlay (auth_required flag),
+		//                  preserving SPA UX where the same URL serves owner + reader.
+		//   JSON callers → hard 401, because no overlay path applies and silent
+		//                  fall-through would leak handler data (see GHSA / #42).
+		// Do NOT collapse this asymmetry without revisiting the bypass class.
 		if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead {
+			if wantsJSON(c) {
+				slog.Warn("Unauthenticated JSON request", "method", c.Request.Method, "path", c.Request.URL.Path)
+				abortWithError(c, http.StatusUnauthorized, "Authentication required")
+				return
+			}
 			c.Set("auth_required", true)
 			// Generate CSRF token for the login popover form
 			GenerateCSRFToken(c, secureCookie)
