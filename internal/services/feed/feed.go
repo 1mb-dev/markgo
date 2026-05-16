@@ -102,7 +102,7 @@ func (s *Service) GenerateJSONFeed() (string, error) {
 			if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
 				item["image"] = src
 			} else {
-				item["image"] = s.config.BaseURL + src
+				item["image"] = strings.TrimRight(s.config.BaseURL, "/") + src
 			}
 		}
 		items = append(items, item)

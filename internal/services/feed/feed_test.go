@@ -139,7 +139,10 @@ func TestGenerateJSONFeed_BannerImage(t *testing.T) {
 		{Slug: "with-absolute", Title: "Abs", Date: time.Now(), Banner: "https://cdn.example.com/hero.jpg"},
 		{Slug: "no-banner", Title: "None", Date: time.Now()},
 	}
-	svc := NewService(&mockArticleService{articles: articles}, testConfig())
+	// Use a BaseURL with a trailing slash to assert we don't emit double-slashed URLs.
+	cfg := testConfig()
+	cfg.BaseURL = "http://localhost:3000/"
+	svc := NewService(&mockArticleService{articles: articles}, cfg)
 
 	jsonStr, err := svc.GenerateJSONFeed()
 	require.NoError(t, err)
@@ -155,13 +158,14 @@ func TestGenerateJSONFeed_BannerImage(t *testing.T) {
 		byID[m["id"].(string)] = m
 	}
 
-	rel := byID["http://localhost:3000/writing/with-relative"]
-	assert.Equal(t, "http://localhost:3000/uploads/with-relative/hero.jpg", rel["image"])
+	rel := byID["http://localhost:3000//writing/with-relative"]
+	assert.Equal(t, "http://localhost:3000/uploads/with-relative/hero.jpg", rel["image"],
+		"banner URL must collapse the trailing slash in BaseURL")
 
-	abs := byID["http://localhost:3000/writing/with-absolute"]
+	abs := byID["http://localhost:3000//writing/with-absolute"]
 	assert.Equal(t, "https://cdn.example.com/hero.jpg", abs["image"])
 
-	none := byID["http://localhost:3000/writing/no-banner"]
+	none := byID["http://localhost:3000//writing/no-banner"]
 	_, hasImage := none["image"]
 	assert.False(t, hasImage, "article without banner should not emit image field")
 }
