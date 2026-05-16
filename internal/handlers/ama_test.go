@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/1mb-dev/markgo/internal/middleware"
 	"github.com/1mb-dev/markgo/internal/models"
 	"github.com/1mb-dev/markgo/internal/services/compose"
 )
@@ -329,6 +332,86 @@ func TestAMADelete(t *testing.T) {
 		entries, _ := readDir(dir)
 		assert.Empty(t, entries)
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Happy-path E2E: public submit → admin moderates with auth → file holds answer
+//
+// Pause-notes "Next Session #2". Exercises the AMA flow across the auth
+// boundary in one pass: submission is public, moderation requires a session
+// cookie. Asserts the moderation chain rejects unauthenticated calls AND
+// succeeds with a valid session. File-system side effects verified by
+// re-reading the article file.
+// ---------------------------------------------------------------------------
+
+func TestAMA_HappyPath_PublicSubmitAdminAnswer(t *testing.T) {
+	handler, dir := createTestAMAHandler(t)
+
+	// Real session store; admin session minted directly (login form has its
+	// own tests — this exercises the AMA chain, not the login UI).
+	store := middleware.NewSessionStore()
+	sessionToken, err := store.Create("admin")
+	require.NoError(t, err)
+
+	router := gin.New()
+	router.POST("/ama/submit", handler.Submit)
+	adminGroup := router.Group("/admin", middleware.SoftSessionAuth(store, false))
+	adminGroup.POST("/ama/:slug/answer", handler.Answer)
+
+	// 1. Public submission — no auth, no cookie
+	question := "What is the value of a small, focused engineering practice?"
+	body, _ := json.Marshal(map[string]string{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"question": question,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/ama/submit", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code, "public submit must succeed")
+
+	// 2. Discover the slug from the tempdir — Submit writes a file.
+	// Filename is "YYYY-MM-DD-<slug>.md"; codebase strips the date prefix
+	// when resolving URL slugs (see compose.slugFromFilename).
+	entries, err := readDir(dir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "submit must create exactly one file")
+	fileSlug := strings.TrimSuffix(entries[0], ".md")
+	require.Greater(t, len(fileSlug), 11, "filename must have date prefix")
+	slug := fileSlug[11:] // strip "YYYY-MM-DD-"
+	require.NotEmpty(t, slug)
+
+	// Verify the submitted question is in the file
+	original, err := os.ReadFile(filepath.Join(dir, entries[0]))
+	require.NoError(t, err)
+	require.Contains(t, string(original), question, "file must contain submitted question")
+
+	// 3. Unauthenticated moderation must be rejected — regression net for #42-class issues
+	answerBody, _ := json.Marshal(map[string]string{"answer": "A useful answer."})
+	req = httptest.NewRequest(http.MethodPost, "/admin/ama/"+slug+"/answer", bytes.NewBuffer(answerBody))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusUnauthorized, w.Code, "moderation without session must be 401")
+
+	// 4. Authenticated moderation succeeds
+	answer := "A reliable answer beats a clever one."
+	answerBody, _ = json.Marshal(map[string]string{"answer": answer})
+	req = httptest.NewRequest(http.MethodPost, "/admin/ama/"+slug+"/answer", bytes.NewBuffer(answerBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "_session", Value: sessionToken})
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code, "authenticated moderation must succeed (body=%s)", w.Body.String())
+
+	// 5. The file on disk now contains both question and answer, and is no longer a draft
+	updated, err := os.ReadFile(filepath.Join(dir, entries[0]))
+	require.NoError(t, err)
+	updatedStr := string(updated)
+	assert.Contains(t, updatedStr, question, "original question preserved")
+	assert.Contains(t, updatedStr, answer, "answer written to file")
+	assert.Contains(t, updatedStr, "draft: false", "draft flag flipped to false on publish")
 }
 
 // readDir reads directory entries, filtering out non-markdown files.
