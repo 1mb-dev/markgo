@@ -22,6 +22,11 @@ import (
 // (If-Modified-Since against Last-Modified, ETag) work as expected;
 // applications that rely on HEAD Content-Length parity will need extra
 // handling per-route.
+//
+// Forward path if Content-Length parity becomes important: track an
+// internal byte counter (sum of discarded Write/WriteString lengths)
+// and set Content-Length explicitly before the first WriteHeaderNow.
+// Not implemented because no current consumer requires it.
 func DiscardBodyOnHEAD() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.Method == http.MethodHead {
