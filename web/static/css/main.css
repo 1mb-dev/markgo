@@ -121,7 +121,9 @@
 }
 
 /* Dark mode variables — system preference (auto)
-   Theme files set --theme-* dark overrides; main.css provides fallbacks */
+   Theme files set --theme-* dark overrides; main.css provides fallbacks.
+   --color-primary lifted to blue-400 (#60a5fa) so links hit WCAG AA 4.5:1
+   on the dark surface — light-mode #2563eb scored 3.3:1, an AA failure. */
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
         --color-text-primary: var(--theme-text-primary, #f9fafb);
@@ -133,13 +135,15 @@
         --color-border: var(--theme-border, #334155);
         --color-border-light: var(--theme-border-light, #475569);
         --color-border-dark: var(--theme-border-dark, #64748b);
+        --color-primary: var(--theme-primary, #60a5fa);
+        --color-primary-dark: var(--theme-primary-dark, #93c5fd);
         --color-success-bg: var(--theme-success-bg, #1a3a2a);
         --color-success-text: var(--theme-success-text, #86efac);
         --color-success-border: var(--theme-success-border, #2d5a3e);
         --color-error-bg: var(--theme-error-bg, #3b1c22);
         --color-error-text: var(--theme-error-text, #fca5a5);
         --color-error-border: var(--theme-error-border, #5a2d35);
-        --color-focus-ring: var(--theme-focus-ring, rgba(37, 99, 235, 0.25));
+        --color-focus-ring: var(--theme-focus-ring, rgba(96, 165, 250, 0.25));
         --shadow-scrolled: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
     }
 }
@@ -155,13 +159,15 @@
     --color-border: var(--theme-border, #334155);
     --color-border-light: var(--theme-border-light, #475569);
     --color-border-dark: var(--theme-border-dark, #64748b);
+    --color-primary: var(--theme-primary, #60a5fa);
+    --color-primary-dark: var(--theme-primary-dark, #93c5fd);
     --color-success-bg: var(--theme-success-bg, #1a3a2a);
     --color-success-text: var(--theme-success-text, #86efac);
     --color-success-border: var(--theme-success-border, #2d5a3e);
     --color-error-bg: var(--theme-error-bg, #3b1c22);
     --color-error-text: var(--theme-error-text, #fca5a5);
     --color-error-border: var(--theme-error-border, #5a2d35);
-    --color-focus-ring: var(--theme-focus-ring, rgba(37, 99, 235, 0.25));
+    --color-focus-ring: var(--theme-focus-ring, rgba(96, 165, 250, 0.25));
     --shadow-scrolled: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
 }
 
@@ -1065,6 +1071,19 @@ html {
     --color-primary-dark: #7e22ce;
     --color-accent: #c084fc;
     --color-success: #10b981;
+}
+
+/* Berry dark-mode override — light-mode #9333ea scores 3.3:1 on #0f172a (fails AA).
+   Lift to purple-400 (#c084fc) for 6.8:1; hover to purple-300 (#d8b4fe) for separation. */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"])[data-color-theme="berry"] {
+        --color-primary: #c084fc;
+        --color-primary-dark: #d8b4fe;
+    }
+}
+[data-theme="dark"][data-color-theme="berry"] {
+    --color-primary: #c084fc;
+    --color-primary-dark: #d8b4fe;
 }
 
 /* ==========================================================================
