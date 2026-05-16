@@ -19,7 +19,7 @@ const PRECACHE_URLS = ['/offline'];
 // Routes that must never be cached (auth-gated, dynamic, or side-effect-bearing)
 const NETWORK_ONLY_PREFIXES = [
     '/admin', '/compose', '/login', '/logout',
-    '/api/', '/debug/', '/health', '/metrics',
+    '/api/', '/debug/', '/health',
 ];
 const NETWORK_ONLY_EXACT = new Set([
     '/feed.xml', '/feed.json', '/sitemap.xml', '/robots.txt', '/manifest.json',

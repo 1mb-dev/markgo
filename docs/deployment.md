@@ -169,11 +169,11 @@ systemctl status markgo
 # Application logs
 journalctl -u markgo -f
 
-# Application health
+# Application health (public)
 curl http://localhost:3000/health
 
-# Performance metrics
-curl http://localhost:3000/metrics
+# Performance metrics (admin-only — requires session cookie)
+curl --cookie "_session=$ADMIN_SESSION_TOKEN" http://localhost:3000/admin/metrics
 ```
 
 ---

@@ -47,7 +47,7 @@ Eleven handler types, each focused on one concern. All share a `BaseHandler` tha
 | HealthHandler | `GET /health`, `GET /manifest.json`, `GET /offline` | Health check, PWA manifest, offline page |
 | AuthHandler | `GET/POST /login`, `GET /logout` | Session-based login/logout |
 | ComposeHandler | `GET/POST /compose`, `GET/POST /compose/edit/:slug`, `POST /compose/preview`, `POST /compose/upload/:slug`, `POST /compose/publish/:slug`, `POST /compose/quick` | Content creation, editing, preview, file upload, publish, quick capture |
-| AdminHandler | `GET /admin`, `GET /admin/drafts`, `GET /admin/writing`, `GET /admin/stats`, `POST /admin/cache/clear`, `POST /admin/articles/reload`, `GET /metrics` | Dashboard, drafts, published content, stats, cache management |
+| AdminHandler | `GET /admin`, `GET /admin/drafts`, `GET /admin/writing`, `GET /admin/stats`, `GET /admin/metrics`, `POST /admin/cache/clear`, `POST /admin/articles/reload` | Dashboard, drafts, published content, stats, metrics, cache management |
 
 Auth and Compose handlers are only registered when admin credentials are configured. Debug and pprof routes are only registered in development.
 

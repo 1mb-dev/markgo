@@ -93,7 +93,7 @@ Require authentication (soft auth). NoCache middleware.
 | GET | `/admin/drafts` | List all draft articles with edit links. |
 | GET | `/admin/writing` | Published content list with edit links. |
 | GET | `/admin/stats` | Site statistics (JSON). |
-| GET | `/metrics` | Performance metrics (JSON). |
+| GET | `/admin/metrics` | Performance metrics (JSON). |
 | POST | `/admin/cache/clear` | Clear article cache. |
 | POST | `/admin/articles/reload` | Reload articles from disk. |
 
