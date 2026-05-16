@@ -17,7 +17,7 @@
  */
 
 // Routes that always need a full page load
-const BYPASS = new Set(['/logout', '/feed.xml', '/feed.json', '/sitemap.xml', '/robots.txt', '/manifest.json', '/health', '/metrics', '/sw.js']);
+const BYPASS = new Set(['/logout', '/feed.xml', '/feed.json', '/sitemap.xml', '/robots.txt', '/manifest.json', '/health', '/sw.js']);
 const BYPASS_PREFIXES = ['/static/', '/uploads/', '/api/', '/debug/', '/compose/preview', '/compose/upload'];
 
 let controller = null;
