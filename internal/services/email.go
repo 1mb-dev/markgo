@@ -26,6 +26,7 @@ var _ EmailServiceInterface = (*EmailService)(nil)
 // EmailService provides email functionality.
 type EmailService struct {
 	config       config.EmailConfig
+	blogTitle    string
 	logger       *slog.Logger
 	auth         smtp.Auth
 	recentEmails map[string]time.Time
@@ -37,8 +38,10 @@ type EmailService struct {
 	scheduler scheduler.Scheduler
 }
 
-// NewEmailService creates a new EmailService instance.
-func NewEmailService(cfg *config.EmailConfig, logger *slog.Logger) *EmailService {
+// NewEmailService creates a new EmailService instance. blogTitle is the
+// configured Blog.Title; it appears in subject prefixes and the test email
+// body so owners see their blog's identity, not the engine name.
+func NewEmailService(cfg *config.EmailConfig, blogTitle string, logger *slog.Logger) *EmailService {
 	var auth smtp.Auth
 	if cfg.Username != "" && cfg.Password != "" {
 		auth = smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.Host)
@@ -53,6 +56,7 @@ func NewEmailService(cfg *config.EmailConfig, logger *slog.Logger) *EmailService
 
 	es := &EmailService{
 		config:       *cfg,
+		blogTitle:    blogTitle,
 		logger:       logger,
 		auth:         auth,
 		recentEmails: make(map[string]time.Time),
@@ -88,7 +92,7 @@ func (e *EmailService) SendContactMessage(msg *models.ContactMessage) error {
 	e.markEmailSent(msgHash)
 
 	// Create email content
-	subject := fmt.Sprintf("[markgo] Contact Form: %s", msg.Subject)
+	subject := e.contactSubject(msg.Subject)
 	body, err := e.generateContactEmailBody(msg)
 	if err != nil {
 		return apperrors.NewHTTPError(500, "Failed to generate email template", err)
@@ -275,10 +279,17 @@ func (e *EmailService) TestConnection() error {
 
 // SendTestEmail sends a test email to verify configuration
 func (e *EmailService) SendTestEmail() error {
-	subject := "markgo Email Service Test"
-	body := e.generateTestEmailBody()
+	return e.sendEmail(e.config.To, e.testEmailSubject(), e.generateTestEmailBody())
+}
 
-	return e.sendEmail(e.config.To, subject, body)
+// contactSubject formats a contact-form email subject with the blog title prefix.
+func (e *EmailService) contactSubject(msgSubject string) string {
+	return fmt.Sprintf("[%s] Contact Form: %s", e.blogTitle, msgSubject)
+}
+
+// testEmailSubject formats the subject line for the admin test email.
+func (e *EmailService) testEmailSubject() string {
+	return e.blogTitle + " Email Service Test"
 }
 
 func (e *EmailService) generateTestEmailBody() string {
@@ -301,7 +312,7 @@ func (e *EmailService) generateTestEmailBody() string {
             <h2>✅ Email Service Test</h2>
         </div>
         <div class="content">
-            <p>This is a test email from the markgo application.</p>
+            <p>This is a test email from %s.</p>
             <p><strong>Timestamp:</strong> %s</p>
             <p><strong>From:</strong> %s</p>
             <p><strong>SMTP Host:</strong> %s:%d</p>
@@ -310,6 +321,7 @@ func (e *EmailService) generateTestEmailBody() string {
     </div>
 </body>
 </html>`,
+		e.blogTitle,
 		time.Now().Format("January 2, 2006 at 3:04 PM MST"),
 		e.config.From,
 		e.config.Host,

@@ -11,8 +11,9 @@ import { showToast } from './toast.js';
 import { authenticatedJSON } from './auth-fetch.js';
 import { queuePost, drainQueue, getQueueCount } from './offline-queue.js';
 import { trapFocus, releaseFocus } from './focus-trap.js';
+import { key } from './blog-storage.js';
 
-const DRAFT_KEY = 'markgo:compose-draft';
+const DRAFT_KEY = key('compose-draft');
 const SAVE_DELAY = 2000;
 let initialized = false;
 

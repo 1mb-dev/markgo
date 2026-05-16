@@ -7,6 +7,7 @@
  * Router intercepts links and swaps <main> content without full reloads.
  */
 
+import { NS, key, BLOG_TITLE } from './modules/blog-storage.js';
 import { init as initNavigation } from './modules/navigation.js';
 import { init as initTheme } from './modules/theme.js';
 import { init as initHighlight } from './modules/highlight.js';
@@ -20,6 +21,44 @@ import { init as initAMASheet } from './modules/ama-sheet.js';
 import { init as initSearchPopover } from './modules/search-popover.js';
 import { init as initSubscribePopover } from './modules/subscribe-popover.js';
 import { init as initRouter } from './modules/router.js';
+
+// One-shot migration: any markgo:* localStorage key not under current NS gets
+// rewritten into it. Catches v3.8 flat keys and prior-deploy slugged keys
+// (BaseURL change). Idempotent via NS:migrated-v1 flag. Fail-closed: storage
+// exception leaves keys; readers see no-data fallback.
+try {
+    const FLAG = key('migrated-v1');
+    if (!localStorage.getItem(FLAG)) {
+        const nsPrefix = `${NS}:`;
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (!k?.startsWith('markgo:') || k.startsWith(nsPrefix)) continue;
+            const rest = k.slice('markgo:'.length);
+            const sep = rest.indexOf(':');
+            const suffix = sep === -1 ? rest : rest.slice(sep + 1);
+            if (suffix === 'migrated-v1' || suffix === 'idb-migrated-v1') {
+                localStorage.removeItem(k);
+                continue;
+            }
+            const newK = key(suffix);
+            const v = localStorage.getItem(k);
+            const existing = localStorage.getItem(newK);
+            if (v === null || existing === v) {
+                // Empty source or identical target — safe to drop source.
+                localStorage.removeItem(k);
+            } else if (existing === null) {
+                // Migrate: copy then drop.
+                localStorage.setItem(newK, v);
+                localStorage.removeItem(k);
+            }
+            // else: conflict (target already has a different value) — keep
+            // both. FLAG below skips this loop on next session, so the
+            // orphaned source key persists for manual inspection rather than
+            // silently losing user data.
+        }
+        localStorage.setItem(FLAG, '1');
+    }
+} catch { /* storage disabled — accept loss */ }
 
 // Page-specific module loaders
 const PAGE_MODULES = {
@@ -70,8 +109,8 @@ if ('serviceWorker' in navigator) {
 
 // ── Install prompt ───────────────────────────────────────────────────────────
 
-const INSTALL_VISIT_KEY = 'markgo:visit-count';
-const INSTALL_DISMISSED_KEY = 'markgo:install-dismissed';
+const INSTALL_VISIT_KEY = key('visit-count');
+const INSTALL_DISMISSED_KEY = key('install-dismissed');
 const INSTALL_THRESHOLD = 3;
 const INSTALL_DISMISS_DAYS = 30;
 
@@ -109,7 +148,7 @@ function showInstallBanner() {
 
     const text = document.createElement('span');
     text.className = 'install-banner-text';
-    text.textContent = 'Install MarkGo for quick access';
+    text.textContent = `Install ${BLOG_TITLE || 'this site'} for quick access`;
 
     const installBtn = document.createElement('button');
     installBtn.className = 'install-banner-btn';

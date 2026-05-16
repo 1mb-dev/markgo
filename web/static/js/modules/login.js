@@ -10,8 +10,9 @@
 
 import { initPopover } from './popover.js';
 import { showToast } from './toast.js';
+import { key } from './blog-storage.js';
 
-const DRAFT_KEY = 'markgo:compose-draft';
+const DRAFT_KEY = key('compose-draft');
 
 let loginPopoverCtrl = null;
 let adminPopoverCtrl = null;
