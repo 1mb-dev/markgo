@@ -226,7 +226,7 @@ func (h *BaseHandler) handleError(c *gin.Context, err error, defaultMsg string) 
 func (h *BaseHandler) shouldReturnJSON(c *gin.Context) bool {
 	// API paths always return JSON regardless of Accept header
 	path := c.Request.URL.Path
-	apiPaths := []string{"/health", "/metrics", "/api/", "/admin/stats"}
+	apiPaths := []string{"/health", "/api/", "/admin/stats"}
 	for _, apiPath := range apiPaths {
 		if path == apiPath || strings.HasPrefix(path, apiPath) {
 			return true
