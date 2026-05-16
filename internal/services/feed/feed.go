@@ -3,6 +3,7 @@ package feed
 import (
 	"encoding/json"
 	"encoding/xml"
+	"strings"
 	"time"
 
 	"github.com/1mb-dev/markgo/internal/config"
@@ -96,6 +97,13 @@ func (s *Service) GenerateJSONFeed() (string, error) {
 		}
 		if len(a.Tags) > 0 {
 			item["tags"] = a.Tags
+		}
+		if src := a.BannerSrc(); src != "" {
+			if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
+				item["image"] = src
+			} else {
+				item["image"] = s.config.BaseURL + src
+			}
 		}
 		items = append(items, item)
 	}

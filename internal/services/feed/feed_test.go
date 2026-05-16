@@ -133,6 +133,39 @@ func TestGenerateJSONFeed(t *testing.T) {
 	assert.Equal(t, 2, len(items)) // draft excluded
 }
 
+func TestGenerateJSONFeed_BannerImage(t *testing.T) {
+	articles := []*models.Article{
+		{Slug: "with-relative", Title: "Rel", Date: time.Now(), Banner: "hero.jpg"},
+		{Slug: "with-absolute", Title: "Abs", Date: time.Now(), Banner: "https://cdn.example.com/hero.jpg"},
+		{Slug: "no-banner", Title: "None", Date: time.Now()},
+	}
+	svc := NewService(&mockArticleService{articles: articles}, testConfig())
+
+	jsonStr, err := svc.GenerateJSONFeed()
+	require.NoError(t, err)
+
+	var feed map[string]any
+	require.NoError(t, json.Unmarshal([]byte(jsonStr), &feed))
+	items := feed["items"].([]any)
+	require.Len(t, items, 3)
+
+	byID := map[string]map[string]any{}
+	for _, it := range items {
+		m := it.(map[string]any)
+		byID[m["id"].(string)] = m
+	}
+
+	rel := byID["http://localhost:3000/writing/with-relative"]
+	assert.Equal(t, "http://localhost:3000/uploads/with-relative/hero.jpg", rel["image"])
+
+	abs := byID["http://localhost:3000/writing/with-absolute"]
+	assert.Equal(t, "https://cdn.example.com/hero.jpg", abs["image"])
+
+	none := byID["http://localhost:3000/writing/no-banner"]
+	_, hasImage := none["image"]
+	assert.False(t, hasImage, "article without banner should not emit image field")
+}
+
 func TestGenerateSitemap(t *testing.T) {
 	svc := NewService(&mockArticleService{articles: testArticles()}, testConfig())
 
