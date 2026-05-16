@@ -46,13 +46,15 @@ type Input struct {
 func (s *Service) CreatePost(input *Input) (string, error) {
 	now := time.Now()
 
-	// Generate slug (fall back to timestamp if title produces empty slug, e.g. non-ASCII titles)
+	// Generate slug (fall back to timestamp-prefixed slug if title produces
+	// empty slug, e.g. non-ASCII titles or empty Title field). Prefix
+	// reflects content type so `ls articles/` reveals intent at a glance.
 	var slug string
 	if input.Title != "" {
 		slug = generateSlug(input.Title)
 	}
 	if slug == "" {
-		slug = fmt.Sprintf("thought-%d", now.UnixMilli())
+		slug = fmt.Sprintf("%s-%d", slugPrefixFor(input.Type), now.UnixMilli())
 	}
 
 	// Parse comma-separated tags
@@ -390,6 +392,29 @@ func isDatePrefix(s string) bool {
 }
 
 // generateSlug creates a URL-friendly slug from a title.
+// slugPrefixFor returns the fallback slug prefix for a content type — used
+// when a post has no title and we fall back to "<prefix>-<timestamp>".
+// Picking by type keeps `ls articles/` legible and grep-friendly.
+//
+// Empty type → "thought": preserves historical behavior (the compose
+// handler doesn't set Type before CreatePost; inference happens at read
+// time). Truly unknown types → "post": flags miscategorization with a
+// neutral prefix rather than masquerading as a known type.
+func slugPrefixFor(contentType string) string {
+	switch contentType {
+	case "", "thought":
+		return "thought"
+	case "ama":
+		return "ama"
+	case "link":
+		return "link"
+	case "article":
+		return "article"
+	default:
+		return "post"
+	}
+}
+
 func generateSlug(title string) string {
 	slug := strings.ToLower(title)
 	slug = strings.ReplaceAll(slug, " ", "-")

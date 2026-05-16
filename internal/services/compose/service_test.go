@@ -270,7 +270,7 @@ func TestCreatePost_AMA(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Contains(t, slug, "thought-") // no title → timestamp slug
+	assert.Contains(t, slug, "ama-", "AMA submission with no title must use ama- prefix (#44)")
 
 	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
 	require.Len(t, files, 1)
@@ -284,6 +284,35 @@ func TestCreatePost_AMA(t *testing.T) {
 	assert.Contains(t, s, "asker_email: alice@example.com")
 	assert.Contains(t, s, "draft: true")
 	assert.Contains(t, s, "What is your favorite programming language?")
+}
+
+func TestCreatePost_SlugPrefixByType(t *testing.T) {
+	cases := []struct {
+		name       string
+		inputType  string
+		wantPrefix string
+	}{
+		{"empty type defaults to thought", "", "thought-"},
+		{"explicit thought", "thought", "thought-"},
+		{"ama", "ama", "ama-"},
+		{"link", "link", "link-"},
+		{"article", "article", "article-"},
+		{"unknown type falls back to neutral post", "unknown-type", "post-"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			svc := NewService(dir, "Test Author")
+
+			slug, err := svc.CreatePost(&Input{
+				Content: "Body content with no title here.",
+				Type:    tc.inputType,
+			})
+			require.NoError(t, err)
+			assert.True(t, strings.HasPrefix(slug, tc.wantPrefix),
+				"Type=%q: want slug prefix %q, got slug %q", tc.inputType, tc.wantPrefix, slug)
+		})
+	}
 }
 
 func TestLoadArticle_AMAFields(t *testing.T) {
