@@ -474,6 +474,26 @@ func TestBannerValidation_RelativePathMissingFile(t *testing.T) {
 	assert.Contains(t, logBuf.String(), "Banner file not found")
 }
 
+func TestBannerValidation_WarnOnNonEssayType(t *testing.T) {
+	thoughtMD := `---
+date: 2025-06-15T10:00:00Z
+slug: "just-a-thought"
+banner: "ignored.jpg"
+---
+
+Short thought.
+`
+	repo, logBuf := setupRepoWithUploads(t,
+		map[string]string{"thought.md": thoughtMD},
+		map[string][]byte{"just-a-thought/ignored.jpg": []byte("img")},
+	)
+	articles, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+	require.Len(t, articles, 1)
+	assert.Equal(t, "thought", articles[0].Type)
+	assert.Contains(t, logBuf.String(), "Banner field is essay-only")
+}
+
 func TestBannerValidation_EmptyFieldsNoBanner(t *testing.T) {
 	repo, logBuf := setupRepoWithUploads(t,
 		map[string]string{"post.md": articleWithBanner("no-banner", "", "")},

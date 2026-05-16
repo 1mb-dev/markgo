@@ -385,6 +385,14 @@ func (r *FileSystemRepository) parseArticleFile(filePath string) (*models.Articl
 		article.Type = inferPostType(&article)
 	}
 
+	// Banner is rendered only on essays ("article" type). Warn loudly when set
+	// on other types so writers notice the mismatch instead of wondering why
+	// their banner doesn't show up. See `.claude/CLAUDE.md` for the design rule.
+	if article.Banner != "" && article.Type != "article" {
+		r.logger.Warn("Banner field is essay-only and was ignored",
+			"slug", article.Slug, "type", article.Type, "banner", article.Banner)
+	}
+
 	return &article, nil
 }
 
