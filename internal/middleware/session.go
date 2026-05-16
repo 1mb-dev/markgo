@@ -146,8 +146,10 @@ func SessionAuth(store *SessionStore) gin.HandlerFunc {
 
 // SoftSessionAuth provides session-based authentication that allows handlers to run
 // even when not authenticated. On valid session: sets admin_user + authenticated=true.
-// On invalid GET: sets auth_required=true and generates a CSRF token so the login
-// popover can render. On invalid POST: returns 401 JSON.
+// On unauthenticated GET/HEAD: behavior splits by Accept header — HTML callers get
+// auth_required=true plus a CSRF token (login overlay renders), JSON callers get a
+// hard 401 (no overlay path; silent fall-through would leak handler data — see #42).
+// On unauthenticated POST/PUT/DELETE: returns 401 (content-negotiated body).
 func SoftSessionAuth(store *SessionStore, secureCookie bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := c.Cookie(sessionCookieName)
