@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [3.9.0] - 2026-05-16
+
+Engine-name personalization: install banner, email subjects, and test email body now carry the configured `Blog.Title` rather than the hardcoded `markgo` (#48). Client-side storage (localStorage + IndexedDB) namespaced per install so same-origin path-mounted MarkGo instances no longer collide on compose drafts, install state, or offline post queues. v3.8 data auto-migrates on first load.
+
 ### Changed
 
 - **Engine name personalized in user-facing surfaces** (#48) — install banner,
