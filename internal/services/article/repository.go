@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -423,6 +424,20 @@ func (r *FileSystemRepository) validateBanner(article *models.Article) error {
 		return nil
 	}
 
+	// Server-absolute path (e.g. /static/img/foo.png): served by the static or
+	// uploads handler. Reject non-canonical forms (.., single-dot segments,
+	// double-slash) via path.Clean; otherwise accept without filesystem stat —
+	// broken-image-at-render is the visible failure signal, same as the
+	// absolute-URL branch.
+	if strings.HasPrefix(article.Banner, "/") {
+		if path.Clean(article.Banner) != article.Banner {
+			r.logger.Error("Banner server-absolute path failed canonical check; article rejected",
+				"slug", article.Slug, "banner", article.Banner)
+			return fmt.Errorf("banner %q: %w", article.Banner, apperrors.ErrPathEscape)
+		}
+		return nil
+	}
+
 	// Relative path: containment-check against uploadPath/<slug>/.
 	slugDir, err := compose.ContainSlugPath(r.uploadPath, article.Slug)
 	if err != nil {
@@ -559,9 +574,9 @@ func (r *FileSystemRepository) findArticleFile(slug string) (*models.Article, st
 func (r *FileSystemRepository) resolveArticleFilePath(slug string) (string, error) {
 	// Try all supported Markdown extensions
 	for _, ext := range constants.SupportedMarkdownExtensions {
-		path := filepath.Join(r.articlesPath, slug+ext)
-		if _, err := os.Stat(path); err == nil {
-			return path, nil
+		candidate := filepath.Join(r.articlesPath, slug+ext)
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
 		}
 	}
 

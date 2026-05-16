@@ -105,9 +105,10 @@ banner_alt: "Workbench with scattered notes"
 ---
 ```
 
-`banner` accepts two forms:
+`banner` accepts three forms:
 
 - **Relative path** — resolved against `uploads/<slug>/`. Place the image alongside any other slug-scoped assets you uploaded via compose.
+- **Server-absolute path** (`/static/...` or any value starting with `/`) — passes through unchanged; the static handler serves the asset. Use this for source-controlled editorial banners shipped under `web/static/` (e.g. `banner: "/static/img/banners/launch.png"`), so frontmatter stays portable across deployments and local preview without coupling to `BASE_URL`.
 - **Absolute URL** (`https://...` or `http://...`) — passes through unchanged. Useful when you host images on a CDN.
 
 `banner_alt` is optional; alt text falls back to the article title.
@@ -115,7 +116,8 @@ banner_alt: "Workbench with scattered notes"
 **Validation rules:**
 
 - Bad URL schemes (`javascript:`, `data:`, `file://`) and path-traversal attempts reject the article at load time.
-- If `banner` points at a relative path but the file is missing, the article still loads — your browser will show a broken image where the banner should be (the visible failure signal). Fix the typo or upload the file and reload.
+- Server-absolute paths must be canonical (no `..`, `.`, or `//` segments) — non-canonical forms reject the article.
+- If `banner` points at a relative path but the file is missing, the article still loads — your browser will show a broken image where the banner should be (the visible failure signal). Fix the typo or upload the file and reload. Server-absolute paths are not checked at load; missing assets also surface as broken images at render time.
 
 **Scope:** Banner renders only on essays (`type: article`). Setting `banner` on thoughts, links, or AMA posts logs a warning at load and is otherwise ignored — those content types have their own visual shape (thoughts are chrome-light, link cards center on the link, AMA centers on the asker).
 

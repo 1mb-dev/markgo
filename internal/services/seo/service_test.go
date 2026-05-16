@@ -211,6 +211,15 @@ func TestResolveOGImage_Tiers(t *testing.T) {
 		}
 	})
 
+	t.Run("server-absolute banner prepends base URL", func(t *testing.T) {
+		a := &models.Article{Slug: "post", Banner: "/static/img/banners/hero.png"}
+		got := helper.resolveOGImage(a, baseURL)
+		want := "https://example.com/static/img/banners/hero.png"
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
 	t.Run("falls back to first inline image when no banner", func(t *testing.T) {
 		a := &models.Article{
 			Slug:    "post",

@@ -506,3 +506,54 @@ func TestBannerValidation_EmptyFieldsNoBanner(t *testing.T) {
 	assert.Empty(t, articles[0].BannerSrc())
 	assert.NotContains(t, logBuf.String(), `msg="Banner`)
 }
+
+func TestBannerValidation_ServerAbsoluteAccepted(t *testing.T) {
+	cases := []struct {
+		name   string
+		slug   string
+		banner string
+	}{
+		{"under static tree", "static-banner", "/static/img/foo.png"},
+		{"cross-slug uploads path is coherent under broad reading", "cross-uploads", "/uploads/other/foo.png"},
+		{"non-existent route is the writer's problem", "admin-typo", "/admin/anything"},
+		{"literal dots in filename do not trip path.Clean", "dotty", "/static/foo..bar.png"},
+		{"root path is canonical", "root", "/"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, _ := setupRepoWithUploads(t,
+				map[string]string{"post.md": articleWithBanner(tc.slug, tc.banner, "")},
+				nil, // no uploads asset needed — server-absolute paths are served elsewhere
+			)
+			articles, err := repo.LoadAll(context.Background())
+			require.NoError(t, err)
+			require.Len(t, articles, 1)
+			assert.Equal(t, tc.banner, articles[0].Banner)
+			assert.Equal(t, tc.banner, articles[0].BannerSrc())
+		})
+	}
+}
+
+func TestBannerValidation_ServerAbsoluteNonCanonicalRejected(t *testing.T) {
+	cases := []struct {
+		name   string
+		banner string
+	}{
+		{"parent-dir traversal", "/static/../etc/passwd"},
+		{"single-dot segment", "/static/./foo.png"},
+		{"double-slash segment", "/static//foo.png"},
+		{"mid-path traversal", "/static/img/../../etc/passwd"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, logBuf := setupRepoWithUploads(t,
+				map[string]string{"post.md": articleWithBanner("non-canonical", tc.banner, "")},
+				nil,
+			)
+			articles, err := repo.LoadAll(context.Background())
+			require.NoError(t, err)
+			assert.Empty(t, articles, "non-canonical server-absolute banner must reject the article")
+			assert.Contains(t, logBuf.String(), "failed canonical check")
+		})
+	}
+}

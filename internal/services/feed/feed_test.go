@@ -137,6 +137,7 @@ func TestGenerateJSONFeed_BannerImage(t *testing.T) {
 	articles := []*models.Article{
 		{Slug: "with-relative", Title: "Rel", Date: time.Now(), Banner: "hero.jpg"},
 		{Slug: "with-absolute", Title: "Abs", Date: time.Now(), Banner: "https://cdn.example.com/hero.jpg"},
+		{Slug: "with-server-absolute", Title: "SrvAbs", Date: time.Now(), Banner: "/static/img/banners/hero.png"},
 		{Slug: "no-banner", Title: "None", Date: time.Now()},
 	}
 	// Use a BaseURL with a trailing slash to assert we don't emit double-slashed URLs.
@@ -150,7 +151,7 @@ func TestGenerateJSONFeed_BannerImage(t *testing.T) {
 	var feed map[string]any
 	require.NoError(t, json.Unmarshal([]byte(jsonStr), &feed))
 	items := feed["items"].([]any)
-	require.Len(t, items, 3)
+	require.Len(t, items, 4)
 
 	byID := map[string]map[string]any{}
 	for _, it := range items {
@@ -164,6 +165,10 @@ func TestGenerateJSONFeed_BannerImage(t *testing.T) {
 
 	abs := byID["http://localhost:3000//writing/with-absolute"]
 	assert.Equal(t, "https://cdn.example.com/hero.jpg", abs["image"])
+
+	srv := byID["http://localhost:3000//writing/with-server-absolute"]
+	assert.Equal(t, "http://localhost:3000/static/img/banners/hero.png", srv["image"],
+		"server-absolute banner must prepend BaseURL with trailing slash collapsed")
 
 	none := byID["http://localhost:3000//writing/no-banner"]
 	_, hasImage := none["image"]
