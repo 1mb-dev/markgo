@@ -14,6 +14,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   addition to absolute URLs and slug-relative upload paths. Lets editorial
   banners ship as source-controlled assets under `web/static/` without
   coupling frontmatter to `BASE_URL`. Closes #54.
+- Color preset picker now live-previews on hover/focus: the document updates
+  as you hover each swatch and reverts when the cursor or keyboard focus
+  leaves the popover. Click still persists. Closes part of #56.
+
+### Changed
+
+- Dark-mode contrast lift extended to `ocean`, `forest`, and `sunset` color
+  presets (previously only `berry` had a lift). Primary text/links now clear
+  WCAG AA comfortably on the dark slate surface in all four presets. Closes
+  part of #56.
+
+### Fixed
+
+- Color preset visibility in auto-dark mode: in v3.8, the dark-mode base rule
+  `:root:not([data-theme="light"])` (specificity 0,1,1) silently overrode the
+  preset rule `[data-color-theme=...]` (0,1,0), so `ocean`/`forest`/`sunset`
+  users on system-dark saw default blue-400 regardless of their preset. The
+  new per-preset selectors at specificity (0,2,1) restore preset visibility.
+  `berry` was unaffected (had its own (0,2,1) override since v3.8).
+- Color picker keyboard focus could strand a preview color on the document
+  when Tab-out of the popover happened from a non-swatch element after a
+  swatch had been previewed. Restore now triggers on any focus exit from
+  the popover.
 
 ---
 
