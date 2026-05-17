@@ -129,7 +129,7 @@ func (h *PostHandler) getArticleData(slug string) (map[string]any, error) {
 	data["article"] = art
 	data["description"] = art.Description
 	data["template"] = templateArticle
-	data["canonicalPath"] = "/writing/" + art.Slug
+	data["canonicalPath"] = article.CanonicalURLFor(art)
 	data["breadcrumbs"] = []services.Breadcrumb{
 		{Name: "Home", URL: "/"},
 		{Name: "Writing", URL: "/writing"},
@@ -179,7 +179,7 @@ func (h *PostHandler) getArticlesPage(page int) (map[string]any, error) {
 				"position":      i + 1,
 				"headline":      a.DisplayTitle(),
 				"description":   a.Excerpt,
-				"url":           baseURL + "/writing/" + a.Slug,
+				"url":           baseURL + article.CanonicalURLFor(a),
 				"datePublished": a.Date.Format("2006-01-02T15:04:05Z07:00"),
 				"author": map[string]any{
 					"@type": "Person",

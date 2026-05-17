@@ -84,10 +84,11 @@ type FeedServiceInterface interface {
 	GenerateSitemap() (string, error)
 }
 
-// SEOServiceInterface defines the interface for SEO utilities (stateless)
+// SEOServiceInterface defines the interface for SEO utilities (stateless).
+// Sitemap generation lives in feed.Service (served at /sitemap.xml); this
+// interface covers per-request SEO surfaces (robots, Schema.org, OG/Twitter
+// meta, content analysis).
 type SEOServiceInterface interface {
-	// Sitemap generation (on-demand, no caching)
-	GenerateSitemap() ([]byte, error)
 	GenerateRobotsTxt() ([]byte, error)
 
 	// Schema.org structured data

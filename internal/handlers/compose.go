@@ -12,9 +12,20 @@ import (
 	"github.com/gin-gonic/gin"
 
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
+	"github.com/1mb-dev/markgo/internal/models"
 	"github.com/1mb-dev/markgo/internal/services"
+	articlepkg "github.com/1mb-dev/markgo/internal/services/article"
 	"github.com/1mb-dev/markgo/internal/services/compose"
 )
+
+// canonicalSlugPath returns the canonical path for a freshly composed
+// post. Compose never produces type:page content (pages are explicit-
+// only via frontmatter), so a synthetic article with empty Type maps
+// through CanonicalURLFor to /writing/<slug>. Keeping all emissions
+// behind the helper avoids hardcoded literals.
+func canonicalSlugPath(slug string) string {
+	return articlepkg.CanonicalURLFor(&models.Article{Slug: slug})
+}
 
 // validSlug matches URL-safe slugs: lowercase alphanumeric with hyphens, no leading/trailing hyphens, max 200 chars.
 var validSlug = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,198}[a-z0-9])?$`)
@@ -189,7 +200,7 @@ func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 
 	// Redirect to the edited article, or feed if reload failed (stale cache would show old version)
 	if reloadOK {
-		c.Redirect(http.StatusSeeOther, "/writing/"+slug)
+		c.Redirect(http.StatusSeeOther, canonicalSlugPath(slug))
 	} else {
 		c.Redirect(http.StatusSeeOther, "/")
 	}
@@ -248,7 +259,7 @@ func (h *ComposeHandler) HandleSubmit(c *gin.Context) {
 	if !reloadOK || input.Title == "" {
 		c.Redirect(http.StatusSeeOther, "/")
 	} else {
-		c.Redirect(http.StatusSeeOther, "/writing/"+slug)
+		c.Redirect(http.StatusSeeOther, canonicalSlugPath(slug))
 	}
 }
 
@@ -337,7 +348,7 @@ func (h *ComposeHandler) HandleQuickPublish(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"slug":    slug,
-		"url":     "/writing/" + slug,
+		"url":     canonicalSlugPath(slug),
 		"type":    postType,
 		"draft":   input.Draft,
 		"message": message,
@@ -367,7 +378,7 @@ func (h *ComposeHandler) PublishDraft(c *gin.Context) {
 	if !input.Draft {
 		c.JSON(http.StatusOK, gin.H{
 			"slug":    slug,
-			"url":     "/writing/" + slug,
+			"url":     canonicalSlugPath(slug),
 			"message": "Already published",
 		})
 		return
@@ -392,7 +403,7 @@ func (h *ComposeHandler) PublishDraft(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"slug":    slug,
-		"url":     "/writing/" + slug,
+		"url":     canonicalSlugPath(slug),
 		"message": "Published",
 	})
 }

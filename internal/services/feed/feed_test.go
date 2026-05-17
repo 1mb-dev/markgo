@@ -16,10 +16,11 @@ import (
 
 type mockArticleService struct {
 	articles []*models.Article
+	pages    []*models.Article
 }
 
 func (m *mockArticleService) GetAllArticles() []*models.Article { return m.articles }
-func (m *mockArticleService) GetPages() []*models.Article       { return nil }
+func (m *mockArticleService) GetPages() []*models.Article       { return m.pages }
 func (m *mockArticleService) GetArticleBySlug(_ string) (*models.Article, error) {
 	return nil, nil
 }
@@ -187,6 +188,8 @@ func TestGenerateSitemap(t *testing.T) {
 	assert.Contains(t, sitemap, "http://localhost:3000")
 	assert.Contains(t, sitemap, "http://localhost:3000/writing/hello-world")
 	assert.Contains(t, sitemap, "http://localhost:3000/writing/second-post")
+	assert.Contains(t, sitemap, "http://localhost:3000/about", "static /about entry")
+	assert.Contains(t, sitemap, "http://localhost:3000/p", "static /p index entry")
 	assert.NotContains(t, sitemap, "draft")
 
 	// Verify valid XML
@@ -194,6 +197,55 @@ func TestGenerateSitemap(t *testing.T) {
 	xmlContent := strings.TrimPrefix(sitemap, `<?xml version="1.0" encoding="UTF-8"?>`+"\n")
 	err = xml.Unmarshal([]byte(xmlContent), &sm)
 	require.NoError(t, err)
-	// 4 static URLs + 2 published articles = 6
-	assert.Equal(t, 6, len(sm.URLs))
+	// 6 static URLs (home, /writing, /tags, /categories, /about, /p) + 2 published articles = 8
+	assert.Equal(t, 8, len(sm.URLs))
+}
+
+// TestGenerateSitemap_IncludesPages verifies that type:page articles surface
+// in sitemap.xml at their canonical /p/<slug> URL via GetPages(). Pages are
+// excluded from the article section (via the predicate in GetPublished) so
+// they must be emitted via the separate pages loop.
+func TestGenerateSitemap_IncludesPages(t *testing.T) {
+	articles := []*models.Article{
+		{Slug: "regular-post", Title: "Post", Date: time.Now()},
+	}
+	pages := []*models.Article{
+		{Slug: "run-your-own", Title: "Run Your Own", Type: "page", Date: time.Now()},
+		{Slug: "colophon", Title: "Colophon", Type: "page", Date: time.Now()},
+	}
+	svc := NewService(&mockArticleService{articles: articles, pages: pages}, testConfig())
+
+	sitemap, err := svc.GenerateSitemap()
+	require.NoError(t, err)
+
+	assert.Contains(t, sitemap, "http://localhost:3000/writing/regular-post")
+	assert.Contains(t, sitemap, "http://localhost:3000/p/run-your-own", "page must surface at /p/<slug>")
+	assert.Contains(t, sitemap, "http://localhost:3000/p/colophon")
+	// No /writing/<page-slug> leak.
+	assert.NotContains(t, sitemap, "/writing/run-your-own")
+	assert.NotContains(t, sitemap, "/writing/colophon")
+}
+
+// TestGenerateSitemap_AllURLsAreCanonical verifies no <loc> entry contains
+// a hardcoded /writing/<slug> for content that should canonicalize to /p
+// or /about. Guard against future regressions of the v3.14.0 sweep.
+func TestGenerateSitemap_AllURLsAreCanonical(t *testing.T) {
+	// Fixture: article + page + about-slug article. The mock's GetAllArticles
+	// returns ALL of them (no predicate filtering at mock layer per CLAUDE.md);
+	// but in production GetAllArticles → repo.GetPublished excludes pages and
+	// /about. To simulate real behavior, separate them into articles vs pages.
+	articles := []*models.Article{
+		{Slug: "real-post", Title: "Real Post", Date: time.Now()},
+	}
+	pages := []*models.Article{
+		{Slug: "about-pages", Title: "About Pages", Type: "page", Date: time.Now()},
+	}
+	svc := NewService(&mockArticleService{articles: articles, pages: pages}, testConfig())
+
+	sitemap, err := svc.GenerateSitemap()
+	require.NoError(t, err)
+
+	// /writing/<page-slug> must NEVER appear in sitemap
+	assert.NotContains(t, sitemap, "/writing/about-pages", "type:page must canonicalize to /p, not /writing")
+	assert.Contains(t, sitemap, "/p/about-pages")
 }

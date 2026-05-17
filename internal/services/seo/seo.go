@@ -3,12 +3,10 @@
 package seo
 
 import (
-	"encoding/xml"
 	"fmt"
 	"log/slog"
 	"net/url"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +16,11 @@ import (
 	articlepkg "github.com/1mb-dev/markgo/internal/services/article"
 )
 
+// ogTypeWebsite is the Open Graph type for non-article (page) content.
+// Articles emit og:type=article; pages and the homepage emit og:type=website
+// per the OG protocol.
+const ogTypeWebsite = "website"
+
 // Helper represents a simple SEO utility
 type Helper struct {
 	articleService services.ArticleServiceInterface
@@ -25,21 +28,6 @@ type Helper struct {
 	robotsConfig   services.RobotsConfig
 	logger         *slog.Logger
 	enabled        bool
-}
-
-// URLSet represents the root sitemap XML structure
-type URLSet struct {
-	XMLName xml.Name `xml:"urlset"`
-	Xmlns   string   `xml:"xmlns,attr"`
-	URLs    []URL    `xml:"url"`
-}
-
-// URL represents a single URL entry in sitemap
-type URL struct {
-	Location     string `xml:"loc"`
-	LastModified string `xml:"lastmod,omitempty"`
-	ChangeFreq   string `xml:"changefreq,omitempty"`
-	Priority     string `xml:"priority,omitempty"`
 }
 
 // NewHelper creates a new SEO helper instance
@@ -62,89 +50,6 @@ func NewHelper(
 // IsEnabled returns whether SEO features are enabled
 func (h *Helper) IsEnabled() bool {
 	return h.enabled
-}
-
-// GenerateSitemap creates an XML sitemap from all published articles
-func (h *Helper) GenerateSitemap() ([]byte, error) {
-	if !h.enabled {
-		return nil, fmt.Errorf("SEO not enabled")
-	}
-
-	h.logger.Debug("Generating sitemap")
-
-	// Get all published articles
-	articles := h.articleService.GetAllArticles()
-	if articles == nil {
-		return nil, fmt.Errorf("failed to retrieve articles")
-	}
-
-	// Filter out drafts and sort by date
-	publishedArticles := make([]*models.Article, 0, len(articles))
-	for _, article := range articles {
-		if !article.Draft {
-			publishedArticles = append(publishedArticles, article)
-		}
-	}
-
-	// Sort by date (newest first)
-	sort.Slice(publishedArticles, func(i, j int) bool {
-		return publishedArticles[i].Date.After(publishedArticles[j].Date)
-	})
-
-	// Create URL set
-	urlSet := URLSet{
-		Xmlns: "http://www.sitemaps.org/schemas/sitemap/0.9",
-		URLs:  make([]URL, 0, len(publishedArticles)+3),
-	}
-
-	// Add homepage
-	urlSet.URLs = append(urlSet.URLs, URL{
-		Location:   h.siteConfig.BaseURL,
-		ChangeFreq: "daily",
-		Priority:   "1.0",
-	})
-
-	// Add articles
-	for _, article := range publishedArticles {
-		articleURL, err := h.buildCanonicalURL(article)
-		if err != nil {
-			h.logger.Warn("Failed to build URL for article", "slug", article.Slug, "error", err)
-			continue
-		}
-
-		priority := "0.8"
-		if article.Featured {
-			priority = "0.9"
-		}
-
-		changeFreq := "monthly"
-		if article.Date.After(time.Now().AddDate(0, -1, 0)) {
-			changeFreq = "weekly"
-		}
-
-		urlSet.URLs = append(urlSet.URLs, URL{
-			Location:     articleURL,
-			LastModified: article.Date.Format("2006-01-02"),
-			ChangeFreq:   changeFreq,
-			Priority:     priority,
-		})
-	}
-
-	// Generate XML
-	xmlData, err := xml.MarshalIndent(urlSet, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal sitemap XML: %w", err)
-	}
-
-	// Add XML header
-	result := append([]byte(xml.Header), xmlData...)
-
-	h.logger.Info("Sitemap generated",
-		"articles", len(publishedArticles),
-		"total_urls", len(urlSet.URLs),
-		"size_bytes", len(result))
-
-	return result, nil
 }
 
 // GenerateRobotsTxt creates a robots.txt file
@@ -202,7 +107,7 @@ func (h *Helper) GenerateOpenGraphTags(article *models.Article, baseURL string) 
 	// only dated feed content uses og:type=article.
 	ogType := "article"
 	if article.Type == articlepkg.TypePage {
-		ogType = "website"
+		ogType = ogTypeWebsite
 	}
 	tags["og:type"] = ogType
 	tags["og:title"] = article.Title
@@ -420,7 +325,7 @@ func (h *Helper) GeneratePageMetaTags(title, description, path string) (map[stri
 	tags["robots"] = "index, follow"
 
 	// Open Graph for pages
-	tags["og:type"] = "website"
+	tags["og:type"] = ogTypeWebsite
 	if title != "" {
 		tags["og:title"] = title
 	}
