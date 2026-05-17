@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [3.10.2] - 2026-05-17
+
+Patch release: `STATIC_PATH` now overlays the embedded FS per file rather than
+replacing it wholesale, finally delivering the filesystem-first fallback the
+v3.1.0 CHANGELOG promised. Forks shipping source-controlled assets (e.g.
+per-article banners from #54) no longer need to mirror the full `web/static/`
+tree just to ship one PNG (#59). Bundled with a directory-listing fix on the
+embedded-only static mount, and a follow-on fix for the `/sw.js` handler so
+a misconfigured directory at `<STATIC_PATH>/sw.js` returns 404 instead of
+looping.
+
 ### Fixed
 
 - `STATIC_PATH` now overlays the embedded FS per file instead of replacing it
@@ -19,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   like `/static/css/`. Local-mode already suppressed listings via gin's
   default wrapper; the embedded-only branch did not. Both branches now mount
   through `gin.OnlyFilesFS` for symmetric behavior.
+- `/sw.js` handler explicitly rejects directory entries before serving,
+  preventing a redirect loop when an operator misconfigures
+  `<STATIC_PATH>/sw.js` as a directory rather than a file.
 
 ---
 
