@@ -665,13 +665,21 @@ var templateFuncs = template.FuncMap{
 			// Escape HTML entities in meta content
 			escapedContent := html.EscapeString(content)
 
+			// article:tag is a multi-value tag encoded as "article:tag:<index>"
+			// in the map (since map keys must be unique). Decode back to
+			// canonical property name before emitting.
+			propertyName := name
+			if strings.HasPrefix(name, "article:tag:") {
+				propertyName = "article:tag"
+			}
+
 			// Determine meta tag type
-			if strings.HasPrefix(name, "og:") || strings.HasPrefix(name, "twitter:") || strings.HasPrefix(name, "article:") {
-				fmt.Fprintf(&buf, `<meta property="%s" content="%s">`, html.EscapeString(name), escapedContent) //nolint:gocritic // HTML attribute quoting, not Go string quoting
-			} else if name == "canonical" {
+			if strings.HasPrefix(propertyName, "og:") || strings.HasPrefix(propertyName, "twitter:") || strings.HasPrefix(propertyName, "article:") {
+				fmt.Fprintf(&buf, `<meta property="%s" content="%s">`, html.EscapeString(propertyName), escapedContent) //nolint:gocritic // HTML attribute quoting, not Go string quoting
+			} else if propertyName == "canonical" {
 				fmt.Fprintf(&buf, `<link rel="canonical" href="%s">`, escapedContent) //nolint:gocritic // HTML attribute quoting, not Go string quoting
 			} else {
-				fmt.Fprintf(&buf, `<meta name="%s" content="%s">`, html.EscapeString(name), escapedContent) //nolint:gocritic // HTML attribute quoting, not Go string quoting
+				fmt.Fprintf(&buf, `<meta name="%s" content="%s">`, html.EscapeString(propertyName), escapedContent) //nolint:gocritic // HTML attribute quoting, not Go string quoting
 			}
 			buf.WriteString("\n")
 		}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/1mb-dev/markgo/internal/config"
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
@@ -58,6 +59,7 @@ func (m *MockArticleService) GetStats() *models.Stats                           
 func (m *MockArticleService) ReloadArticles() error                               { return nil }
 func (m *MockArticleService) GetDraftArticles() []*models.Article                 { return nil }
 func (m *MockArticleService) GetDraftBySlug(slug string) (*models.Article, error) { return nil, nil }
+func (m *MockArticleService) IsHealthy() bool                                     { return true }
 
 type MockEmailService struct {
 	ShouldFail      bool
@@ -162,7 +164,7 @@ func createTestHealthHandler() *HealthHandler {
 	cfg := createTestConfig()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	base := NewBaseHandler(cfg, logger, &MockTemplateService{}, &BuildInfo{Version: "test"}, &MockSEOService{})
-	return NewHealthHandler(base, time.Now())
+	return NewHealthHandler(base, &MockArticleService{}, time.Now())
 }
 
 // MockFeedService is a minimal feed service for syndication handler tests.
@@ -396,4 +398,37 @@ func TestHealthEndpoint(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 	assert.Equal(t, "healthy", response["status"])
+}
+
+// unhealthyArticleService is a MockArticleService variant that reports
+// unhealthy state. Used by TestHealth_Unhealthy_Returns503.
+type unhealthyArticleService struct{ MockArticleService }
+
+func (m *unhealthyArticleService) IsHealthy() bool { return false }
+
+// TestHealth_Unhealthy_Returns503 verifies that /health surfaces real
+// degradation: when the article service reports unhealthy, the endpoint
+// returns 503 + status="unhealthy" so uptime monitors get a truthful signal.
+// Regression guard for v3.10.3 F3.
+func TestHealth_Unhealthy_Returns503(t *testing.T) {
+	cfg := createTestConfig()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	base := NewBaseHandler(cfg, logger, &MockTemplateService{}, &BuildInfo{Version: "test"}, &MockSEOService{})
+	handler := NewHealthHandler(base, &unhealthyArticleService{}, time.Now())
+
+	router := gin.New()
+	router.GET("/health", handler.Health)
+
+	req := httptest.NewRequest("GET", "/health", http.NoBody)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "unhealthy", resp["status"])
+	svcStatus, ok := resp["services"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "unhealthy", svcStatus["articles"])
 }

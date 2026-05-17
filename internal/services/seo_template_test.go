@@ -100,6 +100,64 @@ func TestRenderMetaTags(t *testing.T) {
 	}
 }
 
+// TestRenderMetaTags_MultiTagEmitsMultipleProperties verifies that the
+// "article:tag:<index>" encoding produces one <meta property="article:tag">
+// line per tag. Regression guard for the pre-v3.10.3 bug where the loop
+// overwrote a single map key, leaving only the last tag in output.
+func TestRenderMetaTags_MultiTagEmitsMultipleProperties(t *testing.T) {
+	funcMap := GetTemplateFuncMap()
+	fn := funcMap["renderMetaTags"].(func(map[string]string) template.HTML)
+
+	cases := []struct {
+		name    string
+		tags    map[string]string
+		wantSub []string
+	}{
+		{
+			name: "three tags emit three article:tag lines",
+			tags: map[string]string{
+				"article:tag:0": "go",
+				"article:tag:1": "blog",
+				"article:tag:2": "web",
+			},
+			wantSub: []string{
+				`<meta property="article:tag" content="go">`,
+				`<meta property="article:tag" content="blog">`,
+				`<meta property="article:tag" content="web">`,
+			},
+		},
+		{
+			name: "single tag emits one line with canonical property name",
+			tags: map[string]string{
+				"article:tag:0": "solo",
+			},
+			wantSub: []string{
+				`<meta property="article:tag" content="solo">`,
+			},
+		},
+		{
+			name:    "zero tags emit nothing",
+			tags:    map[string]string{},
+			wantSub: nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out := string(fn(tc.tags))
+			for _, want := range tc.wantSub {
+				if !strings.Contains(out, want) {
+					t.Errorf("want output to contain %q\ngot: %s", want, out)
+				}
+			}
+			// Negative: no encoded key (article:tag:0) should leak into output.
+			if strings.Contains(out, "article:tag:0") {
+				t.Errorf("encoded suffix leaked into output: %s", out)
+			}
+		})
+	}
+}
+
 func TestSeoExcerpt(t *testing.T) {
 	funcMap := GetTemplateFuncMap()
 	seoExcerpt, exists := funcMap["seoExcerpt"]

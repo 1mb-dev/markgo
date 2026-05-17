@@ -292,8 +292,12 @@ func (h *AdminHandler) Drafts(c *gin.Context) {
 	drafts := h.articleService.GetDraftArticles()
 
 	if h.shouldReturnJSON(c) {
+		listings := make([]*models.ArticleList, len(drafts))
+		for i, a := range drafts {
+			listings[i] = a.ToListView()
+		}
 		c.JSON(http.StatusOK, gin.H{
-			"drafts":      drafts,
+			"drafts":      listings,
 			"draft_count": len(drafts),
 			"timestamp":   time.Now().Unix(),
 		})

@@ -904,6 +904,42 @@ func TestDrafts(t *testing.T) {
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 		assert.Equal(t, float64(0), resp["draft_count"])
 	})
+
+	// TestDrafts_JSON_NoPII_AskerEmail_NotLeaked verifies that AskerEmail from
+	// AMA drafts is not serialised to JSON. Regression guard for v3.10.3 F2:
+	// pre-fix the handler emitted raw *models.Article including AskerEmail.
+	t.Run("JSON response omits AskerEmail PII from AMA drafts", func(t *testing.T) {
+		cfg := createTestConfig()
+		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		base := NewBaseHandler(cfg, logger, &MockTemplateService{}, &BuildInfo{Version: "test"}, &MockSEOService{})
+
+		svc := &DraftsArticleService{
+			Drafts: []*models.Article{
+				{
+					Slug:       "ama-question",
+					Title:      "Why X?",
+					Draft:      true,
+					Date:       time.Now(),
+					Type:       "ama",
+					Asker:      "Anonymous",
+					AskerEmail: "secret@example.com",
+				},
+			},
+		}
+		handler := NewAdminHandler(base, svc, time.Now())
+		router := gin.New()
+		router.GET("/admin/drafts", handler.Drafts)
+
+		req := httptest.NewRequest("GET", "/admin/drafts", http.NoBody)
+		req.Header.Set("Accept", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		body := w.Body.String()
+		assert.NotContains(t, body, "secret@example.com", "AskerEmail must not leak in JSON response")
+		assert.NotContains(t, body, "asker_email", "asker_email field must not appear in JSON response")
+	})
 }
 
 // ---------------------------------------------------------------------------

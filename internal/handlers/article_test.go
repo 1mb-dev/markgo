@@ -54,6 +54,7 @@ func (m *TestArticleService) GetDraftArticles() []*models.Article               
 func (m *TestArticleService) GetDraftBySlug(_ string) (*models.Article, error) {
 	return nil, apperrors.ErrArticleNotFound
 }
+func (m *TestArticleService) IsHealthy() bool { return true }
 
 func testArticles() []*models.Article {
 	now := time.Now()

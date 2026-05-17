@@ -44,6 +44,7 @@ func (m *MockArticleService) GetStats() *models.Stats                           
 func (m *MockArticleService) ReloadArticles() error                                 { return nil }
 func (m *MockArticleService) GetDraftArticles() []*models.Article                   { return nil }
 func (m *MockArticleService) GetDraftBySlug(_ string) (*models.Article, error)      { return nil, nil }
+func (m *MockArticleService) IsHealthy() bool                                       { return true }
 
 func createTestHelper() (*Helper, *MockArticleService) {
 	mockArticles := &MockArticleService{
