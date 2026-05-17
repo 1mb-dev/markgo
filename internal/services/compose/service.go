@@ -91,7 +91,9 @@ func (s *Service) CreatePost(input *Input) (string, error) {
 		fm["categories"] = categories
 	}
 	setIfNonEmpty(fm, "banner", input.Banner)
-	setIfNonEmpty(fm, "banner_alt", input.BannerAlt)
+	if input.Banner != "" {
+		setIfNonEmpty(fm, "banner_alt", input.BannerAlt)
+	}
 	setIfNonEmpty(fm, "author", s.defaultAuthor)
 	setIfNonEmpty(fm, "type", input.Type)
 	setIfNonEmpty(fm, "asker", input.Asker)
@@ -261,12 +263,15 @@ func (s *Service) UpdateArticle(slug string, input *Input) error {
 
 	if input.Banner != "" {
 		fm["banner"] = input.Banner
+		if input.BannerAlt != "" {
+			fm["banner_alt"] = input.BannerAlt
+		} else {
+			delete(fm, "banner_alt")
+		}
 	} else {
+		// banner_alt is meaningless without banner — drop both together
+		// so removing a banner doesn't leave orphaned alt text in frontmatter.
 		delete(fm, "banner")
-	}
-	if input.BannerAlt != "" {
-		fm["banner_alt"] = input.BannerAlt
-	} else {
 		delete(fm, "banner_alt")
 	}
 
@@ -422,9 +427,10 @@ func slugPrefixFor(contentType string) string {
 	}
 }
 
-// setIfNonEmpty assigns val to m[key] iff val is non-empty. Reduces the
-// branch density of CreatePost/UpdateArticle where most frontmatter fields
-// are conditional on a non-empty string.
+// setIfNonEmpty assigns val to m[key] iff val is non-empty. Used by
+// CreatePost to keep the frontmatter-build block uniform; UpdateArticle
+// can't use it because it needs to delete keys on empty input (different
+// semantics).
 func setIfNonEmpty(m map[string]any, key, val string) {
 	if val != "" {
 		m[key] = val

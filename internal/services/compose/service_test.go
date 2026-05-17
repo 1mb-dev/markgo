@@ -470,6 +470,65 @@ func TestCreatePost_BannerOmitted_WhenEmpty(t *testing.T) {
 	assert.NotContains(t, s, "banner_alt:")
 }
 
+func TestCreatePost_BannerAltDroppedWhenBannerEmpty(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(dir, "Test Author")
+
+	// User typed alt text but never set a banner — alt text alone is
+	// meaningless and must not land in frontmatter as an orphan.
+	_, err := svc.CreatePost(&Input{
+		Title:     "Orphan Test",
+		Content:   "Body.",
+		Banner:    "",
+		BannerAlt: "Stray alt text",
+	})
+	require.NoError(t, err)
+
+	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
+	require.Len(t, files, 1)
+
+	content, err := os.ReadFile(files[0])
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.NotContains(t, s, "banner:")
+	assert.NotContains(t, s, "banner_alt:", "banner_alt must not be written without a banner")
+}
+
+func TestUpdateArticle_BannerAltDroppedWhenBannerRemoved(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(dir, "Test Author")
+
+	// Seed an article that has both a banner and alt text.
+	slug, err := svc.CreatePost(&Input{
+		Title:     "Has Banner",
+		Content:   "Body.",
+		Banner:    "/uploads/has-banner/hero.jpg",
+		BannerAlt: "Hero image",
+	})
+	require.NoError(t, err)
+
+	// User clicks "Remove banner" but the form still posts the old alt text
+	// (the bug this test guards against). Server must drop banner_alt too.
+	err = svc.UpdateArticle(slug, &Input{
+		Title:     "Has Banner",
+		Content:   "Body.",
+		Banner:    "",
+		BannerAlt: "Hero image",
+	})
+	require.NoError(t, err)
+
+	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
+	require.Len(t, files, 1)
+
+	content, err := os.ReadFile(files[0])
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.NotContains(t, s, "banner:")
+	assert.NotContains(t, s, "banner_alt:")
+}
+
 // TestUpdateArticle_BannerPreservedOnEdit verifies the read-only sketch decision:
 // banners with a /static/ path (or absolute URL) round-trip through LoadArticle +
 // UpdateArticle untouched as long as the form re-submits the same value via the

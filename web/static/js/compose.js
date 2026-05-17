@@ -313,9 +313,13 @@ export function init() {
     }
 
     function updateUploadButton() {
-        if (!uploadBtn) return;
         const slug = getSlug();
-        uploadBtn.disabled = !slug;
+        if (uploadBtn) uploadBtn.disabled = !slug;
+        // Mirror the same discipline on the banner button so both upload
+        // affordances communicate "save draft first" via disabled state at
+        // init, not just at click time.
+        const bannerBtn = document.querySelector('[data-banner-upload-btn]');
+        if (bannerBtn) bannerBtn.disabled = !slug;
         if (!slug) {
             setUploadStatus('Save as draft first to upload files', false);
         }
@@ -396,6 +400,14 @@ export function init() {
             }
         }
         if (bannerRemoveBtn) bannerRemoveBtn.hidden = !url;
+        // banner_alt has no meaning without a banner — clear it on remove so
+        // the form doesn't submit orphaned alt text. Server-side CreatePost
+        // / UpdateArticle also drop banner_alt when banner is empty, but the
+        // UI should reflect the rule.
+        if (!url) {
+            const altInput = document.querySelector('.compose-banner-alt');
+            if (altInput) altInput.value = '';
+        }
     }
 
     function uploadBanner(file) {
