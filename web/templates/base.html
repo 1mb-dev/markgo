@@ -10,6 +10,13 @@
     <meta name="application-name" content="{{ .config.Blog.Title }}">
     <meta name="markgo-storage-namespace" content="{{ storageNamespace .config.BaseURL }}">
 
+    <!-- AMA copy (operator-overridable via AMA_* env vars; read by ama-sheet.js) -->
+    <meta name="markgo-ama-heading" content="{{ .config.AMA.PageHeading }}">
+    <meta name="markgo-ama-intro" content="{{ .config.AMA.PageIntro }}">
+    <meta name="markgo-ama-placeholder" content="{{ .config.AMA.FormPlaceholder }}">
+    <meta name="markgo-ama-submit" content="{{ .config.AMA.SubmitLabel }}">
+    <meta name="markgo-ama-thankyou" content="{{ .config.AMA.ThankyouCopy }}">
+
     <!-- Primary Meta Tags -->
     <title>{{ if .title }}{{ .title }}{{ else }}{{ .config.Blog.Title }}{{ end }}</title>
 

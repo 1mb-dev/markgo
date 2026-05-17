@@ -35,6 +35,8 @@ type Input struct {
 	LinkURL     string `json:"link_url"`
 	Tags        string `json:"tags"`
 	Categories  string `json:"categories"`
+	Banner      string `json:"banner"`
+	BannerAlt   string `json:"banner_alt"`
 	Draft       bool   `json:"draft"`
 	Asker       string `json:"asker"`
 	AskerEmail  string `json:"asker_email"`
@@ -71,15 +73,9 @@ func (s *Service) CreatePost(input *Input) (string, error) {
 		"slug": slug,
 		"date": now.Format(time.RFC3339),
 	}
-	if input.Title != "" {
-		fm["title"] = input.Title
-	}
-	if input.Description != "" {
-		fm["description"] = input.Description
-	}
-	if input.LinkURL != "" {
-		fm["link_url"] = input.LinkURL
-	}
+	setIfNonEmpty(fm, "title", input.Title)
+	setIfNonEmpty(fm, "description", input.Description)
+	setIfNonEmpty(fm, "link_url", input.LinkURL)
 	// Parse comma-separated categories
 	var categories []string
 	for _, cat := range strings.Split(input.Categories, ",") {
@@ -94,18 +90,14 @@ func (s *Service) CreatePost(input *Input) (string, error) {
 	if len(categories) > 0 {
 		fm["categories"] = categories
 	}
-	if s.defaultAuthor != "" {
-		fm["author"] = s.defaultAuthor
+	setIfNonEmpty(fm, "banner", input.Banner)
+	if input.Banner != "" {
+		setIfNonEmpty(fm, "banner_alt", input.BannerAlt)
 	}
-	if input.Type != "" {
-		fm["type"] = input.Type
-	}
-	if input.Asker != "" {
-		fm["asker"] = input.Asker
-	}
-	if input.AskerEmail != "" {
-		fm["asker_email"] = input.AskerEmail
-	}
+	setIfNonEmpty(fm, "author", s.defaultAuthor)
+	setIfNonEmpty(fm, "type", input.Type)
+	setIfNonEmpty(fm, "asker", input.Asker)
+	setIfNonEmpty(fm, "asker_email", input.AskerEmail)
 	fm["draft"] = input.Draft
 
 	// Marshal frontmatter to YAML
@@ -186,6 +178,12 @@ func (s *Service) LoadArticle(slug string) (*Input, error) {
 		}
 		input.Categories = strings.Join(catStrs, ", ")
 	}
+	if banner, ok := fm["banner"].(string); ok {
+		input.Banner = banner
+	}
+	if bannerAlt, ok := fm["banner_alt"].(string); ok {
+		input.BannerAlt = bannerAlt
+	}
 	if draft, ok := fm["draft"].(bool); ok {
 		input.Draft = draft
 	}
@@ -261,6 +259,20 @@ func (s *Service) UpdateArticle(slug string, input *Input) error {
 		fm["categories"] = categories
 	} else {
 		delete(fm, "categories")
+	}
+
+	if input.Banner != "" {
+		fm["banner"] = input.Banner
+		if input.BannerAlt != "" {
+			fm["banner_alt"] = input.BannerAlt
+		} else {
+			delete(fm, "banner_alt")
+		}
+	} else {
+		// banner_alt is meaningless without banner — drop both together
+		// so removing a banner doesn't leave orphaned alt text in frontmatter.
+		delete(fm, "banner")
+		delete(fm, "banner_alt")
 	}
 
 	fm["draft"] = input.Draft
@@ -412,6 +424,16 @@ func slugPrefixFor(contentType string) string {
 		return "article"
 	default:
 		return "post"
+	}
+}
+
+// setIfNonEmpty assigns val to m[key] iff val is non-empty. Used by
+// CreatePost to keep the frontmatter-build block uniform; UpdateArticle
+// can't use it because it needs to delete keys on empty input (different
+// semantics).
+func setIfNonEmpty(m map[string]any, key, val string) {
+	if val != "" {
+		m[key] = val
 	}
 }
 

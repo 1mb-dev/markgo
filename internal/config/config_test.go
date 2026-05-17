@@ -34,6 +34,7 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, 15*time.Second, cfg.Server.ReadTimeout)
 	assert.Equal(t, 15*time.Second, cfg.Server.WriteTimeout)
 	assert.Equal(t, 60*time.Second, cfg.Server.IdleTimeout)
+	assert.Equal(t, 30*time.Second, cfg.Server.ShutdownTimeout)
 
 	// Test cache config defaults
 	assert.Equal(t, 1*time.Hour, cfg.Cache.TTL)
@@ -78,6 +79,13 @@ func TestLoad(t *testing.T) {
 	// Test upload config defaults
 	assert.Equal(t, "./uploads", cfg.Upload.Path)
 	assert.Equal(t, int64(10<<20), cfg.Upload.MaxSize)
+
+	// Test AMA config defaults — verbatim pre-v3.11.0 copy must round-trip
+	assert.Equal(t, "Ask me anything", cfg.AMA.PageHeading)
+	assert.Equal(t, "Curious about something? Submit a question and I'll answer it publicly.", cfg.AMA.PageIntro)
+	assert.Equal(t, "What would you like to know?", cfg.AMA.FormPlaceholder)
+	assert.Equal(t, "Submit Question", cfg.AMA.SubmitLabel)
+	assert.Equal(t, "Question submitted! It will appear once answered.", cfg.AMA.ThankyouCopy)
 }
 
 func TestLoadWithEnvironmentVariables(t *testing.T) {
@@ -102,6 +110,7 @@ func TestLoadWithEnvironmentVariables(t *testing.T) {
 	_ = os.Setenv("SERVER_READ_TIMEOUT", "30s")
 	_ = os.Setenv("SERVER_WRITE_TIMEOUT", "30s")
 	_ = os.Setenv("SERVER_IDLE_TIMEOUT", "120s")
+	_ = os.Setenv("SHUTDOWN_TIMEOUT", "15s")
 
 	_ = os.Setenv("CACHE_TTL", "2h")
 	_ = os.Setenv("CACHE_MAX_SIZE", "2000")
@@ -137,6 +146,12 @@ func TestLoadWithEnvironmentVariables(t *testing.T) {
 	_ = os.Setenv("BLOG_THEME", "dark")
 	_ = os.Setenv("BLOG_POSTS_PER_PAGE", "20")
 
+	_ = os.Setenv("AMA_PAGE_HEADING", "Reach out")
+	_ = os.Setenv("AMA_PAGE_INTRO", "Drop a note and I'll get back when I can.")
+	_ = os.Setenv("AMA_FORM_PLACEHOLDER", "Type your question…")
+	_ = os.Setenv("AMA_SUBMIT_LABEL", "Send")
+	_ = os.Setenv("AMA_THANKYOU_COPY", "Got it. Thanks.")
+
 	defer clearEnvVars()
 	defer func() {
 		_ = os.RemoveAll(tmpDir)
@@ -158,6 +173,7 @@ func TestLoadWithEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, 30*time.Second, cfg.Server.ReadTimeout)
 	assert.Equal(t, 30*time.Second, cfg.Server.WriteTimeout)
 	assert.Equal(t, 120*time.Second, cfg.Server.IdleTimeout)
+	assert.Equal(t, 15*time.Second, cfg.Server.ShutdownTimeout)
 
 	// Test cache config
 	assert.Equal(t, 2*time.Hour, cfg.Cache.TTL)
@@ -201,6 +217,13 @@ func TestLoadWithEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, "es", cfg.Blog.Language)
 	assert.Equal(t, "dark", cfg.Blog.Theme)
 	assert.Equal(t, 20, cfg.Blog.PostsPerPage)
+
+	// Test AMA config override
+	assert.Equal(t, "Reach out", cfg.AMA.PageHeading)
+	assert.Equal(t, "Drop a note and I'll get back when I can.", cfg.AMA.PageIntro)
+	assert.Equal(t, "Type your question…", cfg.AMA.FormPlaceholder)
+	assert.Equal(t, "Send", cfg.AMA.SubmitLabel)
+	assert.Equal(t, "Got it. Thanks.", cfg.AMA.ThankyouCopy)
 }
 
 func TestEnvironmentVariableParsing(t *testing.T) {
@@ -313,7 +336,8 @@ func TestStringSliceParsing(t *testing.T) {
 func clearEnvVars() {
 	vars := []string{
 		"ENVIRONMENT", "PORT", "ARTICLES_PATH", "STATIC_PATH", "TEMPLATES_PATH", "BASE_URL",
-		"SERVER_READ_TIMEOUT", "SERVER_WRITE_TIMEOUT", "SERVER_IDLE_TIMEOUT",
+		"SERVER_READ_TIMEOUT", "SERVER_WRITE_TIMEOUT", "SERVER_IDLE_TIMEOUT", "SHUTDOWN_TIMEOUT",
+		"AMA_PAGE_HEADING", "AMA_PAGE_INTRO", "AMA_FORM_PLACEHOLDER", "AMA_SUBMIT_LABEL", "AMA_THANKYOU_COPY",
 		"CACHE_TTL", "CACHE_MAX_SIZE", "CACHE_CLEANUP_INTERVAL",
 		"EMAIL_HOST", "EMAIL_PORT", "EMAIL_USERNAME", "EMAIL_PASSWORD", "EMAIL_FROM", "EMAIL_TO", "EMAIL_USE_SSL",
 		"RATE_LIMIT_GENERAL_REQUESTS", "RATE_LIMIT_GENERAL_WINDOW", "RATE_LIMIT_CONTACT_REQUESTS", "RATE_LIMIT_CONTACT_WINDOW", "RATE_LIMIT_UPLOAD_REQUESTS", "RATE_LIMIT_UPLOAD_WINDOW",

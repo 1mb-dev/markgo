@@ -424,3 +424,145 @@ func TestGenerateSlug(t *testing.T) {
 		})
 	}
 }
+
+func TestCreatePost_BannerWritten_WhenProvided(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(dir, "Test Author")
+
+	slug, err := svc.CreatePost(&Input{
+		Title:     "Banner Post",
+		Content:   "Has a banner.",
+		Banner:    "/uploads/banner-post/hero.jpg",
+		BannerAlt: "Hero image",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "banner-post", slug)
+
+	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
+	require.Len(t, files, 1)
+
+	content, err := os.ReadFile(files[0])
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.Contains(t, s, "banner: /uploads/banner-post/hero.jpg")
+	assert.Contains(t, s, "banner_alt: Hero image")
+}
+
+func TestCreatePost_BannerOmitted_WhenEmpty(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(dir, "Test Author")
+
+	_, err := svc.CreatePost(&Input{
+		Title:   "No Banner Post",
+		Content: "No banner here.",
+	})
+	require.NoError(t, err)
+
+	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
+	require.Len(t, files, 1)
+
+	content, err := os.ReadFile(files[0])
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.NotContains(t, s, "banner:")
+	assert.NotContains(t, s, "banner_alt:")
+}
+
+func TestCreatePost_BannerAltDroppedWhenBannerEmpty(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(dir, "Test Author")
+
+	// User typed alt text but never set a banner — alt text alone is
+	// meaningless and must not land in frontmatter as an orphan.
+	_, err := svc.CreatePost(&Input{
+		Title:     "Orphan Test",
+		Content:   "Body.",
+		Banner:    "",
+		BannerAlt: "Stray alt text",
+	})
+	require.NoError(t, err)
+
+	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
+	require.Len(t, files, 1)
+
+	content, err := os.ReadFile(files[0])
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.NotContains(t, s, "banner:")
+	assert.NotContains(t, s, "banner_alt:", "banner_alt must not be written without a banner")
+}
+
+func TestUpdateArticle_BannerAltDroppedWhenBannerRemoved(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(dir, "Test Author")
+
+	// Seed an article that has both a banner and alt text.
+	slug, err := svc.CreatePost(&Input{
+		Title:     "Has Banner",
+		Content:   "Body.",
+		Banner:    "/uploads/has-banner/hero.jpg",
+		BannerAlt: "Hero image",
+	})
+	require.NoError(t, err)
+
+	// User clicks "Remove banner" but the form still posts the old alt text
+	// (the bug this test guards against). Server must drop banner_alt too.
+	err = svc.UpdateArticle(slug, &Input{
+		Title:     "Has Banner",
+		Content:   "Body.",
+		Banner:    "",
+		BannerAlt: "Hero image",
+	})
+	require.NoError(t, err)
+
+	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
+	require.Len(t, files, 1)
+
+	content, err := os.ReadFile(files[0])
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.NotContains(t, s, "banner:")
+	assert.NotContains(t, s, "banner_alt:")
+}
+
+// TestUpdateArticle_BannerPreservedOnEdit verifies the read-only sketch decision:
+// banners with a /static/ path (or absolute URL) round-trip through LoadArticle +
+// UpdateArticle untouched as long as the form re-submits the same value via the
+// hidden field, even though the form will not offer "upload" / "remove" controls
+// for non-uploads-path banners.
+func TestUpdateArticle_BannerPreservedOnEdit(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(dir, "Test Author")
+
+	// Seed an article with a /static/ banner directly on disk.
+	content := "---\nslug: editorial\ntitle: \"Editorial Piece\"\nbanner: /static/editorial/hero.jpg\nbanner_alt: \"Editorial hero\"\ndate: 2026-01-15T10:00:00Z\ndraft: false\n---\n\nBody.\n"
+	err := os.WriteFile(filepath.Join(dir, "2026-01-15-editorial.md"), []byte(content), 0o644)
+	require.NoError(t, err)
+
+	// Load via the same path the edit handler uses.
+	loaded, err := svc.LoadArticle("editorial")
+	require.NoError(t, err)
+	assert.Equal(t, "/static/editorial/hero.jpg", loaded.Banner)
+	assert.Equal(t, "Editorial hero", loaded.BannerAlt)
+
+	// Simulate an edit that doesn't touch the banner: same Banner/BannerAlt
+	// submitted (the hidden field round-trips the existing value).
+	err = svc.UpdateArticle("editorial", &Input{
+		Title:     "Editorial Piece (edited)",
+		Content:   "Body with edits.",
+		Banner:    loaded.Banner,
+		BannerAlt: loaded.BannerAlt,
+	})
+	require.NoError(t, err)
+
+	// Reload and verify the /static/ path survived.
+	reloaded, err := svc.LoadArticle("editorial")
+	require.NoError(t, err)
+	assert.Equal(t, "/static/editorial/hero.jpg", reloaded.Banner)
+	assert.Equal(t, "Editorial hero", reloaded.BannerAlt)
+	assert.Equal(t, "Editorial Piece (edited)", reloaded.Title)
+}

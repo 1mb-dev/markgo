@@ -17,7 +17,26 @@ let isSubmitting = false;
 let captchaAnswer = 0;
 let viewportHandler = null;
 
+// Operator-overridable copy. Read from <meta> tags emitted by base.html so the
+// server is the single source of truth (AMA_* env vars → config.AMA → meta tags).
+// Defaults preserve pre-v3.11.0 behavior when meta tags are missing (e.g. tests).
+function metaCopy(name, fallback) {
+    const el = document.querySelector(`meta[name="${name}"]`);
+    return el && el.content ? el.content : fallback;
+}
+function readAmaCopy() {
+    return {
+        heading:     metaCopy('markgo-ama-heading',     'Ask me anything'),
+        intro:       metaCopy('markgo-ama-intro',       "Curious about something? Submit a question and I'll answer it publicly."),
+        placeholder: metaCopy('markgo-ama-placeholder', 'What would you like to know?'),
+        submit:      metaCopy('markgo-ama-submit',      'Submit Question'),
+        thankyou:    metaCopy('markgo-ama-thankyou',    'Question submitted! It will appear once answered.'),
+    };
+}
+
 function buildOverlay() {
+    const copy = readAmaCopy();
+
     const el = document.createElement('div');
     el.className = 'ama-sheet-overlay';
     el.setAttribute('role', 'dialog');
@@ -40,7 +59,7 @@ function buildOverlay() {
 
     const heading = document.createElement('span');
     heading.className = 'ama-sheet-heading';
-    heading.textContent = 'Ask me anything';
+    heading.textContent = copy.heading;
 
     const closeBtn = document.createElement('button');
     closeBtn.className = 'ama-sheet-close';
@@ -50,6 +69,11 @@ function buildOverlay() {
 
     header.appendChild(heading);
     header.appendChild(closeBtn);
+
+    // Intro paragraph (operator-overridable via AMA_PAGE_INTRO)
+    const intro = document.createElement('p');
+    intro.className = 'ama-sheet-intro';
+    intro.textContent = copy.intro;
 
     // Form
     const form = document.createElement('form');
@@ -77,7 +101,7 @@ function buildOverlay() {
     const questionTextarea = document.createElement('textarea');
     questionTextarea.id = 'ama-question';
     questionTextarea.className = 'ama-form-input ama-form-textarea';
-    questionTextarea.placeholder = 'What would you like to know?';
+    questionTextarea.placeholder = copy.placeholder;
     questionTextarea.required = true;
     questionTextarea.minLength = 20;
     questionTextarea.maxLength = 500;
@@ -144,7 +168,7 @@ function buildOverlay() {
     const submitBtn = document.createElement('button');
     submitBtn.type = 'submit';
     submitBtn.className = 'ama-submit-btn';
-    submitBtn.textContent = 'Submit Question';
+    submitBtn.textContent = copy.submit;
 
     // Assemble form
     form.appendChild(nameGroup.group);
@@ -161,6 +185,7 @@ function buildOverlay() {
 
     // Assemble sheet
     sheet.appendChild(header);
+    sheet.appendChild(intro);
     sheet.appendChild(form);
 
     el.appendChild(backdrop);
@@ -306,6 +331,8 @@ async function handleSubmit(form, nameInput, emailInput, questionTextarea, honey
         return;
     }
 
+    const copy = readAmaCopy();
+
     isSubmitting = true;
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting\u2026';
@@ -319,7 +346,7 @@ async function handleSubmit(form, nameInput, emailInput, questionTextarea, honey
 
         if (result.ok) {
             close();
-            showToast('Question submitted! It will appear once answered.', 'success');
+            showToast(copy.thankyou, 'success');
         } else {
             showToast(result.error || 'Failed to submit question', 'error');
             generateCaptcha();
@@ -330,7 +357,7 @@ async function handleSubmit(form, nameInput, emailInput, questionTextarea, honey
     } finally {
         isSubmitting = false;
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Submit Question';
+        submitBtn.textContent = copy.submit;
     }
 }
 

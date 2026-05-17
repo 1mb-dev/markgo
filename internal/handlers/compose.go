@@ -145,6 +145,8 @@ func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 		LinkURL:     c.PostForm("link_url"),
 		Tags:        c.PostForm("tags"),
 		Categories:  c.PostForm("categories"),
+		Banner:      c.PostForm("banner"),
+		BannerAlt:   c.PostForm("banner_alt"),
 		Draft:       c.PostForm("draft") == "on",
 	}
 
@@ -202,6 +204,8 @@ func (h *ComposeHandler) HandleSubmit(c *gin.Context) {
 		LinkURL:     c.PostForm("link_url"),
 		Tags:        c.PostForm("tags"),
 		Categories:  c.PostForm("categories"),
+		Banner:      c.PostForm("banner"),
+		BannerAlt:   c.PostForm("banner_alt"),
 		Draft:       c.PostForm("draft") == "on",
 	}
 

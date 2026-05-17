@@ -140,25 +140,53 @@ func Run(args []string) {
 
 	logger.Info("Shutting down server...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
-		logger.Error("Server forced to shutdown", "error", err)
-		apperrors.HandleCLIError(
-			apperrors.NewCLIError("server shutdown", "Server forced to shutdown", err, 1),
-			nil, // No additional cleanup needed here
-		)
+	cleanups := []func(){
+		func() {
+			if templateService != nil {
+				templateService.Shutdown()
+			}
+		},
+		func() {
+			if sessionStore != nil {
+				sessionStore.Shutdown()
+			}
+		},
+		middleware.ShutdownRateLimiters,
 	}
 
-	if templateService != nil {
-		templateService.Shutdown()
+	shutdownErr := gracefulShutdown(ctx, server.Shutdown, cleanups, logger)
+	if shutdownErr != nil {
+		apperrors.HandleCLIError(
+			apperrors.NewCLIError("server shutdown", "Server forced to shutdown", shutdownErr, 1),
+			nil,
+		)
 	}
-	if sessionStore != nil {
-		sessionStore.Shutdown()
-	}
-	middleware.ShutdownRateLimiters()
 	logger.Info("Server exited gracefully")
+}
+
+// gracefulShutdown runs the HTTP-server shutdown, then runs each cleanup
+// regardless of the shutdown outcome. Returns the shutdown error (or nil)
+// so the caller decides how to surface a failure. The unconditional cleanup
+// loop is the load-bearing invariant: a context-deadline-exceeded on
+// server.Shutdown must not prevent session-store / rate-limiter goroutines
+// from being stopped.
+func gracefulShutdown(
+	ctx context.Context,
+	serverShutdown func(context.Context) error,
+	cleanups []func(),
+	logger *slog.Logger,
+) error {
+	err := serverShutdown(ctx)
+	if err != nil {
+		logger.Error("HTTP server forced to shutdown", "error", err)
+	}
+	for _, cleanup := range cleanups {
+		cleanup()
+	}
+	return err
 }
 
 func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *services.TemplateService, *middleware.SessionStore, error) {
