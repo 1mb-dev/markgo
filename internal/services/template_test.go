@@ -756,7 +756,7 @@ func createTestTemplateService(t *testing.T) *TemplateService {
 
 func TestLoadBrandLogo_EmbeddedDefault(t *testing.T) {
 	svc := &TemplateService{}
-	require.NoError(t, svc.loadBrandLogo())
+	require.NoError(t, svc.loadBrandLogo(""))
 
 	got := string(svc.brandLogoSVG)
 	assert.Contains(t, got, `class="brand-logo"`, "embedded default must carry brand-logo class")
@@ -770,7 +770,7 @@ func TestLoadBrandLogo_EmbeddedReadFails_ReturnsStartupError(t *testing.T) {
 	t.Cleanup(func() { brandLogoFS = original })
 
 	svc := &TemplateService{}
-	err := svc.loadBrandLogo()
+	err := svc.loadBrandLogo("")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "embedded brand-logo missing or unreadable")
 }
@@ -782,4 +782,143 @@ func TestTemplateService_FuncMapExposesBrandLogo(t *testing.T) {
 	fn, ok := fm["brandLogoSVG"].(func() template.HTML)
 	require.True(t, ok, "brandLogoSVG must be registered as func() template.HTML")
 	assert.Equal(t, template.HTML(`<svg data-test="x"/>`), fn())
+}
+
+// writeOverlayFixture creates <staticPath>/img/brand-logo.svg with content.
+// Returns the staticPath dir (the parent containing img/).
+func writeOverlayFixture(t *testing.T, content []byte) string {
+	t.Helper()
+	staticPath := t.TempDir()
+	imgDir := filepath.Join(staticPath, "img")
+	require.NoError(t, os.MkdirAll(imgDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(imgDir, "brand-logo.svg"), content, 0o600))
+	return staticPath
+}
+
+func TestLoadBrandLogo_OverlayReplaces(t *testing.T) {
+	staticPath := writeOverlayFixture(t, []byte(
+		`<svg id="operator-marker" class="brand-logo" xmlns="http://www.w3.org/2000/svg"/>`))
+
+	svc := &TemplateService{}
+	require.NoError(t, svc.loadBrandLogo(staticPath))
+
+	got := string(svc.brandLogoSVG)
+	assert.Contains(t, got, `id="operator-marker"`)
+	assert.NotContains(t, got, `viewBox="0 0 64 64"`, "operator overlay must replace embedded default")
+}
+
+func TestLoadBrandLogo_InjectsClassIfMissing(t *testing.T) {
+	staticPath := writeOverlayFixture(t, []byte(
+		`<svg id="no-class" xmlns="http://www.w3.org/2000/svg"/>`))
+
+	svc := &TemplateService{}
+	require.NoError(t, svc.loadBrandLogo(staticPath))
+
+	got := string(svc.brandLogoSVG)
+	assert.Contains(t, got, `id="no-class"`)
+	assert.Contains(t, got, `class="brand-logo"`, "class attribute must be injected when absent")
+}
+
+func TestLoadBrandLogo_PreservesExistingClass(t *testing.T) {
+	staticPath := writeOverlayFixture(t, []byte(
+		`<svg class="my-logo" xmlns="http://www.w3.org/2000/svg"/>`))
+
+	svc := &TemplateService{}
+	require.NoError(t, svc.loadBrandLogo(staticPath))
+
+	got := string(svc.brandLogoSVG)
+	assert.Contains(t, got, `class="my-logo"`)
+	assert.NotContains(t, got, `class="brand-logo"`, "must not inject when operator chose another class")
+}
+
+func TestLoadBrandLogo_FallsBackOnMalformedXML(t *testing.T) {
+	staticPath := writeOverlayFixture(t, []byte(`<not-xml<<`))
+
+	svc := &TemplateService{}
+	require.NoError(t, svc.loadBrandLogo(staticPath))
+
+	// Falls back to embedded default — canonical viewBox is the marker.
+	assert.Contains(t, string(svc.brandLogoSVG), `viewBox="0 0 64 64"`)
+}
+
+func TestLoadBrandLogo_FallsBackOnOversize(t *testing.T) {
+	// Build a 33 KiB SVG that's structurally valid: <svg> with padding inside.
+	padding := strings.Repeat("x", brandLogoMaxBytes)
+	oversize := []byte(`<svg xmlns="http://www.w3.org/2000/svg"><desc>` + padding + `</desc></svg>`)
+	staticPath := writeOverlayFixture(t, oversize)
+
+	svc := &TemplateService{}
+	require.NoError(t, svc.loadBrandLogo(staticPath))
+
+	assert.Contains(t, string(svc.brandLogoSVG), `viewBox="0 0 64 64"`)
+}
+
+func TestLoadBrandLogo_FallsBackOnWrongRoot(t *testing.T) {
+	staticPath := writeOverlayFixture(t, []byte(
+		`<?xml version="1.0"?><html><body/></html>`))
+
+	svc := &TemplateService{}
+	require.NoError(t, svc.loadBrandLogo(staticPath))
+
+	assert.Contains(t, string(svc.brandLogoSVG), `viewBox="0 0 64 64"`)
+}
+
+func TestLoadBrandLogo_OverlayAbsentIsSilent(t *testing.T) {
+	// staticPath set but no brand-logo.svg under img/.
+	staticPath := t.TempDir()
+
+	svc := &TemplateService{}
+	require.NoError(t, svc.loadBrandLogo(staticPath))
+
+	// Falls back to embedded silently.
+	assert.Contains(t, string(svc.brandLogoSVG), `viewBox="0 0 64 64"`)
+}
+
+func TestInjectBrandLogoClass_HandlesQuotedAttrs(t *testing.T) {
+	// id value contains the literal text "class=" which must not fool the scanner.
+	in := []byte(`<svg id="contains class=foo"/>`)
+	out := injectBrandLogoClass(in)
+	assert.Equal(t, `<svg class="brand-logo" id="contains class=foo"/>`, string(out))
+}
+
+func TestInjectBrandLogoClass_HandlesSingleQuotes(t *testing.T) {
+	in := []byte(`<svg class='existing-logo'/>`)
+	out := injectBrandLogoClass(in)
+	assert.Equal(t, string(in), string(out), "must preserve operator's single-quoted class")
+}
+
+func TestInjectBrandLogoClass_HandlesNewlineInTag(t *testing.T) {
+	in := []byte("<svg\n  width=\"28\"\n  height=\"28\"\n/>")
+	out := injectBrandLogoClass(in)
+	assert.Contains(t, string(out), `class="brand-logo"`)
+	assert.Contains(t, string(out), `width="28"`)
+	assert.Contains(t, string(out), `height="28"`)
+}
+
+func TestInjectBrandLogoClass_NoSvgIsPassThrough(t *testing.T) {
+	in := []byte(`<not-svg/>`)
+	assert.Equal(t, string(in), string(injectBrandLogoClass(in)))
+}
+
+// TestBrandLogo_RendersThroughTemplateService is the Phase 2 integration test:
+// drives the full overlay → validation → injection → template render path
+// without needing the full base.html data shape.
+func TestBrandLogo_RendersThroughTemplateService(t *testing.T) {
+	operator := []byte(
+		`<svg id="operator-marker" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="8"/></svg>`)
+	staticPath := writeOverlayFixture(t, operator)
+
+	templatesDir := t.TempDir()
+	stub := `<!DOCTYPE html><html><body>{{ brandLogoSVG }}</body></html>`
+	require.NoError(t, os.WriteFile(filepath.Join(templatesDir, "stub.html"), []byte(stub), 0o600))
+
+	cfg := &config.Config{StaticPath: staticPath}
+	svc, err := NewTemplateService(templatesDir, cfg)
+	require.NoError(t, err)
+
+	var buf strings.Builder
+	require.NoError(t, svc.Render(&buf, "stub.html", nil))
+	out := buf.String()
+	assert.Contains(t, out, `id="operator-marker"`, "rendered HTML must contain operator SVG")
+	assert.Contains(t, out, `class="brand-logo"`, "class must be injected end-to-end")
 }
