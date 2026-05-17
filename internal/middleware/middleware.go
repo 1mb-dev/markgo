@@ -93,6 +93,69 @@ func CORS(allowedOrigins []string, isDevelopment bool) gin.HandlerFunc {
 	}
 }
 
+// rateLimiterRegistry tracks stop channels for all rate-limiter cleanup
+// goroutines so they can be terminated together at graceful-shutdown time.
+var (
+	rateLimiterRegistry   []chan struct{}
+	rateLimiterRegistryMu sync.Mutex
+	rateLimiterRegistryWG sync.WaitGroup
+)
+
+// runRateLimitCleanup periodically prunes expired entries from a rate
+// limiter's client map. Exits when stop is closed.
+func runRateLimitCleanup(stop <-chan struct{}, mu *sync.RWMutex, clients map[string][]time.Time, window time.Duration) {
+	defer rateLimiterRegistryWG.Done()
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			pruneRateLimitClients(mu, clients, window)
+		}
+	}
+}
+
+// pruneRateLimitClients drops timestamps older than window and removes
+// clients whose history is fully expired.
+func pruneRateLimitClients(mu *sync.RWMutex, clients map[string][]time.Time, window time.Duration) {
+	mu.Lock()
+	defer mu.Unlock()
+	now := time.Now()
+	for ip, times := range clients {
+		var validTimes []time.Time
+		for _, t := range times {
+			if now.Sub(t) <= window {
+				validTimes = append(validTimes, t)
+			}
+		}
+		if len(validTimes) == 0 {
+			delete(clients, ip)
+		} else {
+			clients[ip] = validTimes
+		}
+	}
+}
+
+// ShutdownRateLimiters stops the cleanup goroutines for every RateLimit
+// instance created during the process lifetime and waits for them to exit.
+// Safe to call multiple times.
+func ShutdownRateLimiters() {
+	rateLimiterRegistryMu.Lock()
+	stops := rateLimiterRegistry
+	rateLimiterRegistry = nil
+	rateLimiterRegistryMu.Unlock()
+	for _, stop := range stops {
+		select {
+		case <-stop:
+		default:
+			close(stop)
+		}
+	}
+	rateLimiterRegistryWG.Wait()
+}
+
 // RateLimit provides sliding window rate limiting with bounded memory
 func RateLimit(requests int, window time.Duration) gin.HandlerFunc {
 	const maxClients = 10000 // Prevent memory exhaustion attacks
@@ -100,33 +163,15 @@ func RateLimit(requests int, window time.Duration) gin.HandlerFunc {
 	clients := make(map[string][]time.Time)
 	var mu sync.RWMutex
 
-	// Background cleanup goroutine to prevent unbounded growth
-	go func() {
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
+	stop := make(chan struct{})
+	rateLimiterRegistryMu.Lock()
+	rateLimiterRegistry = append(rateLimiterRegistry, stop)
+	rateLimiterRegistryMu.Unlock()
 
-		for range ticker.C {
-			mu.Lock()
-			now := time.Now()
-
-			// Clean up old entries and empty slices
-			for ip, times := range clients {
-				var validTimes []time.Time
-				for _, t := range times {
-					if now.Sub(t) <= window {
-						validTimes = append(validTimes, t)
-					}
-				}
-
-				if len(validTimes) == 0 {
-					delete(clients, ip)
-				} else {
-					clients[ip] = validTimes
-				}
-			}
-			mu.Unlock()
-		}
-	}()
+	// Background cleanup goroutine to prevent unbounded growth. Exits on
+	// ShutdownRateLimiters() so rolling restarts don't leak goroutines.
+	rateLimiterRegistryWG.Add(1)
+	go runRateLimitCleanup(stop, &mu, clients, window)
 
 	return func(c *gin.Context) {
 		// Skip rate limiting for static assets — a single page load

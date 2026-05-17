@@ -100,7 +100,8 @@ func Run(args []string) {
 
 	// Initialize services and configure router
 	var router *gin.Engine
-	router, templateService, err = setupServer(cfg, logger)
+	var sessionStore *middleware.SessionStore
+	router, templateService, sessionStore, err = setupServer(cfg, logger)
 	if err != nil {
 		apperrors.HandleCLIError(
 			apperrors.NewCLIError("server setup", "Failed to set up server", err, 1),
@@ -153,14 +154,18 @@ func Run(args []string) {
 	if templateService != nil {
 		templateService.Shutdown()
 	}
+	if sessionStore != nil {
+		sessionStore.Shutdown()
+	}
+	middleware.ShutdownRateLimiters()
 	logger.Info("Server exited gracefully")
 }
 
-func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *services.TemplateService, error) {
+func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *services.TemplateService, *middleware.SessionStore, error) {
 	// Initialize services
 	articleService, err := services.NewArticleService(cfg.ArticlesPath, cfg.Upload.Path, logger)
 	if err != nil {
-		return nil, nil, fmt.Errorf("article service: %w", err)
+		return nil, nil, nil, fmt.Errorf("article service: %w", err)
 	}
 
 	emailService := services.NewEmailService(&cfg.Email, cfg.Blog.Title, logger)
@@ -194,11 +199,11 @@ func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *service
 	// Initialize template service
 	templateService, err := services.NewTemplateService(cfg.TemplatesPath, cfg)
 	if err != nil {
-		return nil, nil, fmt.Errorf("template service: %w", err)
+		return nil, nil, nil, fmt.Errorf("template service: %w", err)
 	}
 
 	if err := setupTemplates(router, templateService); err != nil {
-		return nil, nil, fmt.Errorf("template setup: %w", err)
+		return nil, nil, nil, fmt.Errorf("template setup: %w", err)
 	}
 
 	// Log rate limiting configuration
@@ -263,7 +268,7 @@ func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *service
 	router.Use(middleware.SessionAware(sessionStore, secureCookie))
 
 	setupRoutes(router, h, sessionStore, secureCookie, cfg, logger)
-	return router, templateService, nil
+	return router, templateService, sessionStore, nil
 }
 
 func configureGinMode(cfg *config.Config, logger *slog.Logger) {

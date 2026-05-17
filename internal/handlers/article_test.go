@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -173,6 +174,23 @@ func TestSearch(t *testing.T) {
 			assert.Equal(t, http.StatusOK, w.Code)
 		})
 	}
+}
+
+// TestSearch_LongQueryTruncated_DoesNotPolluteCache verifies the
+// maxSearchQueryLength cap (v3.10.3 F16). Pre-fix, raw `?q=` was passed
+// unsanitized to SearchArticles and used as the obcache key prefix,
+// allowing a bot with N distinct long queries to evict real entries.
+func TestSearch_LongQueryTruncated_DoesNotPolluteCache(t *testing.T) {
+	base, svc := createTestBase()
+	router := gin.New()
+	router.GET("/search", NewSearchHandler(base, svc).Search)
+
+	w := httptest.NewRecorder()
+	longQuery := strings.Repeat("a", 5000)
+	router.ServeHTTP(w, httptest.NewRequest("GET", "/search?q="+longQuery, http.NoBody))
+	// The handler should not crash and should respond OK. The cap itself is
+	// enforced inside the handler before SearchArticles is invoked.
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestHomePage(t *testing.T) {

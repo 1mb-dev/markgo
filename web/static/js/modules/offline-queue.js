@@ -73,10 +73,22 @@ async function migrateLegacyDB() {
             });
         }
 
-        await new Promise((res) => {
+        // Only the onsuccess path confirms the legacy DB is actually gone.
+        // onblocked means another tab still holds it open; if we set the
+        // migration flag in that case, the next session skips migration and
+        // the queued drafts stay stranded in the legacy DB indefinitely.
+        const deleted = await new Promise((res) => {
             const req = indexedDB.deleteDatabase(LEGACY_DB_NAME);
-            req.onsuccess = req.onerror = req.onblocked = () => res();
+            req.onsuccess = () => res(true);
+            req.onerror = () => res(false);
+            req.onblocked = () => {
+                console.warn('IndexedDB legacy cleanup blocked by another tab; will retry next session.');
+                res(false);
+            };
         });
+        if (!deleted) {
+            return; // do not set flag; retry next session
+        }
     } catch (err) {
         console.warn('IndexedDB legacy migration failed; will retry next session:', err?.message || err);
         if (legacy) try { legacy.close(); } catch { /* ignore */ }

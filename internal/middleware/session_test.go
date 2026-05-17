@@ -517,3 +517,51 @@ func TestIsValidCSRFToken(t *testing.T) {
 		})
 	}
 }
+
+// TestSessionStore_Shutdown_StopsCleanupGoroutine verifies the cleanup
+// goroutine exits cleanly when Shutdown is called. Regression guard for the
+// v3.10.3 F15 fix: prior to it, the cleanup goroutine leaked past server
+// shutdown, racing against rolling restarts.
+func TestSessionStore_Shutdown_StopsCleanupGoroutine(t *testing.T) {
+	store := NewSessionStore()
+	done := make(chan struct{})
+	go func() {
+		store.Shutdown()
+		close(done)
+	}()
+	select {
+	case <-done:
+		// success: Shutdown returned within timeout, goroutine exited
+	case <-time.After(2 * time.Second):
+		t.Fatal("SessionStore.Shutdown() did not return within 2s; cleanup goroutine leaked")
+	}
+
+	// Idempotency: calling Shutdown again must not panic on a closed channel.
+	assert.NotPanics(t, func() { store.Shutdown() })
+}
+
+// TestShutdownRateLimiters_StopsAllCleanupGoroutines verifies the package
+// registry mechanism: multiple RateLimit instances each register their stop
+// channel; ShutdownRateLimiters closes all of them in one call.
+func TestShutdownRateLimiters_StopsAllCleanupGoroutines(t *testing.T) {
+	// Create a few rate-limiter handlers; their cleanup goroutines spawn
+	// during construction and register on the package-level slice.
+	_ = RateLimit(10, time.Minute)
+	_ = RateLimit(5, time.Second)
+	_ = RateLimit(100, time.Hour)
+
+	done := make(chan struct{})
+	go func() {
+		ShutdownRateLimiters()
+		close(done)
+	}()
+	select {
+	case <-done:
+		// success
+	case <-time.After(2 * time.Second):
+		t.Fatal("ShutdownRateLimiters() did not return within 2s; goroutines leaked")
+	}
+
+	// Idempotency: second call should be a no-op.
+	assert.NotPanics(t, ShutdownRateLimiters)
+}
