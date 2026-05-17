@@ -45,6 +45,19 @@ type Config struct {
 	Logging       LoggingConfig   `json:"logging"`
 	SEO           SEOConfig       `json:"seo"`
 	Upload        UploadConfig    `json:"upload"`
+	AMA           AMAConfig       `json:"ama"`
+}
+
+// AMAConfig holds operator-controlled copy for the AMA (Ask Me Anything) submission
+// surface. Plaintext only — values are HTML-attribute-escaped on render; multi-line
+// values render as a single block per HTML whitespace rules. Operators wanting
+// paragraph breaks override the template via TEMPLATES_PATH.
+type AMAConfig struct {
+	PageHeading     string `json:"page_heading"`
+	PageIntro       string `json:"page_intro"`
+	FormPlaceholder string `json:"form_placeholder"`
+	SubmitLabel     string `json:"submit_label"`
+	ThankyouCopy    string `json:"thankyou_copy"`
 }
 
 // ServerConfig holds server-related configuration options.
@@ -312,6 +325,14 @@ func Load() (*Config, error) {
 		Upload: UploadConfig{
 			Path:    getEnv("UPLOAD_PATH", "./uploads"),
 			MaxSize: getEnvInt64("UPLOAD_MAX_SIZE", 10<<20),
+		},
+
+		AMA: AMAConfig{
+			PageHeading:     getEnv("AMA_PAGE_HEADING", "Ask me anything"),
+			PageIntro:       getEnv("AMA_PAGE_INTRO", "Curious about something? Submit a question and I'll answer it publicly."),
+			FormPlaceholder: getEnv("AMA_FORM_PLACEHOLDER", "What would you like to know?"),
+			SubmitLabel:     getEnv("AMA_SUBMIT_LABEL", "Submit Question"),
+			ThankyouCopy:    getEnv("AMA_THANKYOU_COPY", "Question submitted! It will appear once answered."),
 		},
 	}
 

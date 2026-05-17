@@ -138,6 +138,18 @@ Sliding window per IP. Static assets are excluded from rate limiting.
 | `SERVER_IDLE_TIMEOUT` | `60s` | Max time waiting for next request (keep-alive). |
 | `SHUTDOWN_TIMEOUT` | `30s` | Deadline for graceful shutdown of in-flight HTTP requests on `SIGTERM`/`SIGINT`. Lower values speed up rolling restarts but may abort longer requests; higher values give in-flight work more time. Internal cleanup (sessions, rate-limiters, templates) always runs, regardless of whether the deadline is hit. |
 
+## AMA Copy
+
+Operator-controllable copy on the AMA (Ask Me Anything) submission overlay. All values are plaintext only — `html/template` auto-escapes the values into `<meta>` tags, which `ama-sheet.js` reads via `document.querySelector`. Multi-line values render as a single visual block (HTML whitespace rules); for paragraph breaks override the AMA sheet template via `TEMPLATES_PATH`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AMA_PAGE_HEADING` | `Ask me anything` | Heading shown at the top of the AMA sheet. |
+| `AMA_PAGE_INTRO` | `Curious about something? Submit a question and I'll answer it publicly.` | Intro paragraph rendered between the heading and the form. |
+| `AMA_FORM_PLACEHOLDER` | `What would you like to know?` | Placeholder for the question textarea. |
+| `AMA_SUBMIT_LABEL` | `Submit Question` | Label on the submit button. |
+| `AMA_THANKYOU_COPY` | `Question submitted! It will appear once answered.` | Toast shown after a successful submission. |
+
 ## Logging
 
 | Variable | Default | Description |
