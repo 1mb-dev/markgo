@@ -111,7 +111,8 @@
             </div>
 
             {{ $banner := "" }}{{ if .input }}{{ $banner = .input.Banner }}{{ end }}
-            {{ $bannerIsExternal := or (hasPrefix $banner "http://") (hasPrefix $banner "https://") (hasPrefix $banner "/static/") }}
+            {{/* markgo's FuncMap overrides `or` as binary; nest to combine three prefixes */}}
+            {{ $bannerIsExternal := or (or (hasPrefix $banner "http://") (hasPrefix $banner "https://")) (hasPrefix $banner "/static/") }}
             <div class="compose-field compose-banner-field" data-banner-field>
                 <label class="compose-label">Banner image <span class="compose-hint">(optional — shown above the title on articles)</span></label>
                 <input type="hidden" name="banner" value="{{ $banner }}" data-banner-input>
@@ -124,7 +125,7 @@
                 <div class="compose-banner-controls">
                     <img class="compose-banner-preview" data-banner-preview alt="" {{ if $banner }}src="{{ $banner }}"{{ else }}hidden{{ end }}>
                     <button type="button" class="compose-banner-upload-btn" data-banner-upload-btn>Upload banner image</button>
-                    <button type="button" class="compose-banner-remove-btn" data-banner-remove-btn {{ if not $banner }}hidden{{ end }}>Remove</button>
+                    <button type="button" class="compose-banner-remove-btn" data-banner-remove-btn {{ if eq $banner "" }}hidden{{ end }}>Remove</button>
                     <input type="file" class="compose-banner-file-input" data-banner-file-input accept="image/*" hidden>
                 </div>
                 {{ end }}
