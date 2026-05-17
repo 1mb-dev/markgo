@@ -58,12 +58,14 @@
             </header>
             {{ end }}
             <header class="article-header">
+                {{ if ne .article.Type "page" }}
                 <div class="article-meta">
                     <time class="article-date" datetime="{{ .article.Date.Format "2006-01-02T15:04:05Z07:00" }}">
                         {{ .article.Date.Format "Jan 2, 2006" }}
                     </time>
                     <span class="article-reading-time">{{ .article.ReadingTime }} min read</span>
                 </div>
+                {{ end }}
                 {{ if .article.Title }}
                 <h1 class="article-title">{{ .article.Title }}</h1>
                 {{ end }}
@@ -102,14 +104,14 @@
                 </div>
                 <div class="content-separator"></div>
                 <div class="article-footer-content">
-                    <a href="/writing" class="page-back-link">← Writing</a>
-                    {{ if .article.LastModified }}
+                    <a href="{{ if eq .article.Type "page" }}/{{ else }}/writing{{ end }}" class="page-back-link">← {{ if eq .article.Type "page" }}Home{{ else }}Writing{{ end }}</a>
+                    {{ if .article.LastModified }}{{ if ne .article.Type "page" }}
                     <p class="article-last-modified">
                         Updated <time datetime="{{ .article.LastModified.Format "2006-01-02T15:04:05Z07:00" }}">
                             {{ .article.LastModified.Format "Jan 2, 2006" }}
                         </time>
                     </p>
-                    {{ end }}
+                    {{ end }}{{ end }}
                 </div>
             </footer>
         </div>

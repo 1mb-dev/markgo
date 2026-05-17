@@ -98,6 +98,39 @@ author: "Jane Doe"
 Draft.
 `
 
+const pageArticle = `---
+title: "Run Your Own"
+description: "Guide"
+date: 2025-06-15T10:00:00Z
+tags: [go, guide]
+categories: [tech]
+slug: "run-your-own"
+type: "page"
+draft: false
+featured: true
+author: "Jane Doe"
+---
+
+# Run Your Own
+
+Page body.
+`
+
+const pageDraftArticle = `---
+title: "Draft Page"
+description: "Page draft"
+date: 2025-06-15T10:00:00Z
+slug: "draft-page"
+type: "page"
+draft: true
+author: "Jane Doe"
+---
+
+# Draft Page
+
+Drafted.
+`
+
 func setupTestRepo(t *testing.T, files map[string]string) *FileSystemRepository {
 	t.Helper()
 	dir := t.TempDir()
@@ -373,6 +406,56 @@ func TestGetDrafts_IncludesAboutDraft(t *testing.T) {
 	drafts := repo.GetDrafts()
 	require.Len(t, drafts, 1)
 	assert.Equal(t, "about", drafts[0].Slug)
+}
+
+// TestListMethods_ExcludePages verifies the dedicated-route predicate also
+// fires on type:page articles across all five list methods.
+func TestListMethods_ExcludePages(t *testing.T) {
+	repo := setupTestRepo(t, map[string]string{
+		"test-article.md": validArticle,
+		"page.md":         pageArticle,
+	})
+	_, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+
+	containsPage := func(t *testing.T, articles []*models.Article) bool {
+		t.Helper()
+		for _, a := range articles {
+			if a.Type == TypePage {
+				return true
+			}
+		}
+		return false
+	}
+
+	assert.False(t, containsPage(t, repo.GetPublished()), "GetPublished must exclude pages")
+	assert.False(t, containsPage(t, repo.GetByTag("go")), "GetByTag must exclude pages even when tag matches")
+	assert.False(t, containsPage(t, repo.GetByCategory("tech")), "GetByCategory must exclude pages even when category matches")
+	assert.False(t, containsPage(t, repo.GetFeatured(10)), "GetFeatured must exclude pages even when featured=true")
+	assert.False(t, containsPage(t, repo.GetRecent(10)), "GetRecent must exclude pages")
+}
+
+// TestGetBySlug_ReturnsPage — direct lookup must return pages for the
+// /p/:slug handler to find them.
+func TestGetBySlug_ReturnsPage(t *testing.T) {
+	repo := setupTestRepo(t, map[string]string{"page.md": pageArticle})
+	_, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+
+	got, err := repo.GetBySlug("run-your-own")
+	require.NoError(t, err)
+	assert.Equal(t, TypePage, got.Type)
+}
+
+// TestGetDrafts_IncludesPageDraft — admin must see drafted pages.
+func TestGetDrafts_IncludesPageDraft(t *testing.T) {
+	repo := setupTestRepo(t, map[string]string{"page.md": pageDraftArticle})
+	_, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+
+	drafts := repo.GetDrafts()
+	require.Len(t, drafts, 1)
+	assert.Equal(t, TypePage, drafts[0].Type)
 }
 
 func TestUpdateDraftStatus(t *testing.T) {

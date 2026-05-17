@@ -403,6 +403,7 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 	registerGET(router, "/", h.Feed.Home)
 	registerGET(router, "/writing", h.Post.Articles)
 	registerGET(router, "/writing/:slug", h.Post.Article)
+	registerGET(router, "/p/:slug", h.Post.Page)
 	registerGET(router, "/tags", h.Taxonomy.Tags)
 	registerGET(router, "/tags/:tag", h.Taxonomy.ArticlesByTag)
 	registerGET(router, "/categories", h.Taxonomy.Categories)

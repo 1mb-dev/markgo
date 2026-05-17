@@ -286,6 +286,50 @@ func TestGenerateOpenGraphTags_EmitsSingleOGImage(t *testing.T) {
 	}
 }
 
+func TestGenerateArticleSchema_PageEmitsWebPage(t *testing.T) {
+	helper, _ := createTestHelper()
+	a := &models.Article{
+		Slug:    "run-your-own",
+		Title:   "Run Your Own",
+		Type:    "page",
+		Date:    time.Now(),
+		Content: "Guide body.",
+	}
+	schema, err := helper.GenerateArticleSchema(a, "https://example.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if schema["@type"] != "WebPage" {
+		t.Errorf("type=page must emit @type=WebPage, got %q", schema["@type"])
+	}
+	urlStr, _ := schema["url"].(string)
+	if !strings.HasSuffix(urlStr, "/p/run-your-own") {
+		t.Errorf("page url must be /p/<slug>, got %q", urlStr)
+	}
+}
+
+func TestGenerateArticleSchema_ArticleEmitsArticle(t *testing.T) {
+	helper, _ := createTestHelper()
+	a := &models.Article{
+		Slug:    "intro",
+		Title:   "Intro",
+		Type:    "article",
+		Date:    time.Now(),
+		Content: "Body.",
+	}
+	schema, err := helper.GenerateArticleSchema(a, "https://example.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if schema["@type"] != "Article" {
+		t.Errorf("type=article must emit @type=Article, got %q", schema["@type"])
+	}
+	urlStr, _ := schema["url"].(string)
+	if !strings.HasSuffix(urlStr, "/writing/intro") {
+		t.Errorf("article url must be /writing/<slug>, got %q", urlStr)
+	}
+}
+
 func TestDisabledHelper(t *testing.T) {
 	mockArticles := &MockArticleService{}
 	siteConfig := services.SiteConfig{BaseURL: "https://example.com"}

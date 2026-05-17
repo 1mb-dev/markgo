@@ -69,6 +69,37 @@ func (h *PostHandler) Article(c *gin.Context) {
 	h.renderHTML(c, http.StatusOK, "base.html", data)
 }
 
+// Page handles /p/:slug — evergreen non-feed content (type:page articles).
+// Returns 404 for any article whose type is not "page", including the
+// about-slugged article (served by AboutHandler at /about).
+func (h *PostHandler) Page(c *gin.Context) {
+	slug := c.Param("slug")
+	if slug == "" {
+		h.handleError(c, apperrors.NewValidationError("slug", "", "slug is required", nil), "Invalid page slug")
+		return
+	}
+
+	art, err := h.articleService.GetArticleBySlug(slug)
+	if err != nil || art.Type != article.TypePage {
+		h.handleError(c, apperrors.ErrArticleNotFound, "Page not found")
+		return
+	}
+	if art.Draft {
+		h.handleError(c, apperrors.ErrArticleNotFound, "Page not found")
+		return
+	}
+
+	data, err := h.getArticleData(slug)
+	if err != nil {
+		h.handleError(c, err, "Failed to get page")
+		return
+	}
+	data["canonicalPath"] = article.CanonicalURLFor(art)
+
+	h.enhanceTemplateDataWithSEO(data, c.Request.URL.Path)
+	h.renderHTML(c, http.StatusOK, "base.html", data)
+}
+
 func (h *PostHandler) getArticleData(slug string) (map[string]any, error) {
 	art, err := h.articleService.GetArticleBySlug(slug)
 	if err != nil {
