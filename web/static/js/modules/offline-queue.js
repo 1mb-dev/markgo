@@ -36,9 +36,10 @@ function openNamed(name) {
 
 // migrateLegacyDB drains the v3.8 'markgo' DB into the per-blog DB once.
 // Runs before the first openDB() call. Multi-tab edge: if tab A migrates
-// while tab B holds the legacy DB open, deleteDatabase blocks; we resolve
-// anyway and the flag is set, so the next session converges. Worst case is
-// a queued post lingering until tab B reloads.
+// while tab B holds the legacy DB open, deleteDatabase blocks; the flag is
+// NOT set in that case (we return early without persisting it), so the next
+// session retries migration. Setting the flag on a blocked delete would
+// strand queued posts in the legacy DB permanently.
 async function migrateLegacyDB() {
     if (DB_NAME === LEGACY_DB_NAME) return; // no-op when fallback NS in use
     try {
