@@ -101,9 +101,9 @@ The voice is **conversational and direct**. It sounds like a person, not a produ
 
 ---
 
-## The Three Streams
+## Content Types
 
-MarkGo's content model has three types, inferred automatically from what you write. You never pick a type from a dropdown — the system figures it out from the shape of your content. This is MarkGo's most distinctive design decision.
+MarkGo's content model has five types: four inferred automatically from what you write, plus pages for explicit evergreen content. You never pick a type from a dropdown — the system figures it out from the shape of your content. This is MarkGo's most distinctive design decision.
 
 **Thoughts** — No title, under 100 words. A fleeting idea, a reaction, a note-to-self that's worth sharing. Displayed as a simple text card with a left accent stripe in `--color-primary`. The full thought is visible in the feed — no teaser, no truncation. Shows relative time ("2 hours ago") and tags.
 
@@ -125,7 +125,7 @@ The inference rules are intentionally simple (see `internal/services/article/inf
 
 For pages, the type field must be explicit (`type: page`) — pages have no inferable signal and shouldn't drift into existence by accident. The other four types (article/thought/link/ama) infer freely.
 
-The first four types live in the same feed, filterable by type via server-rendered `<a>` tag pills with query parameters (`/?type=thought`). Pages live outside the feed entirely; readers reach them by direct link or search.
+The first four types live in the same feed, filterable by type via server-rendered `<a>` tag pills with query parameters (`/?type=thought`). Pages live outside the feed entirely; readers reach them via the `/p` index (linked from the footer), direct link, sitemap, or search.
 
 ---
 

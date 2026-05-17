@@ -6,7 +6,7 @@
 
 A blog engine where you write first and categorize never.
 
-Type two sentences without a title and it becomes a thought. Paste a URL with commentary and it becomes a link. Write something long with a title and it becomes an article. Ask a question and it becomes an AMA. Four content types, inferred automatically from what you write. No database. No build step.
+Type two sentences without a title and it becomes a thought. Paste a URL with commentary and it becomes a link. Write something long with a title and it becomes an article. Ask a question and it becomes an AMA. Plus a fifth type — page — for evergreen content (explicit `type: page` in frontmatter, served at `/p/<slug>`, listed at `/p`). Four inferred, one explicit. No database. No build step.
 
 ## Quick Start
 

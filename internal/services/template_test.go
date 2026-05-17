@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/1mb-dev/markgo/internal/config"
+	"github.com/1mb-dev/markgo/internal/models"
 )
 
 func TestNewTemplateService(t *testing.T) {
@@ -699,6 +700,92 @@ func TestTemplateService_ErrorHandling(t *testing.T) {
 	// Test ListTemplates with nil templates
 	templates := service.ListTemplates()
 	assert.Equal(t, []string{}, templates)
+}
+
+// TestRender_PagesTemplate guards against the strict-typed-template
+// silent-truncation gotcha (see project CLAUDE.md): markgo's or/not/eq
+// are narrower than Go template builtins, and a misuse fails at render
+// time by truncating mid-response instead of returning an error. This
+// renders the real embedded pages.html block (via NewTemplateService
+// fallback to web.Assets when filesystem path is empty) with empty,
+// single, and many-page inputs to verify each shape completes cleanly.
+func TestRender_PagesTemplate(t *testing.T) {
+	tempDir := t.TempDir() // empty dir → service falls back to embedded templates
+	cfg := &config.Config{
+		Blog: config.BlogConfig{Title: "Test Blog"},
+	}
+	service, err := NewTemplateService(tempDir, cfg)
+	require.NoError(t, err)
+	require.True(t, service.HasTemplate("pages.html"), "embedded pages.html must be loaded")
+
+	mkPage := func(slug, title, desc string) *models.Article {
+		return &models.Article{Slug: slug, Title: title, Description: desc}
+	}
+
+	tests := []struct {
+		name      string
+		pageCount int
+		pages     []*models.Article
+		wants     []string
+		notWants  []string
+	}{
+		{
+			name:      "empty state",
+			pageCount: 0,
+			pages:     nil,
+			wants:     []string{"No pages yet", "type: page"},
+			notWants:  []string{"pages-list-item"},
+		},
+		{
+			name:      "single page",
+			pageCount: 1,
+			pages:     []*models.Article{mkPage("about-us", "About Us", "Who we are")},
+			wants:     []string{"About Us", "Who we are", `href="/p/about-us"`, "pages-list-item"},
+			notWants:  []string{"No pages yet"},
+		},
+		{
+			name:      "many pages without descriptions",
+			pageCount: 3,
+			pages: []*models.Article{
+				mkPage("a", "Alpha", ""),
+				mkPage("b", "Beta", ""),
+				mkPage("c", "Gamma", ""),
+			},
+			wants:    []string{"Alpha", "Beta", "Gamma", `href="/p/a"`, `href="/p/c"`},
+			notWants: []string{"pages-list-excerpt", "No pages yet"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf strings.Builder
+			data := map[string]any{
+				"config":    cfg,
+				"pageCount": tt.pageCount,
+				"pages":     tt.pages,
+			}
+			err := service.GetTemplate().ExecuteTemplate(&buf, "pages-content", data)
+			require.NoError(t, err, "pages-content template must render without error — silent truncation would NOT raise here, so check output integrity too")
+
+			out := buf.String()
+			assert.True(t, strings.HasSuffix(strings.TrimSpace(out), "</div>"),
+				"render output must end with closing div, not truncate mid-template (got tail: %q)", tail(out, 80))
+
+			for _, want := range tt.wants {
+				assert.Contains(t, out, want)
+			}
+			for _, notWant := range tt.notWants {
+				assert.NotContains(t, out, notWant)
+			}
+		})
+	}
+}
+
+func tail(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[len(s)-n:]
 }
 
 func createTestTemplateService(t *testing.T) *TemplateService {
