@@ -127,6 +127,11 @@ func TestConfigValidationTableDriven(t *testing.T) {
 		{"blog language empty", func(c *Config) { c.Blog.Language = "" }, "blog"},
 		{"blog language invalid format", func(c *Config) { c.Blog.Language = "invalid" }, "blog"},
 		{"blog author email invalid", func(c *Config) { c.Blog.AuthorEmail = "not-an-email" }, "blog"},
+		// v3.10.3 #64: custom theme names must pass validation (previously the
+		// allowlist rejected anything except "minimal", contradicting the
+		// STATIC_PATH overlay feature which exists for custom themes).
+		{"blog style custom theme accepted", func(c *Config) { c.Blog.Style = "myforktheme" }, ""},
+		{"blog style fork-style accepted", func(c *Config) { c.Blog.Style = "log-1mb" }, ""},
 
 		// Admin config validation (config.go:912-920)
 		{"admin username without password", func(c *Config) { c.Admin = AdminConfig{Username: "admin", Password: ""} }, "admin"},

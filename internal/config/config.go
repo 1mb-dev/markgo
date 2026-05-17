@@ -611,12 +611,11 @@ func (b *BlogConfig) Validate() error {
 			apperrors.ErrConfigValidation)
 	}
 
-	// Validate style
-	validStyles := []string{"minimal"}
-	if b.Style != "" && !contains(validStyles, b.Style) {
-		return apperrors.NewConfigError("style", b.Style,
-			"Blog style must be: minimal (custom themes go in web/static/css/themes/)", apperrors.ErrConfigValidation)
-	}
+	// Style accepts any non-empty string. The template renders a stylesheet
+	// link to /static/css/themes/<style>.css; the file is resolved from
+	// STATIC_PATH (overlay, v3.10.2+) or the embedded FS. A missing theme
+	// produces a harmless browser 404 on the link, not a server-side failure.
+	// Closes #64.
 
 	// Validate author email if provided
 	if b.AuthorEmail != "" {
