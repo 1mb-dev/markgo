@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Theme: **completing the brand-customization story.** v3.10.2's STATIC_PATH overlay
+made favicons, fonts, themes, and OG images operator-overridable. The header
+brand-logo was the lone holdout — template-embedded inline SVG, unreachable
+from disk. v3.12.0 closes that gap with the same overlay mechanism, no new
+config knob.
+
+### Added
+
+- **Custom brand-logo override (#70).** Drop your SVG at
+  `<STATIC_PATH>/img/brand-logo.svg` to swap the header logo. Validated as
+  well-formed XML with `<svg>` root and capped at 32 KiB; `class="brand-logo"`
+  injected when absent; silent fallback when the file is missing; warned-and-
+  fallback on validation failure. Surfaced by log.1mb.dev M3-polish-2 wave-3
+  feedback — the reference deployment customizes favicons, OG default, fonts,
+  and theme but until now had to ship markgo's default ellipse-J in the header.
+  See `docs/configuration.md#branding` for the override contract and the full
+  list of overlay-eligible brand assets.
+
+### Changed
+
+- `TemplateService` reads the brand-logo SVG from `web/static/img/brand-logo.svg`
+  (embedded) at startup via a per-instance FuncMap helper, replacing the
+  hardcoded inline SVG in `base.html`. Refuses to boot if the embedded default
+  cannot be read (build invariant).
+
+### Removed
+
+- Unreferenced `web/static/img/logo.svg` artifact.
+
 ## [3.11.0] - 2026-05-17
 
 First forward-looking release after the v3.10.x cleanup cycle. Theme:
