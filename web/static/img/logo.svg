@@ -1,4 +1,0 @@
-<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <ellipse cx="32" cy="32" rx="22" ry="28" fill="currentColor"/>
-  <path d="M 32 4 C 22 14 22 24 32 32 C 42 40 42 50 32 60" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none"/>
-</svg>

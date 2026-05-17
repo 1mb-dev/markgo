@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -751,4 +752,34 @@ func createTestTemplateService(t *testing.T) *TemplateService {
 	require.NoError(t, err)
 
 	return service
+}
+
+func TestLoadBrandLogo_EmbeddedDefault(t *testing.T) {
+	svc := &TemplateService{}
+	require.NoError(t, svc.loadBrandLogo())
+
+	got := string(svc.brandLogoSVG)
+	assert.Contains(t, got, `class="brand-logo"`, "embedded default must carry brand-logo class")
+	assert.Contains(t, got, `viewBox="0 0 64 64"`, "embedded default must carry the canonical viewBox")
+	assert.Contains(t, got, `var(--color-primary)`, "embedded default must use theme CSS variables")
+}
+
+func TestLoadBrandLogo_EmbeddedReadFails_ReturnsStartupError(t *testing.T) {
+	original := brandLogoFS
+	brandLogoFS = fstest.MapFS{}
+	t.Cleanup(func() { brandLogoFS = original })
+
+	svc := &TemplateService{}
+	err := svc.loadBrandLogo()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "embedded brand-logo missing or unreadable")
+}
+
+func TestTemplateService_FuncMapExposesBrandLogo(t *testing.T) {
+	svc := &TemplateService{brandLogoSVG: template.HTML(`<svg data-test="x"/>`)}
+
+	fm := svc.funcMap()
+	fn, ok := fm["brandLogoSVG"].(func() template.HTML)
+	require.True(t, ok, "brandLogoSVG must be registered as func() template.HTML")
+	assert.Equal(t, template.HTML(`<svg data-test="x"/>`), fn())
 }

@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -74,6 +75,9 @@ type TemplateService struct {
 	templates *template.Template
 	config    *config.Config
 
+	// brandLogoSVG is the rendered header logo (embedded default or operator overlay).
+	brandLogoSVG template.HTML
+
 	// obcache integration
 	obcache         *obcache.Cache
 	cachedFunctions CachedTemplateFunctions
@@ -119,6 +123,11 @@ func NewTemplateService(templatesPath string, cfg *config.Config) (*TemplateServ
 	// Setup background maintenance
 	service.setupTemplateMaintenance()
 
+	if err := service.loadBrandLogo(); err != nil {
+		cancel()
+		return nil, err
+	}
+
 	if err := service.loadTemplates(templatesPath); err != nil {
 		return nil, err
 	}
@@ -127,7 +136,7 @@ func NewTemplateService(templatesPath string, cfg *config.Config) (*TemplateServ
 }
 
 func (t *TemplateService) loadTemplates(templatesPath string) error {
-	funcMap := GetTemplateFuncMap()
+	funcMap := t.funcMap()
 	pattern := filepath.Join(templatesPath, "*.html")
 
 	// Check if filesystem templates exist before parsing
@@ -159,6 +168,37 @@ func (t *TemplateService) loadTemplates(templatesPath string) error {
 
 	t.templates = tmpl
 	return nil
+}
+
+// brandLogoFS is the source for the embedded brand-logo SVG.
+// Tests may temporarily swap this to exercise the embedded-read-failure path.
+var brandLogoFS fs.FS = web.Assets
+
+// loadEmbeddedBrandLogo reads the embedded brand-logo SVG. Returning an error
+// indicates a build invariant violation — markgo must refuse to boot.
+func loadEmbeddedBrandLogo() ([]byte, error) {
+	return fs.ReadFile(brandLogoFS, "static/img/brand-logo.svg")
+}
+
+// loadBrandLogo populates t.brandLogoSVG from the embedded default. Phase 2
+// extends this with STATIC_PATH overlay reading.
+func (t *TemplateService) loadBrandLogo() error {
+	embedded, err := loadEmbeddedBrandLogo()
+	if err != nil {
+		return fmt.Errorf("embedded brand-logo missing or unreadable: %w", err)
+	}
+	// #nosec G203 - brand-logo SVG is markgo's own embedded asset (Phase 2: also operator's STATIC_PATH file). Trust boundary documented in docs/configuration.md.
+	t.brandLogoSVG = template.HTML(embedded)
+	return nil
+}
+
+// funcMap returns the template FuncMap with the per-instance brandLogoSVG
+// closure appended to the stateless base map.
+func (t *TemplateService) funcMap() template.FuncMap {
+	m := make(template.FuncMap, len(templateFuncs)+1)
+	maps.Copy(m, templateFuncs)
+	m["brandLogoSVG"] = func() template.HTML { return t.brandLogoSVG }
+	return m
 }
 
 // Render renders a template to the provided writer.
