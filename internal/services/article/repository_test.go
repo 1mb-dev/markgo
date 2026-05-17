@@ -370,7 +370,7 @@ func TestListMethods_ExcludeAboutSlug(t *testing.T) {
 	containsAbout := func(t *testing.T, articles []*models.Article) bool {
 		t.Helper()
 		for _, a := range articles {
-			if a.Slug == "about" {
+			if a.Slug == aboutSlug {
 				return true
 			}
 		}

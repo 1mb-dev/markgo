@@ -6,6 +6,12 @@ import "github.com/1mb-dev/markgo/internal/models"
 // served by the /p/:slug route.
 const TypePage = "page"
 
+// aboutSlug is the reserved slug whose markdown body is rendered by the
+// dedicated /about handler. The dedicated-route predicate excludes it from
+// the writing-feed graph; tests and the predicate reference this constant
+// rather than the literal.
+const aboutSlug = "about"
+
 // DedicatedRouteArticle reports whether an article is served by its own
 // dedicated route rather than /writing/:slug. Such articles are excluded
 // from /writing, RSS, JSONFeed, sitemap (article section), tag, and
@@ -16,7 +22,7 @@ const TypePage = "page"
 //   - slug == "about" → served by /about handler
 //   - type == "page"  → served by /p/:slug handler
 func DedicatedRouteArticle(a *models.Article) bool {
-	return a.Slug == "about" || a.Type == TypePage
+	return a.Slug == aboutSlug || a.Type == TypePage
 }
 
 // CanonicalURLFor returns the canonical URL path for an article. Used by
@@ -27,7 +33,7 @@ func DedicatedRouteArticle(a *models.Article) bool {
 //   - type == "page"  → /p/<slug>
 //   - otherwise       → /writing/<slug>
 func CanonicalURLFor(a *models.Article) string {
-	if a.Slug == "about" {
+	if a.Slug == aboutSlug {
 		return "/about"
 	}
 	if a.Type == TypePage {
