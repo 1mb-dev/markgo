@@ -106,6 +106,30 @@ func TestArticleBySlug(t *testing.T) {
 	}
 }
 
+// TestArticle_WritingAboutRedirects — slug=about resolves to a dedicated route
+// (/about), so /writing/about must 301 to /about for both GET and HEAD.
+func TestArticle_WritingAboutRedirects(t *testing.T) {
+	verbs := []string{http.MethodGet, http.MethodHead}
+	for _, verb := range verbs {
+		t.Run(verb, func(t *testing.T) {
+			base, svc := createTestBase()
+			svc.articles = append(svc.articles, &models.Article{
+				Slug: "about", Title: "About", Date: time.Now(),
+			})
+			router := gin.New()
+			h := NewPostHandler(base, svc)
+			router.GET("/writing/:slug", h.Article)
+			router.HEAD("/writing/:slug", h.Article)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(verb, "/writing/about", http.NoBody))
+
+			assert.Equal(t, http.StatusMovedPermanently, w.Code)
+			assert.Equal(t, "/about", w.Header().Get("Location"))
+		})
+	}
+}
+
 func TestArticlesListing(t *testing.T) {
 	tests := []struct {
 		name  string

@@ -10,6 +10,7 @@ import (
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
 	"github.com/1mb-dev/markgo/internal/models"
 	"github.com/1mb-dev/markgo/internal/services"
+	"github.com/1mb-dev/markgo/internal/services/article"
 )
 
 // PostHandler handles individual article and article listing pages.
@@ -52,6 +53,12 @@ func (h *PostHandler) Article(c *gin.Context) {
 		return
 	}
 
+	// Dedicated-route articles (e.g. slug=about) redirect to their canonical URL.
+	if art, err := h.articleService.GetArticleBySlug(slug); err == nil && article.DedicatedRouteArticle(art) {
+		c.Redirect(http.StatusMovedPermanently, article.CanonicalURLFor(art))
+		return
+	}
+
 	data, err := h.getArticleData(slug)
 	if err != nil {
 		h.handleError(c, err, "Failed to get article")
@@ -63,12 +70,12 @@ func (h *PostHandler) Article(c *gin.Context) {
 }
 
 func (h *PostHandler) getArticleData(slug string) (map[string]any, error) {
-	article, err := h.articleService.GetArticleBySlug(slug)
+	art, err := h.articleService.GetArticleBySlug(slug)
 	if err != nil {
 		return nil, err
 	}
 
-	if article.Draft {
+	if art.Draft {
 		return nil, apperrors.ErrArticleNotFound
 	}
 
@@ -81,15 +88,15 @@ func (h *PostHandler) getArticleData(slug string) (map[string]any, error) {
 		}
 	}
 
-	data := h.buildArticlePageData(article.Title+" - "+h.config.Blog.Title, recent)
-	data["article"] = article
-	data["description"] = article.Description
+	data := h.buildArticlePageData(art.Title+" - "+h.config.Blog.Title, recent)
+	data["article"] = art
+	data["description"] = art.Description
 	data["template"] = templateArticle
-	data["canonicalPath"] = "/writing/" + article.Slug
+	data["canonicalPath"] = "/writing/" + art.Slug
 	data["breadcrumbs"] = []services.Breadcrumb{
 		{Name: "Home", URL: "/"},
 		{Name: "Writing", URL: "/writing"},
-		{Name: article.Title},
+		{Name: art.Title},
 	}
 
 	return data, nil
