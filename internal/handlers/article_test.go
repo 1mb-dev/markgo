@@ -35,6 +35,7 @@ func (m *TestArticleService) GetArticleBySlug(slug string) (*models.Article, err
 	}
 	return nil, apperrors.ErrArticleNotFound
 }
+func (m *TestArticleService) GetPages() []*models.Article                      { return m.articles }
 func (m *TestArticleService) GetArticlesByTag(_ string) []*models.Article      { return m.articles }
 func (m *TestArticleService) GetArticlesByCategory(_ string) []*models.Article { return m.articles }
 func (m *TestArticleService) GetArticlesForFeed(_ int) []*models.Article       { return m.articles }

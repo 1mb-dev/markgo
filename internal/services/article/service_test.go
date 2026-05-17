@@ -70,6 +70,16 @@ func (m *mockRepository) GetPublished() []*models.Article {
 	return result
 }
 
+func (m *mockRepository) GetPages() []*models.Article {
+	var result []*models.Article
+	for _, a := range m.articles {
+		if !a.Draft && a.Type == TypePage {
+			result = append(result, a)
+		}
+	}
+	return result
+}
+
 func (m *mockRepository) GetDrafts() []*models.Article {
 	var result []*models.Article
 	for _, a := range m.articles {

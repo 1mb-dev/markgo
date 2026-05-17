@@ -30,6 +30,7 @@ func (m *MockArticleService) GetArticleBySlug(slug string) (*models.Article, err
 }
 
 // Implement other required methods as no-ops
+func (m *MockArticleService) GetPages() []*models.Article                           { return nil }
 func (m *MockArticleService) GetArticlesByTag(_ string) []*models.Article           { return nil }
 func (m *MockArticleService) GetArticlesByCategory(_ string) []*models.Article      { return nil }
 func (m *MockArticleService) GetArticlesForFeed(_ int) []*models.Article            { return nil }

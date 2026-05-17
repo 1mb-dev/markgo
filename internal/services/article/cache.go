@@ -451,6 +451,13 @@ func (cr *CachedRepository) GetPublished() []*models.Article {
 	return cr.repository.GetPublished()
 }
 
+// GetPages is a passthrough — not cached, matching GetPublished / GetByTag /
+// GetByCategory / GetFeatured / GetRecent / GetDrafts. Only GetBySlug and
+// GetStats actually cache in this layer.
+func (cr *CachedRepository) GetPages() []*models.Article {
+	return cr.repository.GetPages()
+}
+
 // GetDrafts retrieves all draft articles.
 func (cr *CachedRepository) GetDrafts() []*models.Article {
 	return cr.repository.GetDrafts()

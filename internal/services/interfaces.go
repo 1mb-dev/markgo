@@ -11,6 +11,7 @@ import (
 type ArticleServiceInterface interface {
 	// Article retrieval methods
 	GetAllArticles() []*models.Article
+	GetPages() []*models.Article
 	GetArticleBySlug(slug string) (*models.Article, error)
 	GetArticlesByTag(tag string) []*models.Article
 	GetArticlesByCategory(category string) []*models.Article

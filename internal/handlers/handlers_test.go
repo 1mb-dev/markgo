@@ -41,6 +41,7 @@ func (m *MockArticleService) GetArticleBySlug(slug string) (*models.Article, err
 	}
 	return nil, errors.New("article not found")
 }
+func (m *MockArticleService) GetPages() []*models.Article                             { return nil }
 func (m *MockArticleService) GetArticlesByTag(tag string) []*models.Article           { return nil }
 func (m *MockArticleService) GetArticlesByCategory(category string) []*models.Article { return nil }
 func (m *MockArticleService) GetArticlesForFeed(limit int) []*models.Article          { return nil }

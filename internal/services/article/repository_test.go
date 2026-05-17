@@ -408,6 +408,109 @@ func TestGetDrafts_IncludesAboutDraft(t *testing.T) {
 	assert.Equal(t, "about", drafts[0].Slug)
 }
 
+// TestGetPages verifies the only list-shaped accessor that returns
+// dedicated-route content. Filters by Type==TypePage, excludes drafts,
+// returns natural insertion order (no implicit sort — that's the /p
+// handler's job).
+func TestGetPages(t *testing.T) {
+	t.Run("returns published pages only", func(t *testing.T) {
+		repo := setupTestRepo(t, map[string]string{
+			"page.md":         pageArticle,
+			"draft-page.md":   pageDraftArticle,
+			"test-article.md": validArticle,
+			"about.md":        aboutArticle,
+		})
+		_, err := repo.LoadAll(context.Background())
+		require.NoError(t, err)
+
+		pages := repo.GetPages()
+		require.Len(t, pages, 1)
+		assert.Equal(t, "run-your-own", pages[0].Slug)
+		assert.Equal(t, TypePage, pages[0].Type)
+	})
+
+	t.Run("empty store returns empty slice, not nil-typed", func(t *testing.T) {
+		repo := setupTestRepo(t, map[string]string{})
+		_, err := repo.LoadAll(context.Background())
+		require.NoError(t, err)
+
+		pages := repo.GetPages()
+		assert.Empty(t, pages)
+		assert.Len(t, pages, 0)
+	})
+
+	t.Run("no pages in store returns empty", func(t *testing.T) {
+		repo := setupTestRepo(t, map[string]string{
+			"test-article.md": validArticle,
+			"about.md":        aboutArticle,
+		})
+		_, err := repo.LoadAll(context.Background())
+		require.NoError(t, err)
+
+		assert.Empty(t, repo.GetPages())
+	})
+
+	t.Run("excludes drafts", func(t *testing.T) {
+		repo := setupTestRepo(t, map[string]string{
+			"draft-page.md": pageDraftArticle,
+		})
+		_, err := repo.LoadAll(context.Background())
+		require.NoError(t, err)
+
+		assert.Empty(t, repo.GetPages())
+	})
+
+	t.Run("type filter is exact", func(t *testing.T) {
+		// aboutArticle slug is "about" and is excluded from list methods via
+		// the predicate, but it is NOT type:page — verify it doesn't sneak
+		// into GetPages.
+		repo := setupTestRepo(t, map[string]string{
+			"about.md":        aboutArticle,
+			"test-article.md": validArticle,
+		})
+		_, err := repo.LoadAll(context.Background())
+		require.NoError(t, err)
+
+		assert.Empty(t, repo.GetPages(), "/about is dedicated-route but not type:page; GetPages must not include it")
+	})
+
+	t.Run("preserves natural insertion order (date-desc)", func(t *testing.T) {
+		// Build two pages with explicit different dates; LoadAll sorts by
+		// date desc, so GetPages returns the newer one first.
+		newerPage := `---
+title: "Newer Page"
+slug: "newer-page"
+type: "page"
+date: 2026-01-01T10:00:00Z
+draft: false
+---
+
+Body.
+`
+		olderPage := `---
+title: "Older Page"
+slug: "older-page"
+type: "page"
+date: 2025-01-01T10:00:00Z
+draft: false
+---
+
+Body.
+`
+		repo := setupTestRepo(t, map[string]string{
+			"newer.md": newerPage,
+			"older.md": olderPage,
+		})
+		_, err := repo.LoadAll(context.Background())
+		require.NoError(t, err)
+
+		pages := repo.GetPages()
+		require.Len(t, pages, 2)
+		assert.Equal(t, "newer-page", pages[0].Slug, "GetPages must preserve LoadAll's date-desc order; sort is the handler's job")
+		assert.Equal(t, "older-page", pages[1].Slug)
+	})
+}
+
 // TestListMethods_ExcludePages verifies the dedicated-route predicate also
 // fires on type:page articles across all five list methods.
 func TestListMethods_ExcludePages(t *testing.T) {

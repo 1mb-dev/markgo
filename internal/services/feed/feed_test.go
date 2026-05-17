@@ -19,6 +19,7 @@ type mockArticleService struct {
 }
 
 func (m *mockArticleService) GetAllArticles() []*models.Article { return m.articles }
+func (m *mockArticleService) GetPages() []*models.Article       { return nil }
 func (m *mockArticleService) GetArticleBySlug(_ string) (*models.Article, error) {
 	return nil, nil
 }

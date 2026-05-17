@@ -42,6 +42,7 @@ type Repository interface {
 	GetByTag(tag string) []*models.Article
 	GetByCategory(category string) []*models.Article
 	GetPublished() []*models.Article
+	GetPages() []*models.Article
 	GetDrafts() []*models.Article
 	GetFeatured(limit int) []*models.Article
 	GetRecent(limit int) []*models.Article
@@ -202,6 +203,27 @@ func (r *FileSystemRepository) GetPublished() []*models.Article {
 	var result []*models.Article
 	for _, article := range r.articles {
 		if !article.Draft && !DedicatedRouteArticle(article) {
+			result = append(result, article)
+		}
+	}
+
+	return result
+}
+
+// GetPages returns published articles with type == TypePage in natural
+// insertion order (date-desc, matching sibling list methods). This is the
+// only list-shaped accessor that returns dedicated-route content;
+// GetPublished / GetByTag / GetByCategory / GetFeatured / GetRecent all
+// exclude it via DedicatedRouteArticle. Sort by Title is a presentation
+// concern handled in the /p index handler. Powers the /p index and the
+// sitemap pages section.
+func (r *FileSystemRepository) GetPages() []*models.Article {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	var result []*models.Article
+	for _, article := range r.articles {
+		if !article.Draft && article.Type == TypePage {
 			result = append(result, article)
 		}
 	}
