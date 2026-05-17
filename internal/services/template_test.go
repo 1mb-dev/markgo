@@ -775,6 +775,23 @@ func TestLoadBrandLogo_EmbeddedReadFails_ReturnsStartupError(t *testing.T) {
 	assert.Contains(t, err.Error(), "embedded brand-logo missing or unreadable")
 }
 
+func TestLoadBrandLogo_EmbeddedDefaultInjectsClassIfRemoved(t *testing.T) {
+	// Defensive consistency: if a future refactor drops class="brand-logo" from
+	// the embedded SVG, the fallback path must still inject it so CSS sizing
+	// keeps working on installs without an overlay.
+	classless := []byte(`<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"/>`)
+	original := brandLogoFS
+	brandLogoFS = fstest.MapFS{
+		"static/img/brand-logo.svg": &fstest.MapFile{Data: classless},
+	}
+	t.Cleanup(func() { brandLogoFS = original })
+
+	svc := &TemplateService{}
+	require.NoError(t, svc.loadBrandLogo(""))
+	assert.Contains(t, string(svc.brandLogoSVG), `class="brand-logo"`,
+		"embedded fallback must run through injectBrandLogoClass")
+}
+
 func TestTemplateService_FuncMapExposesBrandLogo(t *testing.T) {
 	svc := &TemplateService{brandLogoSVG: template.HTML(`<svg data-test="x"/>`)}
 

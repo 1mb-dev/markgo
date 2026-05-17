@@ -131,6 +131,7 @@ func NewTemplateService(templatesPath string, cfg *config.Config) (*TemplateServ
 	}
 
 	if err := service.loadTemplates(templatesPath); err != nil {
+		cancel()
 		return nil, err
 	}
 
@@ -211,7 +212,7 @@ func (t *TemplateService) loadBrandLogo(staticPath string) error {
 	}
 
 	// #nosec G203 - brand-logo SVG is markgo's own embedded asset. Trust boundary documented in docs/configuration.md.
-	t.brandLogoSVG = template.HTML(embedded)
+	t.brandLogoSVG = template.HTML(injectBrandLogoClass(embedded))
 	return nil
 }
 
@@ -482,7 +483,10 @@ func (t *TemplateService) Shutdown() {
 	}
 }
 
-// GetTemplateFuncMap returns the template function map for reuse in other services
+// GetTemplateFuncMap returns the stateless template function map for reuse in
+// other services. Per-instance helpers such as brandLogoSVG (registered on the
+// TemplateService via funcMap()) are NOT included; callers parsing templates
+// that reference those helpers must obtain the funcMap from a TemplateService.
 func GetTemplateFuncMap() template.FuncMap {
 	return templateFuncs
 }
