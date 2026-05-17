@@ -39,6 +39,10 @@ type ArticleServiceInterface interface {
 	// No publish/unpublish API needed - use your editor and Git workflow.
 	GetDraftArticles() []*models.Article
 	GetDraftBySlug(slug string) (*models.Article, error)
+
+	// IsHealthy reports whether the article service is in a working state.
+	// Used by /health to surface real degradation to uptime monitors.
+	IsHealthy() bool
 }
 
 // EmailServiceInterface defines the interface for email operations

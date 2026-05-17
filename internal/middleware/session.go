@@ -25,29 +25,52 @@ type session struct {
 // SessionStore manages in-memory sessions for admin authentication.
 type SessionStore struct {
 	sessions sync.Map
+	stop     chan struct{}
+	wg       sync.WaitGroup
 }
 
 // NewSessionStore creates a new session store and starts background cleanup.
 func NewSessionStore() *SessionStore {
-	s := &SessionStore{}
+	s := &SessionStore{stop: make(chan struct{})}
 
-	// Background cleanup of expired sessions (prevents unbounded memory growth)
+	// Background cleanup of expired sessions (prevents unbounded memory growth).
+	// Exits cleanly on Shutdown() so rolling restarts (Caddy/systemd) don't
+	// leak goroutines past the server socket close.
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		ticker := time.NewTicker(10 * time.Minute)
 		defer ticker.Stop()
-		for range ticker.C {
-			s.sessions.Range(func(key, value any) bool {
-				if sess, ok := value.(*session); ok {
-					if time.Now().After(sess.expiresAt) {
-						s.sessions.Delete(key)
+		for {
+			select {
+			case <-s.stop:
+				return
+			case <-ticker.C:
+				s.sessions.Range(func(key, value any) bool {
+					if sess, ok := value.(*session); ok {
+						if time.Now().After(sess.expiresAt) {
+							s.sessions.Delete(key)
+						}
 					}
-				}
-				return true
-			})
+					return true
+				})
+			}
 		}
 	}()
 
 	return s
+}
+
+// Shutdown stops the background cleanup goroutine and waits for it to exit.
+// Safe to call multiple times.
+func (s *SessionStore) Shutdown() {
+	select {
+	case <-s.stop:
+		// already closed
+	default:
+		close(s.stop)
+	}
+	s.wg.Wait()
 }
 
 // Create generates a new session token and stores it.

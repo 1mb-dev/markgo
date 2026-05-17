@@ -80,7 +80,7 @@ func New(cfg *Config) *Router {
 		Post:        NewPostHandler(base, cfg.ArticleService),
 		Taxonomy:    NewTaxonomyHandler(base, cfg.ArticleService),
 		Search:      NewSearchHandler(base, cfg.ArticleService),
-		Health:      NewHealthHandler(base, time.Now()),
+		Health:      NewHealthHandler(base, cfg.ArticleService, time.Now()),
 		Contact:     NewContactHandler(base, cfg.EmailService),
 		Syndication: NewSyndicationHandler(base, cfg.FeedService),
 		Admin:       NewAdminHandler(base, cfg.ArticleService, time.Now()),

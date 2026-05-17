@@ -23,9 +23,17 @@ func NewSearchHandler(base *BaseHandler, articleService services.ArticleServiceI
 	}
 }
 
+// maxSearchQueryLength caps the search query at the handler entry to keep
+// search-cache keys bounded. Without this, a bot probing 100K distinct long
+// query strings could saturate the obcache with megabyte-scale keys.
+const maxSearchQueryLength = 200
+
 // Search handles search requests.
 func (h *SearchHandler) Search(c *gin.Context) {
 	query := c.Query("q")
+	if len(query) > maxSearchQueryLength {
+		query = query[:maxSearchQueryLength]
+	}
 
 	data, err := h.getSearchResults(query)
 	if err != nil {

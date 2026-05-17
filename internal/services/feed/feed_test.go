@@ -36,6 +36,7 @@ func (m *mockArticleService) GetStats() *models.Stats                           
 func (m *mockArticleService) ReloadArticles() error                                 { return nil }
 func (m *mockArticleService) GetDraftArticles() []*models.Article                   { return nil }
 func (m *mockArticleService) GetDraftBySlug(_ string) (*models.Article, error)      { return nil, nil }
+func (m *mockArticleService) IsHealthy() bool                                       { return true }
 
 func testConfig() *config.Config {
 	return &config.Config{

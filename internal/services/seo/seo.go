@@ -237,11 +237,12 @@ func (h *Helper) GenerateOpenGraphTags(article *models.Article, baseURL string) 
 		tags["article:author"] = authorName
 	}
 
-	// Tags and categories
-	if len(article.Tags) > 0 {
-		for _, tag := range article.Tags {
-			tags["article:tag"] = tag
-		}
+	// Tags: emit one property line per tag. Encoded as "article:tag:<index>"
+	// in the map (map keys must be unique) and decoded back to property
+	// "article:tag" by renderMetaTags. Pre-v3.10.3 this loop overwrote the
+	// single key on each iteration, leaving only the last tag in output.
+	for i, tag := range article.Tags {
+		tags[fmt.Sprintf("article:tag:%d", i)] = tag
 	}
 
 	if len(article.Categories) > 0 {

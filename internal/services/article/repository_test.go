@@ -557,3 +557,41 @@ func TestBannerValidation_ServerAbsoluteNonCanonicalRejected(t *testing.T) {
 		})
 	}
 }
+
+// TestWriteFileAtomically_CleansUpBackupOnSuccess verifies the defer-based
+// cleanup introduced for F4 in v3.10.3. Regression guard: pre-fix the success
+// path explicitly removed the backup; we replaced that with a defer that
+// covers BOTH success AND rename-failure paths in one statement.
+func TestWriteFileAtomically_CleansUpBackupOnSuccess(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "article.md")
+	require.NoError(t, os.WriteFile(filePath, []byte("original"), 0o600))
+
+	repo := NewFileSystemRepository(dir, t.TempDir(), slog.Default())
+	require.NoError(t, repo.writeFileAtomically(filePath, "new content"))
+
+	content, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+	assert.Equal(t, "new content", string(content))
+
+	// The backup must not linger after success — defer should have removed it.
+	_, err = os.Stat(filePath + ".backup")
+	assert.True(t, os.IsNotExist(err), "backup file should not exist after successful write; got err=%v", err)
+}
+
+// TestWriteFileAtomically_NoBackupLeakWhenParentMissing verifies the defer
+// is a no-op (suppressed fs.ErrNotExist) when the backup write itself failed
+// because the parent directory doesn't exist. Function returns an error from
+// the prior os.ReadFile (cannot read original); no stranded files.
+func TestWriteFileAtomically_NoBackupLeakWhenParentMissing(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "subdir-does-not-exist", "article.md")
+
+	repo := NewFileSystemRepository(dir, t.TempDir(), slog.Default())
+	err := repo.writeFileAtomically(filePath, "new content")
+	require.Error(t, err)
+
+	// No backup file should be created in the non-existent parent path.
+	_, err = os.Stat(filePath + ".backup")
+	assert.True(t, os.IsNotExist(err), "no backup file should be stranded")
+}

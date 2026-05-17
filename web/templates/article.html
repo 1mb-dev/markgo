@@ -123,7 +123,7 @@
     "@type": "BlogPosting",
     "headline": "{{ displayTitle .article }}",
     "description": "{{ if .article.Description }}{{ .article.Description }}{{ else }}{{ .article.Excerpt }}{{ end }}",
-    "image": "{{ .config.BaseURL }}/static/images/default-article.jpg",
+    "image": "{{ $bannerSrc := .article.BannerSrc }}{{ if $bannerSrc }}{{ if hasPrefix $bannerSrc "http" }}{{ $bannerSrc }}{{ else }}{{ .config.BaseURL }}{{ $bannerSrc }}{{ end }}{{ else }}{{ .config.BaseURL }}/static/img/og-article-default.png{{ end }}",
     "url": "{{ .config.BaseURL }}/writing/{{ .article.Slug }}",
     "datePublished": "{{ .article.Date.Format "2006-01-02T15:04:05Z07:00" }}",
     {{ if .article.LastModified }}

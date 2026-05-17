@@ -635,6 +635,14 @@ func (r *FileSystemRepository) writeFileAtomically(filePath, content string) err
 	if err := os.WriteFile(backupPath, originalContent, 0o600); err != nil { //nolint:gosec // G703: backupPath is filePath+".backup"; filePath is already validated upstream (see G304 nosec on prior line)
 		r.logger.Warn("Failed to create backup file", "original", filePath, "backup", backupPath, "error", err)
 	}
+	// Always clean up the backup on return — covers success, rename failure,
+	// and temp-write failure. Suppress fs.ErrNotExist for the case where the
+	// backup write above failed and the file doesn't exist.
+	defer func() {
+		if err := os.Remove(backupPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			r.logger.Warn("Failed to remove backup file", "backup", backupPath, "error", err)
+		}
+	}()
 
 	// Write to temporary file first
 	tempPath := filePath + ".tmp"
@@ -647,11 +655,6 @@ func (r *FileSystemRepository) writeFileAtomically(filePath, content string) err
 		// Clean up temp file on failure
 		_ = os.Remove(tempPath)
 		return fmt.Errorf("failed to rename temporary file to %s: %w", filePath, err)
-	}
-
-	// Clean up backup file on success
-	if err := os.Remove(backupPath); err != nil {
-		r.logger.Warn("Failed to remove backup file", "backup", backupPath, "error", err)
 	}
 
 	return nil

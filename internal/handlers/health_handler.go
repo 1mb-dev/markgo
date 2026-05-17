@@ -7,19 +7,22 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/1mb-dev/markgo/internal/constants"
+	"github.com/1mb-dev/markgo/internal/services"
 )
 
 // HealthHandler handles health check and metrics requests.
 type HealthHandler struct {
 	*BaseHandler
-	startTime time.Time
+	articleService services.ArticleServiceInterface
+	startTime      time.Time
 }
 
 // NewHealthHandler creates a new health handler.
-func NewHealthHandler(base *BaseHandler, startTime time.Time) *HealthHandler {
+func NewHealthHandler(base *BaseHandler, articleService services.ArticleServiceInterface, startTime time.Time) *HealthHandler {
 	return &HealthHandler{
-		BaseHandler: base,
-		startTime:   startTime,
+		BaseHandler:    base,
+		articleService: articleService,
+		startTime:      startTime,
 	}
 }
 
@@ -83,21 +86,33 @@ func (h *HealthHandler) Offline(c *gin.Context) {
 	h.renderHTML(c, http.StatusOK, "base.html", data)
 }
 
-// Health handles health check requests.
+// Health handles health check requests. Returns 503 + status="unhealthy"
+// when the article service reports degraded state, so uptime monitors get a
+// truthful signal instead of an optimistic 200.
 func (h *HealthHandler) Health(c *gin.Context) {
 	uptime := time.Since(h.startTime)
+	articlesHealthy := h.articleService.IsHealthy()
+
+	status := "healthy"
+	articlesStatus := "healthy"
+	code := http.StatusOK
+	if !articlesHealthy {
+		status = "unhealthy"
+		articlesStatus = "unhealthy"
+		code = http.StatusServiceUnavailable
+	}
 
 	health := map[string]any{
-		"status":      "healthy",
+		"status":      status,
 		"timestamp":   time.Now().Unix(),
 		"uptime":      uptime.String(),
 		"version":     constants.AppVersion,
 		"environment": h.config.Environment,
 		"services": map[string]any{
-			"articles": "healthy",
+			"articles": articlesStatus,
 			"cache":    "healthy",
 		},
 	}
 
-	c.JSON(http.StatusOK, health)
+	c.JSON(code, health)
 }
