@@ -7,51 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [3.11.0] - Unreleased
+## [3.11.0] - 2026-05-17
 
 First forward-looking release after the v3.10.x cleanup cycle. Theme:
-**operator agency over user-visible interaction surfaces** — compose form
-gains a banner control and AMA submission copy becomes env-var configurable.
+**operator agency over user-visible interaction surfaces** — the compose
+form gains a banner control, AMA submission copy becomes env-var
+configurable, and one operator config knob over server restart behavior
+lands alongside an adjacent cleanup-ordering bugfix it would otherwise
+amplify.
 
 ### Added
 
-- **Compose form banner control (F21)** — the v3.10.0 `banner` /
+- **Compose form banner control (F21).** The v3.10.0 `banner` /
   `banner_alt` frontmatter fields are now editable from the compose UI.
-  Upload-based banners (saved to `uploads/<slug>/`) get a full file-input +
-  preview + remove flow. Banners using absolute URLs (`https://...`) or
+  Upload-based banners (saved to `uploads/<slug>/`) get a full file-input
+  + preview + remove flow. Banners using absolute URLs (`https://...`) or
   server-absolute paths (`/static/...`) are preserved on edit but displayed
-  read-only — operators editing those swap the value via markdown directly.
-  The upload itself reuses the existing `/compose/upload/:slug` endpoint.
-- **AMA submission copy is operator-configurable (#63)** — 5 new env vars
-  (`AMA_PAGE_HEADING`, `AMA_PAGE_INTRO`, `AMA_FORM_PLACEHOLDER`,
-  `AMA_SUBMIT_LABEL`, `AMA_THANKYOU_COPY`) override the AMA overlay's copy.
-  Defaults preserve current English verbatim. The overlay now renders an
-  intro paragraph between the heading and the form. Plaintext-only;
-  multi-line values collapse to a single block under HTML whitespace rules.
-  Operators wanting paragraph breaks override the template via
-  `TEMPLATES_PATH`. See `docs/configuration.md`.
-- **`SHUTDOWN_TIMEOUT` env var** — previously a hardcoded 30s in
-  `serve/command.go`, now configurable for Caddy rolling-restart tuning.
+  read-only — operators swap those by editing the markdown directly. The
+  upload itself reuses the existing `/compose/upload/:slug` endpoint.
+- **AMA submission copy is operator-configurable (#63).** Five new env
+  vars (`AMA_PAGE_HEADING`, `AMA_PAGE_INTRO`, `AMA_FORM_PLACEHOLDER`,
+  `AMA_SUBMIT_LABEL`, `AMA_THANKYOU_COPY`) override the AMA overlay's
+  copy. Defaults preserve current English verbatim. The overlay now
+  renders an intro paragraph between the heading and the form.
+  Plaintext-only; multi-line values collapse to a single block under HTML
+  whitespace rules. Operators wanting paragraph breaks override the
+  template via `TEMPLATES_PATH`. See `docs/configuration.md`.
+- **`SHUTDOWN_TIMEOUT` env var.** Previously a hardcoded 30s in
+  `serve/command.go`; now configurable for Caddy rolling-restart tuning.
   Duration-typed, via the existing `getEnvDuration` helper.
 
 ### Fixed
 
-- **Graceful shutdown skipped cleanup on `server.Shutdown` error.**
-  When the HTTP server's `Shutdown(ctx)` errored (most often a
+- **Graceful shutdown skipped cleanup on `server.Shutdown` error.** When
+  the HTTP server's `Shutdown(ctx)` errored (most commonly a
   context-deadline-exceeded), the old code path called `HandleCLIError`
   which `os.Exit(1)`'d before `templateService.Shutdown()`,
-  `sessionStore.Shutdown()`, and `middleware.ShutdownRateLimiters()` could
-  run — undoing F15's v3.10.3 cleanup wiring. Cleanups now run regardless
-  of `Shutdown`'s outcome; the exit-with-error happens after.
+  `sessionStore.Shutdown()`, and `middleware.ShutdownRateLimiters()`
+  could run — undoing F15's v3.10.3 cleanup wiring. Lower
+  `SHUTDOWN_TIMEOUT` values would have made the skip path hit more
+  often. Cleanups now run regardless of `Shutdown`'s outcome; the
+  exit-with-error happens after.
+- **Orphan `banner_alt` in frontmatter.** Filling alt text without
+  uploading a banner — or removing a banner while alt text was set —
+  used to write `banner_alt: <text>` to frontmatter with no corresponding
+  `banner` key. Server-side: `CreatePost` now only writes `banner_alt`
+  when `banner` is non-empty; `UpdateArticle` drops both keys when
+  `banner` is empty. Client-side: the Remove button also clears the alt
+  input so the UI matches the server rule.
+- **Banner field template type errors.** The new compose banner block
+  initially used markgo's strict-typed `or(bool, bool)` and `not(bool)`
+  template funcs with a three-arg `or` and a string argument — both
+  errored at render time and truncated the response before
+  `</body></html>` and the `<script src="/static/js/app.js">` tag,
+  silently disabling all compose-page JS. Nested the `or` calls and
+  replaced `not $banner` with `eq $banner ""`. Caught by Playwright
+  acceptance, not unit tests.
 
 ### Internal
 
-- `internal/services/compose` — extracted `setIfNonEmpty(map, key, val)`
-  helper so frontmatter assembly reads uniformly and stays under the
-  gocyclo threshold as new conditional fields land.
-- `internal/commands/serve` — extracted `gracefulShutdown(ctx, shutdown,
-  cleanups, logger) error` so the cleanup-on-error invariant is regression-
-  tested directly.
+- Extracted `gracefulShutdown(ctx, shutdown, cleanups, logger) error` in
+  `internal/commands/serve` so the cleanup-on-error invariant is
+  regression-tested directly.
+- Extracted `setIfNonEmpty(map, key, val)` in `internal/services/compose`
+  so frontmatter assembly stays uniform and below the gocyclo threshold
+  as new conditional fields land.
 
 ---
 
