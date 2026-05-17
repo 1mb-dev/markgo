@@ -316,11 +316,10 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 	}
 
 	router.StaticFS("/static", &gin.OnlyFilesFS{FileSystem: staticFS})
-	// sw.js: served from root for SW scope, but follows the same overlay
-	// resolution as everything under /static.
-	registerGET(router, "/sw.js", func(c *gin.Context) {
-		c.FileFromFS("sw.js", staticFS)
-	})
+	// sw.js: served from root for SW scope, follows the same overlay
+	// resolution. See serveSwJs in overlay.go for why this can't route through
+	// c.FileFromFS without a directory-redirect loop.
+	registerGET(router, "/sw.js", serveSwJs(staticFS))
 	// Uploaded assets — filesystem only, never embedded
 	if cfg.Upload.Path != "" {
 		if err := os.MkdirAll(cfg.Upload.Path, 0o755); err != nil { //nolint:gosec // upload dir needs to be accessible

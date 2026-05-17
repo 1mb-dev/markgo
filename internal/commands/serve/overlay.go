@@ -17,6 +17,8 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type overlayFS struct {
@@ -41,4 +43,26 @@ func (o *overlayFS) Open(name string) (http.File, error) {
 			"path", name, "error", err)
 	}
 	return o.embedded.Open(name)
+}
+
+// serveSwJs serves sw.js from the given FS, with explicit directory rejection.
+// Necessary because c.FileFromFS routes through http.FileServer, which redirects
+// on directories — and gin's RedirectTrailingSlash would loop that back. The
+// /static/* mount avoids this because gin's createStaticHandler has an explicit
+// *OnlyFilesFS type-check; the /sw.js route bypasses that path.
+func serveSwJs(staticFS http.FileSystem) func(c *gin.Context) {
+	return func(c *gin.Context) {
+		f, err := staticFS.Open("sw.js")
+		if err != nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		defer f.Close()
+		stat, err := f.Stat()
+		if err != nil || stat.IsDir() {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		http.ServeContent(c.Writer, c.Request, "sw.js", stat.ModTime(), f)
+	}
 }

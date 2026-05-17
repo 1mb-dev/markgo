@@ -125,8 +125,9 @@ func TestStaticMount_OverlayIntegration(t *testing.T) {
 	r := gin.New()
 	overlay := newOverlayFS(http.Dir(localDir), http.FS(embedded), discardLogger())
 	r.StaticFS("/static", &gin.OnlyFilesFS{FileSystem: overlay})
-	r.GET("/sw.js", func(c *gin.Context) { c.FileFromFS("sw.js", overlay) })
-	r.HEAD("/sw.js", func(c *gin.Context) { c.FileFromFS("sw.js", overlay) })
+	swHandler := serveSwJs(overlay)
+	r.GET("/sw.js", swHandler)
+	r.HEAD("/sw.js", swHandler)
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -230,6 +231,35 @@ func TestStaticMount_NoDirectoryListings_BothBranches(t *testing.T) {
 			t.Errorf("embedded-only /static/css/: status %d, want 404", resp.StatusCode)
 		}
 	})
+}
+
+// TestStaticMount_SwJsRejectsDirectory: if an operator misconfigures
+// <STATIC_PATH>/sw.js as a directory rather than a file, the sw.js handler
+// must return 404 — not redirect-loop into gin's trailing-slash handler nor
+// expose a listing via http.FileServer's default behavior.
+func TestStaticMount_SwJsRejectsDirectory(t *testing.T) {
+	localDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(localDir, "sw.js"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	embedded := fstest.MapFS{}
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	overlay := newOverlayFS(http.Dir(localDir), http.FS(embedded), discardLogger())
+	r.GET("/sw.js", serveSwJs(overlay))
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/sw.js")
+	if err != nil {
+		t.Fatalf("GET /sw.js: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 404 {
+		t.Errorf("GET /sw.js (dir at <STATIC_PATH>/sw.js): status %d, want 404", resp.StatusCode)
+	}
 }
 
 // TestStaticMount_SymlinkTraversal pins http.Dir's symlink behavior (follows
