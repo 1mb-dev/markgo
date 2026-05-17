@@ -49,9 +49,10 @@ type Config struct {
 
 // ServerConfig holds server-related configuration options.
 type ServerConfig struct {
-	ReadTimeout  time.Duration `json:"read_timeout"`
-	WriteTimeout time.Duration `json:"write_timeout"`
-	IdleTimeout  time.Duration `json:"idle_timeout"`
+	ReadTimeout     time.Duration `json:"read_timeout"`
+	WriteTimeout    time.Duration `json:"write_timeout"`
+	IdleTimeout     time.Duration `json:"idle_timeout"`
+	ShutdownTimeout time.Duration `json:"shutdown_timeout"`
 }
 
 // CacheConfig holds cache-related configuration options.
@@ -206,9 +207,10 @@ func Load() (*Config, error) {
 		BaseURL:       getEnv("BASE_URL", "http://localhost:3000"),
 
 		Server: ServerConfig{
-			ReadTimeout:  getEnvDuration("SERVER_READ_TIMEOUT", 15*time.Second),
-			WriteTimeout: getEnvDuration("SERVER_WRITE_TIMEOUT", 15*time.Second),
-			IdleTimeout:  getEnvDuration("SERVER_IDLE_TIMEOUT", 60*time.Second),
+			ReadTimeout:     getEnvDuration("SERVER_READ_TIMEOUT", 15*time.Second),
+			WriteTimeout:    getEnvDuration("SERVER_WRITE_TIMEOUT", 15*time.Second),
+			IdleTimeout:     getEnvDuration("SERVER_IDLE_TIMEOUT", 60*time.Second),
+			ShutdownTimeout: getEnvDuration("SHUTDOWN_TIMEOUT", 30*time.Second),
 		},
 
 		Cache: CacheConfig{

@@ -136,6 +136,7 @@ Sliding window per IP. Static assets are excluded from rate limiting.
 | `SERVER_READ_TIMEOUT` | `15s` | Max time to read the full request. |
 | `SERVER_WRITE_TIMEOUT` | `15s` | Max time to write the response. |
 | `SERVER_IDLE_TIMEOUT` | `60s` | Max time waiting for next request (keep-alive). |
+| `SHUTDOWN_TIMEOUT` | `30s` | Deadline for graceful shutdown of in-flight HTTP requests on `SIGTERM`/`SIGINT`. Lower values speed up rolling restarts but may abort longer requests; higher values give in-flight work more time. Internal cleanup (sessions, rate-limiters, templates) always runs, regardless of whether the deadline is hit. |
 
 ## Logging
 

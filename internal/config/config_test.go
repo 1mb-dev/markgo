@@ -34,6 +34,7 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, 15*time.Second, cfg.Server.ReadTimeout)
 	assert.Equal(t, 15*time.Second, cfg.Server.WriteTimeout)
 	assert.Equal(t, 60*time.Second, cfg.Server.IdleTimeout)
+	assert.Equal(t, 30*time.Second, cfg.Server.ShutdownTimeout)
 
 	// Test cache config defaults
 	assert.Equal(t, 1*time.Hour, cfg.Cache.TTL)
@@ -102,6 +103,7 @@ func TestLoadWithEnvironmentVariables(t *testing.T) {
 	_ = os.Setenv("SERVER_READ_TIMEOUT", "30s")
 	_ = os.Setenv("SERVER_WRITE_TIMEOUT", "30s")
 	_ = os.Setenv("SERVER_IDLE_TIMEOUT", "120s")
+	_ = os.Setenv("SHUTDOWN_TIMEOUT", "15s")
 
 	_ = os.Setenv("CACHE_TTL", "2h")
 	_ = os.Setenv("CACHE_MAX_SIZE", "2000")
@@ -158,6 +160,7 @@ func TestLoadWithEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, 30*time.Second, cfg.Server.ReadTimeout)
 	assert.Equal(t, 30*time.Second, cfg.Server.WriteTimeout)
 	assert.Equal(t, 120*time.Second, cfg.Server.IdleTimeout)
+	assert.Equal(t, 15*time.Second, cfg.Server.ShutdownTimeout)
 
 	// Test cache config
 	assert.Equal(t, 2*time.Hour, cfg.Cache.TTL)
@@ -313,7 +316,7 @@ func TestStringSliceParsing(t *testing.T) {
 func clearEnvVars() {
 	vars := []string{
 		"ENVIRONMENT", "PORT", "ARTICLES_PATH", "STATIC_PATH", "TEMPLATES_PATH", "BASE_URL",
-		"SERVER_READ_TIMEOUT", "SERVER_WRITE_TIMEOUT", "SERVER_IDLE_TIMEOUT",
+		"SERVER_READ_TIMEOUT", "SERVER_WRITE_TIMEOUT", "SERVER_IDLE_TIMEOUT", "SHUTDOWN_TIMEOUT",
 		"CACHE_TTL", "CACHE_MAX_SIZE", "CACHE_CLEANUP_INTERVAL",
 		"EMAIL_HOST", "EMAIL_PORT", "EMAIL_USERNAME", "EMAIL_PASSWORD", "EMAIL_FROM", "EMAIL_TO", "EMAIL_USE_SSL",
 		"RATE_LIMIT_GENERAL_REQUESTS", "RATE_LIMIT_GENERAL_WINDOW", "RATE_LIMIT_CONTACT_REQUESTS", "RATE_LIMIT_CONTACT_WINDOW", "RATE_LIMIT_UPLOAD_REQUESTS", "RATE_LIMIT_UPLOAD_WINDOW",
