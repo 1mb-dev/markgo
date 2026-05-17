@@ -9,6 +9,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.10.3] - 2026-05-17
+
+Periodic-cleanup patch closing 11 findings from the v3.7.0→v3.10.2
+comprehensive review plus a configuration relax (#64). The admin drafts
+endpoint no longer leaks askers' email addresses, `/health` reports real
+degradation instead of always-200, banner images render correctly across
+SEO modes and Schema.org metadata, graceful shutdown drains session and
+rate-limiter cleanup goroutines on SIGTERM, and `BLOG_STYLE` accepts any
+non-empty value so the v3.10.2 STATIC_PATH overlay can deliver custom
+themes as designed.
+
+### Security
+
+- `/admin/drafts` JSON branch now serialises `ToListView` (matching
+  `/admin/writing`), so `AskerEmail` no longer reaches authenticated admin
+  clients. PII was previously embedded in the raw `*models.Article`
+  payload despite never being rendered in the HTML view.
+
+### Fixed
+
+- `BLOG_STYLE` validation accepts any non-empty value. The hardcoded
+  `["minimal"]` allowlist contradicted both the `.env.example` docs and
+  the v3.10.2 STATIC_PATH overlay (which exists for custom themes).
+  Closes #64.
+- Open Graph `article:tag` emits one `<meta>` per tag — the prior loop
+  overwrote a single map key, leaving only the last tag in output.
+- `writeFileAtomically` defers backup removal so rename-failure and
+  temp-write-failure paths no longer strand `.backup` files next to
+  articles.
+- Banner images now resolve across every rendering path: `og:image` and
+  `twitter:image` in `base.html`'s non-SEO branch, and Schema.org JSON-LD
+  `image` in `article.html`. These previously hardcoded the static default
+  regardless of `banner:` frontmatter.
+- Search query string capped at 200 chars at handler entry, bounding the
+  obcache key growth from probing bots.
+- `migrateLegacyDB` sets the IndexedDB migration flag only on confirmed
+  `deleteDatabase` `onsuccess`. The prior code set it on `onblocked` too,
+  permanently stranding queued drafts when another tab held the legacy
+  DB open during migration.
+- `docs/GETTING-STARTED.md` no longer teaches the silently-broken
+  "create `web/templates/`" auto-discovery workflow; rewritten to point
+  at `TEMPLATES_PATH` and describe STATIC_PATH overlay semantics.
+- README content-type count corrected from "three" to "four" (AMA
+  shipped in v3.7.0). Added a `markgo new --type ama` example.
+
+### Changed
+
+- `/health` now checks `articleService.IsHealthy()` and returns 503 +
+  `"status": "unhealthy"` on degradation. Previously always returned 200
+  regardless of service state, silently misleading uptime monitors.
+- Graceful shutdown drains `SessionStore` and rate-limiter cleanup
+  goroutines on SIGTERM. The cleanup loops previously outlived the
+  server socket close, racing rolling restarts (Caddy, systemd).
+
+---
+
 ## [3.10.2] - 2026-05-17
 
 Patch release: `STATIC_PATH` now overlays the embedded FS per file rather than
