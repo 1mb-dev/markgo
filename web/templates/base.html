@@ -28,8 +28,14 @@
     <meta property="og:site_name" content="{{ .config.Blog.Title }}">
     <meta property="og:locale" content="{{ .config.Blog.Language | default "en_US" }}">
     {{ if .article }}
+    {{ $bannerSrc := .article.BannerSrc }}
+    {{ if $bannerSrc }}
+    <meta property="og:image" content="{{ if hasPrefix $bannerSrc "http" }}{{ $bannerSrc }}{{ else }}{{ .config.BaseURL }}{{ $bannerSrc }}{{ end }}">
+    <meta property="og:image:alt" content="{{ if .article.BannerAlt }}{{ .article.BannerAlt }}{{ else }}{{ .article.Title }} - {{ .config.Blog.Title }}{{ end }}">
+    {{ else }}
     <meta property="og:image" content="{{ .config.BaseURL }}/static/img/og-article-default.png">
     <meta property="og:image:alt" content="{{ .article.Title }} - {{ .config.Blog.Title }}">
+    {{ end }}
     {{ else }}
     <meta property="og:image" content="{{ .config.BaseURL }}/static/img/og-default.png">
     <meta property="og:image:alt" content="{{ .config.Blog.Title }} - {{ .config.Blog.Description }}">
@@ -44,8 +50,14 @@
     <meta name="twitter:title" content="{{ if .title }}{{ .title }}{{ else }}{{ .config.Blog.Title }}{{ end }}">
     <meta name="twitter:description" content="{{ if .description }}{{ .description }}{{ else if .article }}{{ .article.Excerpt }}{{ else }}{{ .config.Blog.Description }}{{ end }}">
     {{ if .article }}
+    {{ $bannerSrc := .article.BannerSrc }}
+    {{ if $bannerSrc }}
+    <meta name="twitter:image" content="{{ if hasPrefix $bannerSrc "http" }}{{ $bannerSrc }}{{ else }}{{ .config.BaseURL }}{{ $bannerSrc }}{{ end }}">
+    <meta name="twitter:image:alt" content="{{ if .article.BannerAlt }}{{ .article.BannerAlt }}{{ else }}{{ .article.Title }} - {{ .config.Blog.Title }}{{ end }}">
+    {{ else }}
     <meta name="twitter:image" content="{{ .config.BaseURL }}/static/img/og-article-default.png">
     <meta name="twitter:image:alt" content="{{ .article.Title }} - {{ .config.Blog.Title }}">
+    {{ end }}
     {{ else }}
     <meta name="twitter:image" content="{{ .config.BaseURL }}/static/img/og-default.png">
     <meta name="twitter:image:alt" content="{{ .config.Blog.Title }} - {{ .config.Blog.Description }}">

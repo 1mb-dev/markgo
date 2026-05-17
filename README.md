@@ -6,7 +6,7 @@
 
 A blog engine where you write first and categorize never.
 
-Type two sentences without a title and it becomes a thought. Paste a URL with commentary and it becomes a link. Write something long with a title and it becomes an article. Three content types, inferred automatically from what you write. No database. No build step.
+Type two sentences without a title and it becomes a thought. Paste a URL with commentary and it becomes a link. Write something long with a title and it becomes an article. Ask a question and it becomes an AMA. Four content types, inferred automatically from what you write. No database. No build step.
 
 ## Quick Start
 
@@ -43,6 +43,7 @@ markgo init [--quick]                    # Initialize a new blog
 markgo new [--title "..." --tags "..."]  # Create an article
 markgo new --type thought                # Quick thought (no title needed)
 markgo new --type link                   # Share a link
+markgo new --type ama --title "Why X?"   # AMA question (admin moderated)
 ```
 
 ## Configuration
