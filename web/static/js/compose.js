@@ -373,6 +373,82 @@ export function init() {
         }, { signal });
     }
 
+    // =========================================================================
+    // Banner upload (separate flow — sets a hidden field, doesn't insert markdown)
+    // =========================================================================
+
+    const bannerInput = document.querySelector('[data-banner-input]');
+    const bannerPreview = document.querySelector('[data-banner-preview]');
+    const bannerUploadBtn = document.querySelector('[data-banner-upload-btn]');
+    const bannerRemoveBtn = document.querySelector('[data-banner-remove-btn]');
+    const bannerFileInput = document.querySelector('[data-banner-file-input]');
+
+    function setBannerValue(url) {
+        if (!bannerInput) return;
+        bannerInput.value = url;
+        if (bannerPreview) {
+            if (url) {
+                bannerPreview.src = url;
+                bannerPreview.hidden = false;
+            } else {
+                bannerPreview.removeAttribute('src');
+                bannerPreview.hidden = true;
+            }
+        }
+        if (bannerRemoveBtn) bannerRemoveBtn.hidden = !url;
+    }
+
+    function uploadBanner(file) {
+        if (!file) return;
+        const slug = getSlug();
+        if (!slug) {
+            setUploadStatus('Save as draft first to upload a banner', false);
+            return;
+        }
+        if (file.size > maxFileSize) {
+            setUploadStatus(`Banner too large. Maximum size is ${formatFileSize(maxFileSize)}.`, true);
+            return;
+        }
+
+        setUploadStatus('Uploading banner...', false);
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        authenticatedFetch(`/compose/upload/${encodeURIComponent(slug)}`, {
+            method: 'POST',
+            body: formData,
+        })
+            .then((res) => {
+                if (!res.ok) {
+                    return res.json()
+                        .catch(() => { throw new Error('Banner upload failed (server error)'); })
+                        .then((data) => { throw new Error(data.error || 'Banner upload failed'); });
+                }
+                return res.json();
+            })
+            .then((data) => {
+                setBannerValue(data.url);
+                setUploadStatus('Banner uploaded: ' + data.filename, false);
+            })
+            .catch((err) => {
+                setUploadStatus(err.message || 'Banner upload failed', true);
+            });
+    }
+
+    if (bannerUploadBtn && bannerFileInput) {
+        bannerUploadBtn.addEventListener('click', () => bannerFileInput.click(), { signal });
+        bannerFileInput.addEventListener('change', () => {
+            if (bannerFileInput.files.length > 0) {
+                uploadBanner(bannerFileInput.files[0]);
+                bannerFileInput.value = '';
+            }
+        }, { signal });
+    }
+    if (bannerRemoveBtn) {
+        bannerRemoveBtn.addEventListener('click', () => setBannerValue(''), { signal });
+    }
+
     // Drag and drop on textarea
     textarea.addEventListener('dragover', (e) => {
         e.preventDefault();

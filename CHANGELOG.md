@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.11.0] - Unreleased
+
+First forward-looking release after the v3.10.x cleanup cycle. Theme:
+**operator agency over user-visible interaction surfaces** — compose form
+gains a banner control and AMA submission copy becomes env-var configurable.
+
+### Added
+
+- **Compose form banner control (F21)** — the v3.10.0 `banner` /
+  `banner_alt` frontmatter fields are now editable from the compose UI.
+  Upload-based banners (saved to `uploads/<slug>/`) get a full file-input +
+  preview + remove flow. Banners using absolute URLs (`https://...`) or
+  server-absolute paths (`/static/...`) are preserved on edit but displayed
+  read-only — operators editing those swap the value via markdown directly.
+  The upload itself reuses the existing `/compose/upload/:slug` endpoint.
+- **AMA submission copy is operator-configurable (#63)** — 5 new env vars
+  (`AMA_PAGE_HEADING`, `AMA_PAGE_INTRO`, `AMA_FORM_PLACEHOLDER`,
+  `AMA_SUBMIT_LABEL`, `AMA_THANKYOU_COPY`) override the AMA overlay's copy.
+  Defaults preserve current English verbatim. The overlay now renders an
+  intro paragraph between the heading and the form. Plaintext-only;
+  multi-line values collapse to a single block under HTML whitespace rules.
+  Operators wanting paragraph breaks override the template via
+  `TEMPLATES_PATH`. See `docs/configuration.md`.
+- **`SHUTDOWN_TIMEOUT` env var** — previously a hardcoded 30s in
+  `serve/command.go`, now configurable for Caddy rolling-restart tuning.
+  Duration-typed, via the existing `getEnvDuration` helper.
+
+### Fixed
+
+- **Graceful shutdown skipped cleanup on `server.Shutdown` error.**
+  When the HTTP server's `Shutdown(ctx)` errored (most often a
+  context-deadline-exceeded), the old code path called `HandleCLIError`
+  which `os.Exit(1)`'d before `templateService.Shutdown()`,
+  `sessionStore.Shutdown()`, and `middleware.ShutdownRateLimiters()` could
+  run — undoing F15's v3.10.3 cleanup wiring. Cleanups now run regardless
+  of `Shutdown`'s outcome; the exit-with-error happens after.
+
+### Internal
+
+- `internal/services/compose` — extracted `setIfNonEmpty(map, key, val)`
+  helper so frontmatter assembly reads uniformly and stays under the
+  gocyclo threshold as new conditional fields land.
+- `internal/commands/serve` — extracted `gracefulShutdown(ctx, shutdown,
+  cleanups, logger) error` so the cleanup-on-error invariant is regression-
+  tested directly.
+
 ---
 
 ## [3.10.3] - 2026-05-17

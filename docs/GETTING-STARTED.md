@@ -123,6 +123,8 @@ banner_alt: "Workbench with scattered notes"
 
 When no banner is set, the OG image falls back through tiers: first inline image in the post → static default. Setting `banner:` is the only way to control the social card explicitly.
 
+**Setting a banner from the compose form** (v3.11.0+): the compose UI exposes a "Banner image" field above the publish controls. Upload an image and it lands in `uploads/<slug>/` and writes the relative `banner:` line for you. Banners using `/static/...` or absolute URLs are preserved on edit but displayed read-only — to swap them, edit the markdown frontmatter directly. There is no "URL or upload" toggle in the form; the form's upload control owns the `uploads/`-based path only.
+
 ---
 
 ## Configure

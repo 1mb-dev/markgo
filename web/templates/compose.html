@@ -110,6 +110,34 @@
                 >
             </div>
 
+            {{ $banner := "" }}{{ if .input }}{{ $banner = .input.Banner }}{{ end }}
+            {{ $bannerIsExternal := or (hasPrefix $banner "http://") (hasPrefix $banner "https://") (hasPrefix $banner "/static/") }}
+            <div class="compose-field compose-banner-field" data-banner-field>
+                <label class="compose-label">Banner image <span class="compose-hint">(optional — shown above the title on articles)</span></label>
+                <input type="hidden" name="banner" value="{{ $banner }}" data-banner-input>
+                {{ if $bannerIsExternal }}
+                <div class="compose-banner-external" data-banner-external>
+                    <code class="compose-banner-external-path">{{ $banner }}</code>
+                    <p class="compose-banner-external-note">External banner; edit the article's frontmatter directly to swap.</p>
+                </div>
+                {{ else }}
+                <div class="compose-banner-controls">
+                    <img class="compose-banner-preview" data-banner-preview alt="" {{ if $banner }}src="{{ $banner }}"{{ else }}hidden{{ end }}>
+                    <button type="button" class="compose-banner-upload-btn" data-banner-upload-btn>Upload banner image</button>
+                    <button type="button" class="compose-banner-remove-btn" data-banner-remove-btn {{ if not $banner }}hidden{{ end }}>Remove</button>
+                    <input type="file" class="compose-banner-file-input" data-banner-file-input accept="image/*" hidden>
+                </div>
+                {{ end }}
+                <input
+                    type="text"
+                    name="banner_alt"
+                    class="compose-input compose-banner-alt"
+                    placeholder="Describe the banner for screen readers"
+                    value="{{ if .input }}{{ .input.BannerAlt }}{{ end }}"
+                    aria-label="Banner alt text"
+                >
+            </div>
+
             <div class="compose-actions">
                 <button type="submit" name="draft" value="on" class="compose-submit">Save Draft</button>
                 <button type="submit" name="draft" value="" class="compose-submit-secondary">{{ if .editing }}Update{{ else }}Publish{{ end }}</button>
