@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.12.0] - 2026-05-17
+
 Theme: **completing the brand-customization story.** v3.10.2's STATIC_PATH overlay
 made favicons, fonts, themes, and OG images operator-overridable. The header
 brand-logo was the lone holdout — template-embedded inline SVG, unreachable
