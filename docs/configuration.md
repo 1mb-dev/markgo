@@ -118,6 +118,53 @@ Drop your SVG at `<STATIC_PATH>/img/brand-logo.svg`. markgo reads it at startup 
 | `<STATIC_PATH>/fonts/...` | Custom web fonts (referenced via `@font-face` in CSS) |
 | `<STATIC_PATH>/css/<BLOG_STYLE>.css` | Custom theme stylesheet (any `BLOG_STYLE` name accepted) |
 
+## Pages (v3.13.0+)
+
+Pages are for evergreen content that shouldn't live in the writing feed — a "Run your own?", a `/now`, a `/credits`. They live at `/p/<slug>` rather than `/writing/<slug>`, and they're excluded from the writing index, RSS, JSON Feed, tag and category indexes. Search still finds them by content.
+
+### Authoring a page
+
+Drop a markdown file in `articles/` with `type: page` in the frontmatter:
+
+```markdown
+---
+title: Run your own
+type: page
+slug: run-your-own
+---
+
+Quick guide to running your own log...
+```
+
+`type: page` must be explicit. Unlike article/thought/link, the page type is never inferred.
+
+The slug determines the URL: `/p/run-your-own` in this example. Pages support the same frontmatter fields as articles (`banner`, `banner_alt`, `description`, etc.).
+
+### Behavior
+
+- **URL:** `/p/<slug>` is canonical. Legacy `/writing/<slug>` requests for `type: page` articles 301-redirect to `/p/<slug>`.
+- **Feed exclusion:** pages do not appear in `/writing`, RSS (`/feed.xml`), JSON Feed (`/feed.json`), `/tags/<tag>`, or `/categories/<cat>`.
+- **Sitemap:** pages are not currently emitted in the sitemap article section. Search engines discover pages via canonical links from articles or via direct URL.
+- **Search:** pages remain indexed; readers can find them via `/search?q=...` and follow the result to `/p/<slug>`.
+- **Date and "Updated" line:** hidden in the rendered page. Pages are evergreen, not dated.
+- **Tags:** rendered on the page itself but do not surface the page in tag indexes.
+- **Admin drafts:** drafted pages (`type: page` + `draft: true`) appear in the admin drafts list. Operator publishes the page by removing the draft flag.
+
+### Migrating an article to a page
+
+Change `type: article` → `type: page` in the frontmatter and save. The article disappears from `/writing` and feeds; the URL shifts from `/writing/<slug>` to `/p/<slug>`. Existing inbound links to `/writing/<slug>` automatically 301-redirect, so no link equity is lost.
+
+### What about /about?
+
+`/about` is handled separately — it has its own dedicated handler with config-driven identity chrome (avatar, tagline, bio, social URLs from `.env`). The `articles/about.md` file is the body content. Don't make `/about` a page; keep using the dedicated handler.
+
+### Future enhancements
+
+- Auto-populated nav slot listing pages (v3.14.0+)
+- `/p` index page (v3.14.0+; currently returns 404)
+- `nav_priority` ordering frontmatter (v3.14.0+)
+- Compose form "new page" affordance (v3.14.0+; for now, author pages by dropping markdown into `articles/` or editing an existing page via `/compose/edit/<slug>`)
+
 ## Admin
 
 | Variable | Default | Description |

@@ -149,13 +149,17 @@ func (r *FileSystemRepository) GetBySlug(slug string) (*models.Article, error) {
 	return article, nil
 }
 
-// GetByTag returns articles that have the specified tag
+// GetByTag returns articles that have the specified tag. Excludes
+// dedicated-route articles (see DedicatedRouteArticle).
 func (r *FileSystemRepository) GetByTag(tag string) []*models.Article {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
 	var result []*models.Article
 	for _, article := range r.articles {
+		if DedicatedRouteArticle(article) {
+			continue
+		}
 		for _, articleTag := range article.Tags {
 			if strings.EqualFold(articleTag, tag) {
 				result = append(result, article)
@@ -167,13 +171,17 @@ func (r *FileSystemRepository) GetByTag(tag string) []*models.Article {
 	return result
 }
 
-// GetByCategory returns articles in the specified category
+// GetByCategory returns articles in the specified category. Excludes
+// dedicated-route articles (see DedicatedRouteArticle).
 func (r *FileSystemRepository) GetByCategory(category string) []*models.Article {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
 	var result []*models.Article
 	for _, article := range r.articles {
+		if DedicatedRouteArticle(article) {
+			continue
+		}
 		for _, articleCategory := range article.Categories {
 			if strings.EqualFold(articleCategory, category) {
 				result = append(result, article)
@@ -185,14 +193,15 @@ func (r *FileSystemRepository) GetByCategory(category string) []*models.Article 
 	return result
 }
 
-// GetPublished returns all published (non-draft) articles
+// GetPublished returns all published (non-draft) articles. Excludes
+// dedicated-route articles (see DedicatedRouteArticle).
 func (r *FileSystemRepository) GetPublished() []*models.Article {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
 	var result []*models.Article
 	for _, article := range r.articles {
-		if !article.Draft {
+		if !article.Draft && !DedicatedRouteArticle(article) {
 			result = append(result, article)
 		}
 	}
@@ -215,14 +224,15 @@ func (r *FileSystemRepository) GetDrafts() []*models.Article {
 	return result
 }
 
-// GetFeatured returns featured articles up to the specified limit
+// GetFeatured returns featured articles up to the specified limit.
+// Excludes dedicated-route articles (see DedicatedRouteArticle).
 func (r *FileSystemRepository) GetFeatured(limit int) []*models.Article {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
 	var result []*models.Article
 	for _, article := range r.articles {
-		if article.Featured && !article.Draft {
+		if article.Featured && !article.Draft && !DedicatedRouteArticle(article) {
 			result = append(result, article)
 			if len(result) >= limit {
 				break
@@ -233,14 +243,15 @@ func (r *FileSystemRepository) GetFeatured(limit int) []*models.Article {
 	return result
 }
 
-// GetRecent returns recent articles up to the specified limit
+// GetRecent returns recent articles up to the specified limit. Excludes
+// dedicated-route articles (see DedicatedRouteArticle).
 func (r *FileSystemRepository) GetRecent(limit int) []*models.Article {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
 	var result []*models.Article
 	for _, article := range r.articles {
-		if !article.Draft {
+		if !article.Draft && !DedicatedRouteArticle(article) {
 			result = append(result, article)
 			if len(result) >= limit {
 				break

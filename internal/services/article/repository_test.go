@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/1mb-dev/markgo/internal/models"
 )
 
 const validArticle = `---
@@ -63,6 +65,70 @@ author: "Jane Doe"
 # Featured
 
 This is a featured article.
+`
+
+const aboutArticle = `---
+title: "About"
+description: "About me"
+date: 2025-06-15T10:00:00Z
+tags: [go, news]
+categories: [tech]
+slug: "about"
+draft: false
+featured: true
+author: "Jane Doe"
+---
+
+# About
+
+About content.
+`
+
+const aboutDraftArticle = `---
+title: "About Draft"
+description: "Drafted about"
+date: 2025-06-15T10:00:00Z
+slug: "about"
+draft: true
+author: "Jane Doe"
+---
+
+# About
+
+Draft.
+`
+
+const pageArticle = `---
+title: "Run Your Own"
+description: "Guide"
+date: 2025-06-15T10:00:00Z
+tags: [go, guide]
+categories: [tech]
+slug: "run-your-own"
+type: "page"
+draft: false
+featured: true
+author: "Jane Doe"
+---
+
+# Run Your Own
+
+Page body.
+`
+
+const pageDraftArticle = `---
+title: "Draft Page"
+description: "Page draft"
+date: 2025-06-15T10:00:00Z
+slug: "draft-page"
+type: "page"
+draft: true
+author: "Jane Doe"
+---
+
+# Draft Page
+
+Drafted.
 `
 
 func setupTestRepo(t *testing.T, files map[string]string) *FileSystemRepository {
@@ -286,6 +352,110 @@ func TestGetRecent(t *testing.T) {
 
 	recent = repo.GetRecent(10)
 	assert.Len(t, recent, 2) // excludes the draft
+}
+
+// TestListMethods_ExcludeAboutSlug verifies the dedicated-route predicate
+// fires across all five list methods. The about-slugged article is published
+// + featured + has tags + has categories — it must be excluded from every
+// list source that feeds /writing, RSS, JSONFeed, sitemap, or taxonomy.
+func TestListMethods_ExcludeAboutSlug(t *testing.T) {
+	repo := setupTestRepo(t, map[string]string{
+		"test-article.md":     validArticle,
+		"featured-article.md": featuredArticle,
+		"about.md":            aboutArticle,
+	})
+	_, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+
+	containsAbout := func(t *testing.T, articles []*models.Article) bool {
+		t.Helper()
+		for _, a := range articles {
+			if a.Slug == aboutSlug {
+				return true
+			}
+		}
+		return false
+	}
+
+	assert.False(t, containsAbout(t, repo.GetPublished()), "GetPublished must exclude about")
+	assert.False(t, containsAbout(t, repo.GetByTag("go")), "GetByTag must exclude about even when tag matches")
+	assert.False(t, containsAbout(t, repo.GetByCategory("tech")), "GetByCategory must exclude about even when category matches")
+	assert.False(t, containsAbout(t, repo.GetFeatured(10)), "GetFeatured must exclude about even when featured=true")
+	assert.False(t, containsAbout(t, repo.GetRecent(10)), "GetRecent must exclude about")
+}
+
+// TestGetBySlug_ReturnsAbout — direct lookup must NOT filter the predicate;
+// /about handler relies on this.
+func TestGetBySlug_ReturnsAbout(t *testing.T) {
+	repo := setupTestRepo(t, map[string]string{"about.md": aboutArticle})
+	_, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+
+	got, err := repo.GetBySlug("about")
+	require.NoError(t, err)
+	assert.Equal(t, "about", got.Slug)
+}
+
+// TestGetDrafts_IncludesAboutDraft — admin must see drafted about content;
+// GetDrafts MUST NOT apply the dedicated-route predicate.
+func TestGetDrafts_IncludesAboutDraft(t *testing.T) {
+	repo := setupTestRepo(t, map[string]string{"about.md": aboutDraftArticle})
+	_, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+
+	drafts := repo.GetDrafts()
+	require.Len(t, drafts, 1)
+	assert.Equal(t, "about", drafts[0].Slug)
+}
+
+// TestListMethods_ExcludePages verifies the dedicated-route predicate also
+// fires on type:page articles across all five list methods.
+func TestListMethods_ExcludePages(t *testing.T) {
+	repo := setupTestRepo(t, map[string]string{
+		"test-article.md": validArticle,
+		"page.md":         pageArticle,
+	})
+	_, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+
+	containsPage := func(t *testing.T, articles []*models.Article) bool {
+		t.Helper()
+		for _, a := range articles {
+			if a.Type == TypePage {
+				return true
+			}
+		}
+		return false
+	}
+
+	assert.False(t, containsPage(t, repo.GetPublished()), "GetPublished must exclude pages")
+	assert.False(t, containsPage(t, repo.GetByTag("go")), "GetByTag must exclude pages even when tag matches")
+	assert.False(t, containsPage(t, repo.GetByCategory("tech")), "GetByCategory must exclude pages even when category matches")
+	assert.False(t, containsPage(t, repo.GetFeatured(10)), "GetFeatured must exclude pages even when featured=true")
+	assert.False(t, containsPage(t, repo.GetRecent(10)), "GetRecent must exclude pages")
+}
+
+// TestGetBySlug_ReturnsPage — direct lookup must return pages for the
+// /p/:slug handler to find them.
+func TestGetBySlug_ReturnsPage(t *testing.T) {
+	repo := setupTestRepo(t, map[string]string{"page.md": pageArticle})
+	_, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+
+	got, err := repo.GetBySlug("run-your-own")
+	require.NoError(t, err)
+	assert.Equal(t, TypePage, got.Type)
+}
+
+// TestGetDrafts_IncludesPageDraft — admin must see drafted pages.
+func TestGetDrafts_IncludesPageDraft(t *testing.T) {
+	repo := setupTestRepo(t, map[string]string{"page.md": pageDraftArticle})
+	_, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+
+	drafts := repo.GetDrafts()
+	require.Len(t, drafts, 1)
+	assert.Equal(t, TypePage, drafts[0].Type)
 }
 
 func TestUpdateDraftStatus(t *testing.T) {

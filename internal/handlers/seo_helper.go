@@ -6,6 +6,7 @@ import (
 	"github.com/1mb-dev/markgo/internal/config"
 	"github.com/1mb-dev/markgo/internal/models"
 	"github.com/1mb-dev/markgo/internal/services"
+	articlepkg "github.com/1mb-dev/markgo/internal/services/article"
 )
 
 // SEODataHelper generates SEO data for templates
@@ -78,11 +79,21 @@ func (h *SEODataHelper) GenerateArticleSEOData(article *models.Article) map[stri
 		slog.Debug("SEO website schema generation failed", "error", err)
 	}
 
-	// Generate Breadcrumb Schema for article
-	breadcrumbs := []services.Breadcrumb{
-		{Name: "Home", URL: baseURL},
-		{Name: "Writing", URL: baseURL + "/writing"},
-		{Name: article.Title, URL: baseURL + "/writing/" + article.Slug},
+	// Generate Breadcrumb Schema. Pages live outside the writing graph
+	// (Home -> Title) and use the /p/<slug> canonical; everything else gets
+	// the standard Home -> Writing -> Title trail.
+	var breadcrumbs []services.Breadcrumb
+	if articlepkg.DedicatedRouteArticle(article) {
+		breadcrumbs = []services.Breadcrumb{
+			{Name: "Home", URL: baseURL},
+			{Name: article.Title, URL: baseURL + articlepkg.CanonicalURLFor(article)},
+		}
+	} else {
+		breadcrumbs = []services.Breadcrumb{
+			{Name: "Home", URL: baseURL},
+			{Name: "Writing", URL: baseURL + "/writing"},
+			{Name: article.Title, URL: baseURL + "/writing/" + article.Slug},
+		}
 	}
 	if breadcrumbSchema, err := h.seoService.GenerateBreadcrumbSchema(breadcrumbs); err == nil {
 		seoData["breadcrumbSchema"] = breadcrumbSchema

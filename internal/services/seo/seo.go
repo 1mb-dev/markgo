@@ -15,6 +15,7 @@ import (
 
 	"github.com/1mb-dev/markgo/internal/models"
 	"github.com/1mb-dev/markgo/internal/services"
+	articlepkg "github.com/1mb-dev/markgo/internal/services/article"
 )
 
 // Helper represents a simple SEO utility
@@ -105,7 +106,7 @@ func (h *Helper) GenerateSitemap() ([]byte, error) {
 
 	// Add articles
 	for _, article := range publishedArticles {
-		articleURL, err := h.buildArticleURL(article.Slug)
+		articleURL, err := h.buildCanonicalURL(article)
 		if err != nil {
 			h.logger.Warn("Failed to build URL for article", "slug", article.Slug, "error", err)
 			continue
@@ -197,13 +198,18 @@ func (h *Helper) GenerateOpenGraphTags(article *models.Article, baseURL string) 
 
 	tags := make(map[string]string)
 
-	// Basic Open Graph tags
-	tags["og:type"] = "article"
+	// Basic Open Graph tags. Pages emit og:type=website per the OG protocol;
+	// only dated feed content uses og:type=article.
+	ogType := "article"
+	if article.Type == articlepkg.TypePage {
+		ogType = "website"
+	}
+	tags["og:type"] = ogType
 	tags["og:title"] = article.Title
 	tags["og:site_name"] = h.siteConfig.Name
 
 	// URL
-	articleURL, err := h.buildArticleURL(article.Slug)
+	articleURL, err := h.buildCanonicalURL(article)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build article URL: %w", err)
 	}
@@ -342,7 +348,7 @@ func (h *Helper) GenerateMetaTags(article *models.Article) (map[string]string, e
 	}
 
 	// Canonical URL
-	articleURL, err := h.buildArticleURL(article.Slug)
+	articleURL, err := h.buildCanonicalURL(article)
 	if err == nil {
 		tags["canonical"] = articleURL
 	}
@@ -446,7 +452,7 @@ func (h *Helper) GenerateArticleSchema(article *models.Article, baseURL string) 
 		return nil, fmt.Errorf("article cannot be nil")
 	}
 
-	articleURL, err := h.buildArticleURL(article.Slug)
+	articleURL, err := h.buildCanonicalURL(article)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build article URL: %w", err)
 	}
@@ -455,9 +461,14 @@ func (h *Helper) GenerateArticleSchema(article *models.Article, baseURL string) 
 	// intent flows through to Schema.org consumers (Google Knowledge Graph, etc.).
 	imageURL := h.resolveOGImage(article, baseURL)
 
+	schemaType := "Article"
+	if article.Type == articlepkg.TypePage {
+		schemaType = "WebPage"
+	}
+
 	schema := map[string]interface{}{
 		"@context": "https://schema.org",
-		"@type":    "Article",
+		"@type":    schemaType,
 		"headline": article.Title,
 		"url":      articleURL,
 	}
@@ -705,13 +716,17 @@ func (h *Helper) resolveOGImage(article *models.Article, baseURL string) string 
 	return strings.TrimRight(baseURL, "/") + "/static/img/og-article-default.png"
 }
 
-func (h *Helper) buildArticleURL(slug string) (string, error) {
+// buildCanonicalURL resolves an article's canonical absolute URL using the
+// shared article.CanonicalURLFor helper, so /about and /p/:slug articles
+// get their dedicated-route URLs in OG tags, canonical links, Schema.org,
+// and sitemap entries.
+func (h *Helper) buildCanonicalURL(article *models.Article) (string, error) {
 	baseURL, err := url.Parse(h.siteConfig.BaseURL)
 	if err != nil {
 		return "", fmt.Errorf("invalid base URL: %w", err)
 	}
 
-	articleURL, err := baseURL.Parse("/writing/" + slug)
+	articleURL, err := baseURL.Parse(articlepkg.CanonicalURLFor(article))
 	if err != nil {
 		return "", fmt.Errorf("failed to build article URL: %w", err)
 	}

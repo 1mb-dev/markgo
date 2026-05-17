@@ -28,8 +28,8 @@
     <meta name="robots" content="index, follow">
 
     <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="{{ if .article }}article{{ else }}website{{ end }}">
-    <meta property="og:url" content="{{ .config.BaseURL }}{{ if .article }}/writing/{{ .article.Slug }}{{ end }}">
+    <meta property="og:type" content="{{ if .article }}{{ if eq .article.Type "page" }}website{{ else }}article{{ end }}{{ else }}website{{ end }}">
+    <meta property="og:url" content="{{ .config.BaseURL }}{{ if .canonicalPath }}{{ .canonicalPath }}{{ else if .article }}/writing/{{ .article.Slug }}{{ end }}">
     <meta property="og:title" content="{{ if .title }}{{ .title }}{{ else }}{{ .config.Blog.Title }}{{ end }}">
     <meta property="og:description" content="{{ if .description }}{{ .description }}{{ else if .article }}{{ .article.Excerpt }}{{ else }}{{ .config.Blog.Description }}{{ end }}">
     <meta property="og:site_name" content="{{ .config.Blog.Title }}">
@@ -53,7 +53,7 @@
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:url" content="{{ .config.BaseURL }}{{ if .article }}/writing/{{ .article.Slug }}{{ end }}">
+    <meta name="twitter:url" content="{{ .config.BaseURL }}{{ if .canonicalPath }}{{ .canonicalPath }}{{ else if .article }}/writing/{{ .article.Slug }}{{ end }}">
     <meta name="twitter:title" content="{{ if .title }}{{ .title }}{{ else }}{{ .config.Blog.Title }}{{ end }}">
     <meta name="twitter:description" content="{{ if .description }}{{ .description }}{{ else if .article }}{{ .article.Excerpt }}{{ else }}{{ .config.Blog.Description }}{{ end }}">
     {{ if .article }}

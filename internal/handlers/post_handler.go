@@ -10,6 +10,7 @@ import (
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
 	"github.com/1mb-dev/markgo/internal/models"
 	"github.com/1mb-dev/markgo/internal/services"
+	"github.com/1mb-dev/markgo/internal/services/article"
 )
 
 // PostHandler handles individual article and article listing pages.
@@ -52,6 +53,12 @@ func (h *PostHandler) Article(c *gin.Context) {
 		return
 	}
 
+	// Dedicated-route articles (e.g. slug=about) redirect to their canonical URL.
+	if art, err := h.articleService.GetArticleBySlug(slug); err == nil && article.DedicatedRouteArticle(art) {
+		c.Redirect(http.StatusMovedPermanently, article.CanonicalURLFor(art))
+		return
+	}
+
 	data, err := h.getArticleData(slug)
 	if err != nil {
 		h.handleError(c, err, "Failed to get article")
@@ -62,13 +69,50 @@ func (h *PostHandler) Article(c *gin.Context) {
 	h.renderHTML(c, http.StatusOK, "base.html", data)
 }
 
+// Page handles /p/:slug — evergreen non-feed content (type:page articles).
+// Returns 404 for any article whose type is not "page", including the
+// about-slugged article (served by AboutHandler at /about).
+func (h *PostHandler) Page(c *gin.Context) {
+	slug := c.Param("slug")
+	if slug == "" {
+		h.handleError(c, apperrors.NewValidationError("slug", "", "slug is required", nil), "Invalid page slug")
+		return
+	}
+
+	art, err := h.articleService.GetArticleBySlug(slug)
+	if err != nil || art.Type != article.TypePage {
+		h.handleError(c, apperrors.ErrArticleNotFound, "Page not found")
+		return
+	}
+	if art.Draft {
+		h.handleError(c, apperrors.ErrArticleNotFound, "Page not found")
+		return
+	}
+
+	data, err := h.getArticleData(slug)
+	if err != nil {
+		h.handleError(c, err, "Failed to get page")
+		return
+	}
+	data["canonicalPath"] = article.CanonicalURLFor(art)
+	// Pages live outside the writing graph — breadcrumbs must not pretend
+	// otherwise (the getArticleData default emits Home > Writing > Title).
+	data["breadcrumbs"] = []services.Breadcrumb{
+		{Name: "Home", URL: "/"},
+		{Name: art.Title},
+	}
+
+	h.enhanceTemplateDataWithSEO(data, c.Request.URL.Path)
+	h.renderHTML(c, http.StatusOK, "base.html", data)
+}
+
 func (h *PostHandler) getArticleData(slug string) (map[string]any, error) {
-	article, err := h.articleService.GetArticleBySlug(slug)
+	art, err := h.articleService.GetArticleBySlug(slug)
 	if err != nil {
 		return nil, err
 	}
 
-	if article.Draft {
+	if art.Draft {
 		return nil, apperrors.ErrArticleNotFound
 	}
 
@@ -81,15 +125,15 @@ func (h *PostHandler) getArticleData(slug string) (map[string]any, error) {
 		}
 	}
 
-	data := h.buildArticlePageData(article.Title+" - "+h.config.Blog.Title, recent)
-	data["article"] = article
-	data["description"] = article.Description
+	data := h.buildArticlePageData(art.Title+" - "+h.config.Blog.Title, recent)
+	data["article"] = art
+	data["description"] = art.Description
 	data["template"] = templateArticle
-	data["canonicalPath"] = "/writing/" + article.Slug
+	data["canonicalPath"] = "/writing/" + art.Slug
 	data["breadcrumbs"] = []services.Breadcrumb{
 		{Name: "Home", URL: "/"},
 		{Name: "Writing", URL: "/writing"},
-		{Name: article.Title},
+		{Name: art.Title},
 	}
 
 	return data, nil

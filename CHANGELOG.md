@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Theme: **one predicate for dedicated-route articles.** Markgo's `/about`
+article quietly duplicate-rendered at `/writing/about`, in feeds, sitemap,
+and taxonomy indexes — same content, two URLs, different chrome. The new
+`page` content type would have shipped with exactly the same shape. v3.13.0
+introduces a single `DedicatedRouteArticle` predicate at the article-service
+layer that excludes both — fixing the latent /about duplicate AND enabling
+`type: page` as the second case.
+
+### Added
+
+- **New `page` content type (#69).** Articles with `type: page` in
+  frontmatter render at `/p/<slug>` instead of `/writing/<slug>`. Pages
+  are evergreen non-feed content: "Run your own", `/now`, `/credits`.
+  Excluded from /writing, RSS, JSON Feed, tag and category indexes; still
+  indexed for search; date and "Updated" line hidden in render; back-link
+  points to / rather than /writing. The `type: page` field must be
+  explicit — unlike the other four types, page is never inferred. Schema.org
+  emits `@type: WebPage` for pages (vs `Article` otherwise). See
+  `docs/configuration.md#pages-v3130` for the full authoring contract.
+
+### Fixed
+
+- **`/about` no longer duplicate-renders at `/writing/about`** and in
+  taxonomy/feeds. The /about handler has always owned `articles/about.md`,
+  but every list-shaped endpoint also surfaced it under /writing. New
+  `DedicatedRouteArticle(a)` predicate applied in `GetPublished`,
+  `GetByTag`, `GetByCategory`, `GetFeatured`, `GetRecent` excludes both
+  about-slugged and `type: page` articles from listings. Direct slug lookup
+  and admin draft listing remain unfiltered so /about, /p/:slug, and the
+  admin drafts page keep working.
+
+### Changed
+
+- `/writing/<dedicated-slug>` now 301-redirects to the canonical URL
+  (`/writing/about` → `/about`; `/writing/<page-slug>` → `/p/<page-slug>`)
+  for both GET and HEAD. Preserves inbound link equity for legacy URLs.
+- SEO helper's URL builder consolidated as `buildCanonicalURL(article)`
+  using the shared `article.CanonicalURLFor` helper, so OG tags, canonical
+  links, and Schema.org `@id`/`url` all route through one place.
+
+### Deferred
+
+- Sitemap pages section (priority 0.5) — pages aren't currently emitted in
+  sitemap.xml. Discovered via canonical URL after linking or via search.
+  Lands when a `GetPages()` service method is added.
+- Auto-populated nav slot for pages, `/p` index listing, `nav_priority`
+  frontmatter, compose form "new page" affordance — v3.14.0+.
+
 ## [3.12.0] - 2026-05-17
 
 Theme: **completing the brand-customization story.** v3.10.2's STATIC_PATH overlay

@@ -58,12 +58,14 @@
             </header>
             {{ end }}
             <header class="article-header">
+                {{ if ne .article.Type "page" }}
                 <div class="article-meta">
                     <time class="article-date" datetime="{{ .article.Date.Format "2006-01-02T15:04:05Z07:00" }}">
                         {{ .article.Date.Format "Jan 2, 2006" }}
                     </time>
                     <span class="article-reading-time">{{ .article.ReadingTime }} min read</span>
                 </div>
+                {{ end }}
                 {{ if .article.Title }}
                 <h1 class="article-title">{{ .article.Title }}</h1>
                 {{ end }}
@@ -102,14 +104,14 @@
                 </div>
                 <div class="content-separator"></div>
                 <div class="article-footer-content">
-                    <a href="/writing" class="page-back-link">← Writing</a>
-                    {{ if .article.LastModified }}
+                    <a href="{{ if eq .article.Type "page" }}/{{ else }}/writing{{ end }}" class="page-back-link">← {{ if eq .article.Type "page" }}Home{{ else }}Writing{{ end }}</a>
+                    {{ if .article.LastModified }}{{ if ne .article.Type "page" }}
                     <p class="article-last-modified">
                         Updated <time datetime="{{ .article.LastModified.Format "2006-01-02T15:04:05Z07:00" }}">
                             {{ .article.LastModified.Format "Jan 2, 2006" }}
                         </time>
                     </p>
-                    {{ end }}
+                    {{ end }}{{ end }}
                 </div>
             </footer>
         </div>
@@ -120,11 +122,11 @@
 <script type="application/ld+json">
 {
     "@context": "https://schema.org",
-    "@type": "BlogPosting",
+    "@type": "{{ if eq .article.Type "page" }}WebPage{{ else }}BlogPosting{{ end }}",
     "headline": "{{ displayTitle .article }}",
     "description": "{{ if .article.Description }}{{ .article.Description }}{{ else }}{{ .article.Excerpt }}{{ end }}",
     "image": "{{ $bannerSrc := .article.BannerSrc }}{{ if $bannerSrc }}{{ if hasPrefix $bannerSrc "http" }}{{ $bannerSrc }}{{ else }}{{ .config.BaseURL }}{{ $bannerSrc }}{{ end }}{{ else }}{{ .config.BaseURL }}/static/img/og-article-default.png{{ end }}",
-    "url": "{{ .config.BaseURL }}/writing/{{ .article.Slug }}",
+    "url": "{{ .config.BaseURL }}{{ .canonicalPath }}",
     "datePublished": "{{ .article.Date.Format "2006-01-02T15:04:05Z07:00" }}",
     {{ if .article.LastModified }}
     "dateModified": "{{ .article.LastModified.Format "2006-01-02T15:04:05Z07:00" }}",
@@ -146,7 +148,7 @@
     },
     "mainEntityOfPage": {
         "@type": "WebPage",
-        "@id": "{{ .config.BaseURL }}/writing/{{ .article.Slug }}"
+        "@id": "{{ .config.BaseURL }}{{ .canonicalPath }}"
     },
     "keywords": "{{ join ", " .article.Tags }}",
     "articleSection": "{{ if .article.Categories }}{{ index .article.Categories 0 }}{{ else }}Technology{{ end }}",
@@ -163,10 +165,10 @@
 <meta name="author" content="{{ if .article.Author }}{{ .article.Author }}{{ else }}{{ .config.Blog.Author }}{{ end }}">
 
 <!-- Open Graph -->
-<meta property="og:type" content="article">
+<meta property="og:type" content="{{ if eq .article.Type "page" }}website{{ else }}article{{ end }}">
 <meta property="og:title" content="{{ displayTitle .article }}">
 <meta property="og:description" content="{{ if .article.Description }}{{ .article.Description }}{{ else }}{{ .article.Excerpt }}{{ end }}">
-<meta property="og:url" content="{{ .config.BaseURL }}/writing/{{ .article.Slug }}">
+<meta property="og:url" content="{{ .config.BaseURL }}{{ .canonicalPath }}">
 <meta property="article:published_time" content="{{ .article.Date.Format "2006-01-02T15:04:05Z07:00" }}">
 {{ if .article.LastModified }}
 <meta property="article:modified_time" content="{{ .article.LastModified.Format "2006-01-02T15:04:05Z07:00" }}">

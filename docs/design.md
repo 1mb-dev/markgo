@@ -113,7 +113,9 @@ Every thought has a permalink at `/writing/{slug}`. The card is clickable — ta
 
 **Articles** — The traditional blog post. Title, description or excerpt, absolute date ("Jan 2, 2006"), reading time ("5 min read"), and tags. The long-form piece you drafted over days.
 
-The visual density increases with content commitment: thoughts show only text and time, links add a title and domain, articles add description and reading time. This progressive density is intentional — lighter content gets lighter chrome.
+**Pages** — Evergreen non-feed content: "Run your own", "credits", "now". Live at `/p/:slug` rather than `/writing/:slug`. Excluded from the writing feed, RSS, JSONFeed, tag/category indexes — pages aren't part of the dated stream — but still indexed for search so readers can find them. No date or "Updated" line in the render. The `type: page` frontmatter is required and never inferred; writing first decides the type for the other four. Pages are for things you keep, not things you post.
+
+The visual density increases with content commitment: thoughts show only text and time, links add a title and domain, articles add description and reading time. Pages drop dates entirely. This progressive density is intentional — lighter content gets lighter chrome.
 
 The inference rules are intentionally simple (see `internal/services/article/inference.go`):
 - Explicit `type` in frontmatter always wins
@@ -121,9 +123,9 @@ The inference rules are intentionally simple (see `internal/services/article/inf
 - No title and under 100 words → thought
 - Everything else → article
 
-This means you never _have_ to think about types. Write naturally. MarkGo figures it out. But if you want control, the frontmatter `type` field overrides inference.
+For pages, the type field must be explicit (`type: page`) — pages have no inferable signal and shouldn't drift into existence by accident. The other four types (article/thought/link/ama) infer freely.
 
-All three types live in the same feed, filterable by type via server-rendered `<a>` tag pills with query parameters (`/?type=thought`). No JavaScript required to browse by type.
+The first four types live in the same feed, filterable by type via server-rendered `<a>` tag pills with query parameters (`/?type=thought`). Pages live outside the feed entirely; readers reach them by direct link or search.
 
 ---
 

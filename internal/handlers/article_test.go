@@ -12,10 +12,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/1mb-dev/markgo/internal/config"
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
 	"github.com/1mb-dev/markgo/internal/models"
+	"github.com/1mb-dev/markgo/internal/services"
 )
 
 // TestArticleService returns canned data for handler tests.
@@ -103,6 +105,148 @@ func TestArticleBySlug(t *testing.T) {
 				assert.Equal(t, tt.want, w.Code)
 			}
 		})
+	}
+}
+
+// TestArticle_WritingAboutRedirects — slug=about resolves to a dedicated route
+// (/about), so /writing/about must 301 to /about for both GET and HEAD.
+func TestArticle_WritingAboutRedirects(t *testing.T) {
+	verbs := []string{http.MethodGet, http.MethodHead}
+	for _, verb := range verbs {
+		t.Run(verb, func(t *testing.T) {
+			base, svc := createTestBase()
+			svc.articles = append(svc.articles, &models.Article{
+				Slug: "about", Title: "About", Date: time.Now(),
+			})
+			router := gin.New()
+			h := NewPostHandler(base, svc)
+			router.GET("/writing/:slug", h.Article)
+			router.HEAD("/writing/:slug", h.Article)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(verb, "/writing/about", http.NoBody))
+
+			assert.Equal(t, http.StatusMovedPermanently, w.Code)
+			assert.Equal(t, "/about", w.Header().Get("Location"))
+		})
+	}
+}
+
+// TestArticle_WritingPageRedirects — type:page articles 301 from /writing/<slug>
+// to /p/<slug> for both GET and HEAD.
+func TestArticle_WritingPageRedirects(t *testing.T) {
+	verbs := []string{http.MethodGet, http.MethodHead}
+	for _, verb := range verbs {
+		t.Run(verb, func(t *testing.T) {
+			base, svc := createTestBase()
+			svc.articles = append(svc.articles, &models.Article{
+				Slug: "run-your-own", Title: "Run Your Own", Type: "page", Date: time.Now(),
+			})
+			router := gin.New()
+			h := NewPostHandler(base, svc)
+			router.GET("/writing/:slug", h.Article)
+			router.HEAD("/writing/:slug", h.Article)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(verb, "/writing/run-your-own", http.NoBody))
+
+			assert.Equal(t, http.StatusMovedPermanently, w.Code)
+			assert.Equal(t, "/p/run-your-own", w.Header().Get("Location"))
+		})
+	}
+}
+
+// TestPage_Handler verifies /p/:slug routing semantics: pages render 200,
+// non-page articles 404 (including the about-slug + type=article case),
+// missing slugs 404, drafts 404, HEAD supported.
+func TestPage_Handler(t *testing.T) {
+	tests := []struct {
+		name     string
+		slug     string
+		articles []*models.Article
+		want     int
+	}{
+		{
+			name:     "page renders",
+			slug:     "run-your-own",
+			articles: []*models.Article{{Slug: "run-your-own", Title: "Page", Type: "page", Date: time.Now()}},
+			want:     http.StatusOK,
+		},
+		{
+			name:     "non-page article 404",
+			slug:     "intro",
+			articles: []*models.Article{{Slug: "intro", Title: "Intro", Type: "article", Date: time.Now()}},
+			want:     http.StatusNotFound,
+		},
+		{
+			name:     "about slug at /p 404",
+			slug:     "about",
+			articles: []*models.Article{{Slug: "about", Title: "About", Type: "article", Date: time.Now()}},
+			want:     http.StatusNotFound,
+		},
+		{
+			name:     "missing slug 404",
+			slug:     "nonexistent",
+			articles: []*models.Article{},
+			want:     http.StatusNotFound,
+		},
+		{
+			name:     "draft page 404",
+			slug:     "draft-page",
+			articles: []*models.Article{{Slug: "draft-page", Title: "Draft", Type: "page", Draft: true, Date: time.Now()}},
+			want:     http.StatusNotFound,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			base, svc := createTestBase()
+			svc.articles = tt.articles
+			router := gin.New()
+			router.GET("/p/:slug", NewPostHandler(base, svc).Page)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/p/"+tt.slug, http.NoBody))
+			assert.Equal(t, tt.want, w.Code)
+		})
+	}
+}
+
+// TestPage_HEAD_Supported — HEAD verb on /p/:slug returns the same status
+// as GET without a body.
+func TestPage_HEAD_Supported(t *testing.T) {
+	base, svc := createTestBase()
+	svc.articles = []*models.Article{{Slug: "ok", Title: "OK", Type: "page", Date: time.Now()}}
+	router := gin.New()
+	router.HEAD("/p/:slug", NewPostHandler(base, svc).Page)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodHead, "/p/ok", http.NoBody))
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// TestPage_BreadcrumbsExcludeWriting — pages live outside /writing, so
+// breadcrumbs must not include the "Writing" intermediate level (which
+// getArticleData would otherwise inject by default).
+func TestPage_BreadcrumbsExcludeWriting(t *testing.T) {
+	base, svc := createTestBase()
+	svc.articles = []*models.Article{{Slug: "run-your-own", Title: "Run Your Own", Type: "page", Date: time.Now()}}
+
+	mockTpl, ok := base.templateService.(*MockTemplateService)
+	require.True(t, ok, "createTestBase must wire a MockTemplateService for data inspection")
+	mockTpl.LastData = nil
+
+	router := gin.New()
+	router.GET("/p/:slug", NewPostHandler(base, svc).Page)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/p/run-your-own", http.NoBody))
+	require.Equal(t, http.StatusOK, w.Code)
+
+	require.NotNil(t, mockTpl.LastData, "MockTemplateService.Render must have captured rendered data")
+	crumbs, ok := mockTpl.LastData["breadcrumbs"].([]services.Breadcrumb)
+	require.True(t, ok, "breadcrumbs must be []services.Breadcrumb, got %T", mockTpl.LastData["breadcrumbs"])
+	for _, c := range crumbs {
+		assert.NotEqual(t, "/writing", c.URL, "Page breadcrumbs must not include the /writing intermediate")
+		assert.NotEqual(t, "Writing", c.Name, "Page breadcrumbs must not include the Writing label")
 	}
 }
 
