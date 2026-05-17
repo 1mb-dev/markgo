@@ -12,10 +12,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/1mb-dev/markgo/internal/config"
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
 	"github.com/1mb-dev/markgo/internal/models"
+	"github.com/1mb-dev/markgo/internal/services"
 )
 
 // TestArticleService returns canned data for handler tests.
@@ -220,6 +222,32 @@ func TestPage_HEAD_Supported(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodHead, "/p/ok", http.NoBody))
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// TestPage_BreadcrumbsExcludeWriting — pages live outside /writing, so
+// breadcrumbs must not include the "Writing" intermediate level (which
+// getArticleData would otherwise inject by default).
+func TestPage_BreadcrumbsExcludeWriting(t *testing.T) {
+	base, svc := createTestBase()
+	svc.articles = []*models.Article{{Slug: "run-your-own", Title: "Run Your Own", Type: "page", Date: time.Now()}}
+
+	mockTpl, ok := base.templateService.(*MockTemplateService)
+	require.True(t, ok, "createTestBase must wire a MockTemplateService for data inspection")
+	mockTpl.LastData = nil
+
+	router := gin.New()
+	router.GET("/p/:slug", NewPostHandler(base, svc).Page)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/p/run-your-own", http.NoBody))
+	require.Equal(t, http.StatusOK, w.Code)
+
+	require.NotNil(t, mockTpl.LastData, "MockTemplateService.Render must have captured rendered data")
+	crumbs, ok := mockTpl.LastData["breadcrumbs"].([]services.Breadcrumb)
+	require.True(t, ok, "breadcrumbs must be []services.Breadcrumb, got %T", mockTpl.LastData["breadcrumbs"])
+	for _, c := range crumbs {
+		assert.NotEqual(t, "/writing", c.URL, "Page breadcrumbs must not include the /writing intermediate")
+		assert.NotEqual(t, "Writing", c.Name, "Page breadcrumbs must not include the Writing label")
+	}
 }
 
 func TestArticlesListing(t *testing.T) {

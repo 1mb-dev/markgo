@@ -84,9 +84,19 @@ func (m *MockEmailService) ValidateConfig() []string                        { re
 func (m *MockEmailService) GetConfig() map[string]any                       { return nil }
 func (m *MockEmailService) Shutdown()                                       {}
 
-type MockTemplateService struct{}
+type MockTemplateService struct {
+	// LastData captures the template data from the most recent Render call,
+	// so tests can assert on what was passed to the template layer without
+	// needing to actually render anything.
+	LastData map[string]any
+}
 
-func (m *MockTemplateService) Render(w io.Writer, templateName string, data any) error { return nil }
+func (m *MockTemplateService) Render(w io.Writer, templateName string, data any) error {
+	if d, ok := data.(map[string]any); ok {
+		m.LastData = d
+	}
+	return nil
+}
 func (m *MockTemplateService) RenderToString(templateName string, data any) (string, error) {
 	return "", nil
 }

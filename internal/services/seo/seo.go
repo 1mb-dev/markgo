@@ -198,8 +198,13 @@ func (h *Helper) GenerateOpenGraphTags(article *models.Article, baseURL string) 
 
 	tags := make(map[string]string)
 
-	// Basic Open Graph tags
-	tags["og:type"] = "article"
+	// Basic Open Graph tags. Pages emit og:type=website per the OG protocol;
+	// only dated feed content uses og:type=article.
+	ogType := "article"
+	if article.Type == articlepkg.TypePage {
+		ogType = "website"
+	}
+	tags["og:type"] = ogType
 	tags["og:title"] = article.Title
 	tags["og:site_name"] = h.siteConfig.Name
 

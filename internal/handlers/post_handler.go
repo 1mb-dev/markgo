@@ -95,6 +95,12 @@ func (h *PostHandler) Page(c *gin.Context) {
 		return
 	}
 	data["canonicalPath"] = article.CanonicalURLFor(art)
+	// Pages live outside the writing graph — breadcrumbs must not pretend
+	// otherwise (the getArticleData default emits Home > Writing > Title).
+	data["breadcrumbs"] = []services.Breadcrumb{
+		{Name: "Home", URL: "/"},
+		{Name: art.Title},
+	}
 
 	h.enhanceTemplateDataWithSEO(data, c.Request.URL.Path)
 	h.renderHTML(c, http.StatusOK, "base.html", data)
