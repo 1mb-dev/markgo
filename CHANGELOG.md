@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.13.0] - 2026-05-17
+
 Theme: **one predicate for dedicated-route articles.** Markgo's `/about`
 article quietly duplicate-rendered at `/writing/about`, in feeds, sitemap,
 and taxonomy indexes — same content, two URLs, different chrome. The new
