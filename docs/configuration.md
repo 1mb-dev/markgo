@@ -75,6 +75,49 @@ All fields are optional. The about page adapts to what's configured.
 | `ABOUT_MASTODON` | *(empty)* | Full Mastodon profile URL. |
 | `ABOUT_WEBSITE` | *(empty)* | Personal website URL. |
 
+## Branding
+
+Visual identity surfaces are layered on top of the `STATIC_PATH` overlay (see [Paths](#paths)). Each is optional — drop the named file into `<STATIC_PATH>/img/` to override; absent files keep the embedded default.
+
+### Custom brand logo (v3.12.0+)
+
+Drop your SVG at `<STATIC_PATH>/img/brand-logo.svg`. markgo reads it at startup and inlines it in the header.
+
+**Starter SVG** — uses CSS variables so the logo follows the active theme (light/dark/preset):
+
+```svg
+<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <ellipse cx="32" cy="32" rx="22" ry="28" fill="var(--color-primary)"/>
+  <path d="M 32 4 C 22 14 22 24 32 32 C 42 40 42 50 32 60"
+        stroke="var(--color-bg-primary)" stroke-width="3.5"
+        stroke-linecap="round" fill="none"/>
+</svg>
+```
+
+**Validation contract.** Your SVG must be well-formed XML with an `<svg>` root element and ≤ 32 KiB. If your `<svg>` lacks a `class` attribute, markgo injects `class="brand-logo"` so the existing CSS sizing rules apply. If `class` is present (even with a custom value), markgo leaves it alone.
+
+**On failure.** Malformed XML, oversize file, or wrong root → markgo logs a single warning and falls back to the embedded default. Missing file → silent fallback.
+
+**Restart required.** STATIC_PATH overlay reads happen at startup; restart markgo after swapping the logo.
+
+**Theme reactivity.** Use `var(--color-primary)` and `var(--color-bg-primary)` for fills and strokes if you want your logo to track the active theme. Hardcoded colors render unchanged regardless of theme.
+
+**Trust model.** The operator-supplied SVG is inlined as-is into the rendered page. markgo treats your filesystem as a trusted boundary — same as STATIC_PATH-overlaid CSS and JS. Do not place untrusted content under STATIC_PATH.
+
+### Other overlay-eligible brand assets
+
+| File | Purpose |
+|------|---------|
+| `<STATIC_PATH>/img/favicon.svg` | Primary favicon (vector) |
+| `<STATIC_PATH>/img/favicon-32x32.png` | PNG fallback favicon |
+| `<STATIC_PATH>/img/apple-touch-icon.png` | iOS home-screen icon (180×180) |
+| `<STATIC_PATH>/img/icon-192x192.png` | PWA icon |
+| `<STATIC_PATH>/img/icon-512x512.png` | PWA icon (high-res) |
+| `<STATIC_PATH>/img/og-default.png` | Default Open Graph card |
+| `<STATIC_PATH>/img/og-article-default.png` | Per-article OG fallback |
+| `<STATIC_PATH>/fonts/...` | Custom web fonts (referenced via `@font-face` in CSS) |
+| `<STATIC_PATH>/css/<BLOG_STYLE>.css` | Custom theme stylesheet (any `BLOG_STYLE` name accepted) |
+
 ## Admin
 
 | Variable | Default | Description |

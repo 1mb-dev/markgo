@@ -5,12 +5,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"html"
 	"html/template"
 	"io"
 	"io/fs"
 	"log/slog"
+	"maps"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -74,6 +77,9 @@ type TemplateService struct {
 	templates *template.Template
 	config    *config.Config
 
+	// brandLogoSVG is the rendered header logo (embedded default or operator overlay).
+	brandLogoSVG template.HTML
+
 	// obcache integration
 	obcache         *obcache.Cache
 	cachedFunctions CachedTemplateFunctions
@@ -119,7 +125,13 @@ func NewTemplateService(templatesPath string, cfg *config.Config) (*TemplateServ
 	// Setup background maintenance
 	service.setupTemplateMaintenance()
 
+	if err := service.loadBrandLogo(cfg.StaticPath); err != nil {
+		cancel()
+		return nil, err
+	}
+
 	if err := service.loadTemplates(templatesPath); err != nil {
+		cancel()
 		return nil, err
 	}
 
@@ -127,7 +139,7 @@ func NewTemplateService(templatesPath string, cfg *config.Config) (*TemplateServ
 }
 
 func (t *TemplateService) loadTemplates(templatesPath string) error {
-	funcMap := GetTemplateFuncMap()
+	funcMap := t.funcMap()
 	pattern := filepath.Join(templatesPath, "*.html")
 
 	// Check if filesystem templates exist before parsing
@@ -159,6 +171,179 @@ func (t *TemplateService) loadTemplates(templatesPath string) error {
 
 	t.templates = tmpl
 	return nil
+}
+
+// brandLogoFS is the source for the embedded brand-logo SVG.
+// Tests may temporarily swap this to exercise the embedded-read-failure path.
+var brandLogoFS fs.FS = web.Assets
+
+// loadEmbeddedBrandLogo reads the embedded brand-logo SVG. Returning an error
+// indicates a build invariant violation — markgo must refuse to boot.
+func loadEmbeddedBrandLogo() ([]byte, error) {
+	return fs.ReadFile(brandLogoFS, "static/img/brand-logo.svg")
+}
+
+// brandLogoMaxBytes caps operator-supplied overlay SVGs. Real brand logos sit
+// well under 10 KiB; 32 KiB leaves headroom for inline paths and metadata.
+const brandLogoMaxBytes = 32 * 1024
+
+// loadBrandLogo populates t.brandLogoSVG. Reads the operator overlay at
+// <staticPath>/img/brand-logo.svg when staticPath is set; falls back to the
+// embedded default on absence or validation failure. Returns error only when
+// the embedded default itself cannot be read (build invariant).
+func (t *TemplateService) loadBrandLogo(staticPath string) error {
+	embedded, err := loadEmbeddedBrandLogo()
+	if err != nil {
+		return fmt.Errorf("embedded brand-logo missing or unreadable: %w", err)
+	}
+
+	if staticPath != "" {
+		overlayPath := filepath.Join(staticPath, "img", "brand-logo.svg")
+		overlay, reason := readAndValidateOverlay(overlayPath)
+		switch {
+		case overlay != nil:
+			// #nosec G203 - Operator-supplied SVG from STATIC_PATH overlay. Trust boundary documented in docs/configuration.md (same model as overlaid CSS/JS).
+			t.brandLogoSVG = template.HTML(injectBrandLogoClass(overlay))
+			return nil
+		case reason != "":
+			slog.Warn("brand-logo overlay rejected, using embedded default",
+				"path", overlayPath, "reason", reason)
+		}
+	}
+
+	// #nosec G203 - brand-logo SVG is markgo's own embedded asset. Trust boundary documented in docs/configuration.md.
+	t.brandLogoSVG = template.HTML(injectBrandLogoClass(embedded))
+	return nil
+}
+
+// readAndValidateOverlay reads the operator's brand-logo SVG and runs the
+// validation contract. Returns:
+//   - (bytes, "") when the file exists and validates
+//   - (nil, "")   when the file does not exist (silent fallback)
+//   - (nil, reason) on any validation failure (caller logs warning)
+func readAndValidateOverlay(path string) ([]byte, string) {
+	f, err := os.Open(path) // #nosec G304 - operator-controlled path, trust boundary documented
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ""
+		}
+		return nil, fmt.Sprintf("open: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	data, err := io.ReadAll(io.LimitReader(f, brandLogoMaxBytes+1))
+	if err != nil {
+		return nil, fmt.Sprintf("read: %v", err)
+	}
+	if len(data) > brandLogoMaxBytes {
+		return nil, "exceeds 32 KiB cap"
+	}
+
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	for {
+		tok, terr := decoder.Token()
+		if terr != nil {
+			return nil, fmt.Sprintf("malformed XML: %v", terr)
+		}
+		if start, ok := tok.(xml.StartElement); ok {
+			if start.Name.Local != "svg" {
+				return nil, "root element is not <svg>"
+			}
+			return data, ""
+		}
+	}
+}
+
+// injectBrandLogoClass returns svg unchanged if a class attribute is already
+// present on the root <svg>; otherwise it splices class="brand-logo" into
+// the root start-tag. Assumes svg has already been validated by
+// readAndValidateOverlay (root is <svg>, well-formed XML).
+func injectBrandLogoClass(svg []byte) []byte {
+	svgStart, tagEnd, ok := findSVGTagBounds(svg)
+	if !ok {
+		return svg
+	}
+	if hasClassAttribute(svg[svgStart+4 : tagEnd]) {
+		return svg
+	}
+	out := make([]byte, 0, len(svg)+len(` class="brand-logo"`))
+	out = append(out, svg[:svgStart+4]...)
+	out = append(out, ` class="brand-logo"`...)
+	out = append(out, svg[svgStart+4:]...)
+	return out
+}
+
+// findSVGTagBounds returns the byte offsets of "<svg" and the matching ">"
+// that closes the start-tag, respecting quoted attribute values. ok is false
+// only if the input does not contain a parseable <svg ...> opener.
+func findSVGTagBounds(svg []byte) (svgStart, tagEnd int, ok bool) {
+	svgStart = bytes.Index(svg, []byte("<svg"))
+	if svgStart == -1 {
+		return 0, 0, false
+	}
+	var quote byte
+	for i := svgStart + 4; i < len(svg); i++ {
+		c := svg[i]
+		if quote != 0 {
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		if c == '"' || c == '\'' {
+			quote = c
+			continue
+		}
+		if c == '>' {
+			return svgStart, i, true
+		}
+	}
+	return 0, 0, false
+}
+
+// hasClassAttribute scans the byte range between "<svg" and ">" for a
+// top-level class attribute, ignoring occurrences inside quoted values.
+func hasClassAttribute(tagWindow []byte) bool {
+	const needle = "class"
+	var quote byte
+	for i := range len(tagWindow) {
+		c := tagWindow[i]
+		if quote != 0 {
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		if c == '"' || c == '\'' {
+			quote = c
+			continue
+		}
+		if c == 'c' && i+len(needle) <= len(tagWindow) && string(tagWindow[i:i+len(needle)]) == needle {
+			if i == 0 || isASCIIWhitespace(tagWindow[i-1]) {
+				j := i + len(needle)
+				for j < len(tagWindow) && isASCIIWhitespace(tagWindow[j]) {
+					j++
+				}
+				if j < len(tagWindow) && tagWindow[j] == '=' {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func isASCIIWhitespace(b byte) bool {
+	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
+}
+
+// funcMap returns the template FuncMap with the per-instance brandLogoSVG
+// closure appended to the stateless base map.
+func (t *TemplateService) funcMap() template.FuncMap {
+	m := make(template.FuncMap, len(templateFuncs)+1)
+	maps.Copy(m, templateFuncs)
+	m["brandLogoSVG"] = func() template.HTML { return t.brandLogoSVG }
+	return m
 }
 
 // Render renders a template to the provided writer.
@@ -298,7 +483,10 @@ func (t *TemplateService) Shutdown() {
 	}
 }
 
-// GetTemplateFuncMap returns the template function map for reuse in other services
+// GetTemplateFuncMap returns the stateless template function map for reuse in
+// other services. Per-instance helpers such as brandLogoSVG (registered on the
+// TemplateService via funcMap()) are NOT included; callers parsing templates
+// that reference those helpers must obtain the funcMap from a TemplateService.
 func GetTemplateFuncMap() template.FuncMap {
 	return templateFuncs
 }

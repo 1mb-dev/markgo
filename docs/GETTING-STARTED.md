@@ -150,7 +150,7 @@ See [configuration.md](configuration.md) for every option.
 
 The MarkGo binary embeds all web assets (templates, CSS, JS, images). When you run `markgo init`, it only creates `articles/` and `.env` — no `web/` directory needed.
 
-**Filesystem overrides**: Two env vars unlock filesystem customization without forking. Set `TEMPLATES_PATH` in `.env` to override embedded templates wholesale (replace mode — your directory provides every template). Set `STATIC_PATH` to overlay individual static assets per file (overlay mode, v3.10.2+) — local files win, missing paths fall back to embedded. See `docs/configuration.md` for the row-level semantics.
+**Filesystem overrides**: Two env vars unlock filesystem customization without forking. Set `TEMPLATES_PATH` in `.env` to override embedded templates wholesale (replace mode — your directory provides every template). Set `STATIC_PATH` to overlay individual static assets per file (overlay mode, v3.10.2+) — local files win, missing paths fall back to embedded. Drop `<STATIC_PATH>/img/brand-logo.svg` to swap the header logo (v3.12.0+). See `docs/configuration.md#branding` for the full list of overlay-eligible brand assets.
 
 **Content-only structure**: Your blog is just markdown files and a config file. To move to a new server, copy `articles/` and `.env`, then run the binary.
 

@@ -223,7 +223,7 @@
             <div class="container">
                 <div class="navbar-brand">
                     <a href="/" class="brand-link">
-                        <svg class="brand-logo" width="28" height="28" viewBox="0 0 64 64" fill="none" aria-hidden="true"><ellipse cx="32" cy="32" rx="22" ry="28" fill="var(--color-primary)"/><path d="M 32 4 C 22 14 22 24 32 32 C 42 40 42 50 32 60" stroke="var(--color-bg-primary)" stroke-width="3.5" stroke-linecap="round" fill="none"/></svg>
+                        {{ brandLogoSVG }}
                         <div class="brand-text">
                             <span class="brand-title">{{ .config.Blog.Title }}</span>
                             {{ if .config.Blog.Tagline }}<p class="brand-subtitle">{{ .config.Blog.Tagline }}</p>{{ end }}
