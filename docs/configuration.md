@@ -35,7 +35,7 @@ Everything else has sensible defaults for development.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ARTICLES_PATH` | `./articles` | Directory containing markdown files. |
-| `STATIC_PATH` | *(empty)* | Static assets directory. Optional — falls back to embedded assets if unset or missing. |
+| `STATIC_PATH` | *(empty)* | Overlay directory for static assets. When set and the directory exists, each request checks this path first and falls back to embedded assets per file. When unset or missing, all assets serve from the embedded FS. Set `LOG_LEVEL=debug` to log each overlay hit. Use atomic writes (write to a temp file, then `mv`) for in-place updates to avoid serving partial content. |
 | `TEMPLATES_PATH` | *(empty)* | HTML templates directory. Optional — falls back to embedded templates if unset or missing. |
 
 ## Upload

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `STATIC_PATH` now overlays the embedded FS per file instead of replacing it
+  wholesale. Forks shipping source-controlled assets (e.g. per-article banners
+  from #54 at `<STATIC_PATH>/img/banners/<slug>.png`) no longer need to mirror
+  the full `web/static/` tree to avoid 404s on un-mirrored paths. Aligns
+  implementation with the filesystem-first fallback semantic stated in
+  v3.1.0's CHANGELOG. Closes #59.
+- Embedded-only static mount no longer exposes directory listings on paths
+  like `/static/css/`. Local-mode already suppressed listings via gin's
+  default wrapper; the embedded-only branch did not. Both branches now mount
+  through `gin.OnlyFilesFS` for symmetric behavior.
+
 ---
 
 ## [3.10.1] - 2026-05-17

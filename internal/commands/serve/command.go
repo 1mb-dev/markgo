@@ -294,24 +294,33 @@ func registerGET(r gin.IRoutes, path string, handlerFuncs ...gin.HandlerFunc) {
 }
 
 func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middleware.SessionStore, secureCookie bool, cfg *config.Config, logger *slog.Logger) { //nolint:funlen // route wiring is inherently long
-	// Static files — filesystem first, embedded fallback
-	if dirExists(cfg.StaticPath) {
-		router.Static("/static", cfg.StaticPath)
-		router.StaticFile("/sw.js", cfg.StaticPath+"/sw.js")
-	} else {
-		staticFS, subErr := fs.Sub(web.Assets, "static")
-		if subErr != nil {
-			logger.Error("Failed to load embedded static assets — cannot start server", "error", subErr)
-			os.Exit(1)
-		}
-		httpFS := http.FS(staticFS)
-		router.StaticFS("/static", httpFS)
-		// Serve sw.js directly from embedded FS (SW scope requires root path)
-		registerGET(router, "/sw.js", func(c *gin.Context) {
-			c.FileFromFS("sw.js", httpFS)
-		})
-		slog.Info("Using embedded static assets", "checked_path", cfg.StaticPath)
+	// Static files — overlay STATIC_PATH onto embedded assets per file. When
+	// STATIC_PATH is set and exists, local files take precedence and missing
+	// paths fall through to embedded. When unset/missing, everything serves
+	// from embedded. Both branches wrap in gin.OnlyFilesFS to suppress
+	// directory listings (gin.Static auto-wraps for local mode but raw
+	// StaticFS(http.FS(...)) does not — see gin@v1.12.0/routergroup.go:221).
+	staticSub, subErr := fs.Sub(web.Assets, "static")
+	if subErr != nil {
+		logger.Error("Failed to load embedded static assets — cannot start server", "error", subErr)
+		os.Exit(1)
 	}
+	embeddedFS := http.FS(staticSub)
+
+	staticFS := embeddedFS
+	if dirExists(cfg.StaticPath) {
+		staticFS = newOverlayFS(http.Dir(cfg.StaticPath), embeddedFS, logger)
+		logger.Info("Static overlay enabled", "local_path", cfg.StaticPath)
+	} else {
+		logger.Info("Using embedded static assets", "checked_path", cfg.StaticPath)
+	}
+
+	router.StaticFS("/static", &gin.OnlyFilesFS{FileSystem: staticFS})
+	// sw.js: served from root for SW scope, but follows the same overlay
+	// resolution as everything under /static.
+	registerGET(router, "/sw.js", func(c *gin.Context) {
+		c.FileFromFS("sw.js", staticFS)
+	})
 	// Uploaded assets — filesystem only, never embedded
 	if cfg.Upload.Path != "" {
 		if err := os.MkdirAll(cfg.Upload.Path, 0o755); err != nil { //nolint:gosec // upload dir needs to be accessible
