@@ -694,6 +694,13 @@ func writeDraftArticle(t *testing.T, dir, slug string, isDraft bool) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, filename), []byte(content), 0o644))
 }
 
+func writePageArticle(t *testing.T, dir, slug string) {
+	t.Helper()
+	content := fmt.Sprintf("---\nslug: %s\ntitle: A Page\ntype: page\ndraft: false\n---\n\nPage body.\n", slug)
+	filename := fmt.Sprintf("2026-01-01-%s.md", slug)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, filename), []byte(content), 0o644))
+}
+
 func TestPublishDraft(t *testing.T) {
 	t.Run("invalid slug returns 400", func(t *testing.T) {
 		handler, _ := createPublishDraftHandler(t)
@@ -1597,6 +1604,59 @@ func TestShowComposeNewPage(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
+}
+
+// ---------------------------------------------------------------------------
+// HandleEdit — type:page round-trip regression
+// ---------------------------------------------------------------------------
+
+// TestHandleEdit_PageRoundTrip guards the contract that editing a
+// type:page article through /compose/edit/<slug> preserves the
+// `type: page` frontmatter key. UpdateArticle preserves unknown
+// frontmatter via generic-map round-trip today (see
+// TestUpdateArticle_PreservesAMAFields for the sibling contract);
+// this test locks the contract end-to-end through the handler so a
+// future refactor of UpdateArticle's preservation mechanism can't
+// silently regress the page edit path.
+func TestHandleEdit_PageRoundTrip(t *testing.T) {
+	handler, tmpDir := createFormComposeHandler(t)
+	writePageArticle(t, tmpDir, "evergreen-page")
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("csrf_secure", false)
+		c.Next()
+	})
+	router.GET("/compose/edit/:slug", handler.ShowEdit)
+	router.POST("/compose/edit/:slug", handler.HandleEdit)
+
+	// GET: hidden type field must surface as "page"
+	req := httptest.NewRequest("GET", "/compose/edit/evergreen-page", http.NoBody)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// POST: round-trip type=page from form
+	form := url.Values{
+		"content": {"Updated page body."},
+		"title":   {"A Page"},
+		"type":    {"page"},
+		"_csrf":   {"test-token"},
+	}
+	req = httptest.NewRequest("POST", "/compose/edit/evergreen-page", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusSeeOther, w.Code)
+
+	// Frontmatter survived
+	files, err := filepath.Glob(filepath.Join(tmpDir, "*evergreen-page.md"))
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	contentBytes, err := os.ReadFile(files[0])
+	require.NoError(t, err)
+	assert.Contains(t, string(contentBytes), "type: page", "type:page must survive edit-then-save")
+	assert.Contains(t, string(contentBytes), "Updated page body.", "content reflects the edit")
 }
 
 // ---------------------------------------------------------------------------
