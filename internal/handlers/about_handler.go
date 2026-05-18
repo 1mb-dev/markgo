@@ -39,10 +39,14 @@ func NewAboutHandler(
 //	Social:    social_links []socialLink, has_social
 //	Contact:   has_contact (BLOG_AUTHOR_EMAIL set),
 //	           has_contact_form (full SMTP-backed form available)
-//	Reach:     about_ama_heading, about_ama_intro, about_ama_label
-//	           (v3.14.0+, closes #75 — AMA copy from the existing v3.11.0
-//	           AMA_PAGE_* env vars so /ama and /about speak in the same
-//	           operator voice; AMA half always renders, see below)
+//	Reach:     about_reach_heading (section h2),
+//	           about_email_heading, about_email_intro (email card copy),
+//	           about_ama_heading, about_ama_intro, about_ama_label
+//	           (v3.14.0+ AMA half closes #75 — AMA copy from the existing
+//	           v3.11.0 AMA_PAGE_* env vars so /ama and /about speak in the
+//	           same operator voice; v3.15.0 reach/email keys close #78 —
+//	           the other half of the reach card group, byte-exact defaults
+//	           preserved when env vars are unset)
 //
 // Plus standard base-template keys via buildBaseTemplateData.
 func (h *AboutHandler) ShowAbout(c *gin.Context) {
@@ -99,6 +103,9 @@ func (h *AboutHandler) ShowAbout(c *gin.Context) {
 	// inside about-reach is gated on has_contact && !has_contact_form (full
 	// SMTP form supplants the mailto fallback). Hiding the AMA card
 	// requires overriding about.html via TEMPLATES_PATH.
+	data["about_reach_heading"] = cfg.About.ReachHeading
+	data["about_email_heading"] = cfg.About.EmailHeading
+	data["about_email_intro"] = cfg.About.EmailIntro
 	data["about_ama_heading"] = cfg.AMA.PageHeading
 	data["about_ama_intro"] = cfg.AMA.PageIntro
 	data["about_ama_label"] = cfg.AMA.SubmitLabel

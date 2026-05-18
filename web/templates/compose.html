@@ -3,11 +3,22 @@
     <div class="container">
         <header class="page-header">
             {{ if .editing }}
-            <h1 class="page-title">Edit</h1>
-            <p class="page-subtitle">Update your post.</p>
+                {{ if eq .mode "page" }}
+                <h1 class="page-title">Edit page</h1>
+                <p class="page-subtitle">Update this page.</p>
+                {{ else }}
+                <h1 class="page-title">Edit</h1>
+                <p class="page-subtitle">Update your post.</p>
+                {{ end }}
             {{ else }}
-            <h1 class="page-title">Compose</h1>
-            <p class="page-subtitle">Write a thought, share a link, or publish an article.</p>
+                {{ if eq .mode "page" }}
+                <h1 class="page-title">New page</h1>
+                <p class="page-subtitle">Author an evergreen page served from /p/&lt;slug&gt;.</p>
+                {{ else }}
+                <h1 class="page-title">Compose</h1>
+                <p class="page-subtitle">Write a thought, share a link, or publish an article.</p>
+                <p class="compose-page-affordance"><a href="/compose/new-page" class="compose-new-page-link">New page &rarr;</a></p>
+                {{ end }}
             {{ end }}
         </header>
 
@@ -25,8 +36,31 @@
             Draft saving unavailable — copy your work before leaving
         </div>
 
-        <form class="compose-form" method="POST" action="{{ if .editing }}/compose/edit/{{ .slug }}{{ else }}/compose{{ end }}" data-slug="{{ if .editing }}{{ .slug }}{{ end }}" data-max-upload="{{ .config.Upload.MaxSize }}">
+        <form class="compose-form" method="POST" action="{{ if .editing }}/compose/edit/{{ .slug }}{{ else }}/compose{{ end }}" data-slug="{{ if .editing }}{{ .slug }}{{ end }}" data-mode="{{ if eq .mode "page" }}page{{ else }}default{{ end }}" data-max-upload="{{ .config.Upload.MaxSize }}">
             <input type="hidden" name="_csrf" value="{{ .csrf_token }}">
+            <input type="hidden" name="type" value="{{ if eq .mode "page" }}page{{ else }}{{ with .input }}{{ .Type }}{{ end }}{{ end }}">
+
+            {{ if eq .mode "page" }}
+                {{ if .editing }}{{/* slug immutable on edit — no input field */}}{{ else }}
+            <div class="compose-field">
+                <label for="slug" class="compose-label">Slug <span class="compose-required">*</span></label>
+                <input
+                    type="text"
+                    id="slug"
+                    name="slug"
+                    class="compose-input"
+                    required
+                    pattern="[a-z0-9-]+"
+                    maxlength="100"
+                    placeholder="my-page"
+                    value="{{ with .input }}{{ .Slug }}{{ end }}"
+                    autocomplete="off"
+                >
+                <span class="compose-hint">Lowercase letters, digits, hyphens. URL becomes /p/&lt;slug&gt;. Cannot be changed after create.</span>
+            </div>
+                {{ end }}
+            {{ end }}
+
             <div class="compose-field">
                 <label for="content" class="compose-label">Content <span class="compose-required">*</span></label>
                 <textarea
@@ -51,13 +85,14 @@
             </div>
 
             <div class="compose-field">
-                <label for="title" class="compose-label">Title <span class="compose-hint">(optional — leave empty for thoughts)</span></label>
+                <label for="title" class="compose-label">Title {{ if eq .mode "page" }}<span class="compose-required">*</span>{{ else }}<span class="compose-hint">(optional — leave empty for thoughts)</span>{{ end }}</label>
                 <input
                     type="text"
                     id="title"
                     name="title"
                     class="compose-input"
-                    placeholder="Article title"
+                    {{ if eq .mode "page" }}required{{ end }}
+                    placeholder="{{ if eq .mode "page" }}Page title{{ else }}Article title{{ end }}"
                     value="{{ if .input }}{{ .input.Title }}{{ end }}"
                 >
             </div>
@@ -74,6 +109,7 @@
                 >
             </div>
 
+            {{ if ne .mode "page" }}
             <div class="compose-field">
                 <label for="link_url" class="compose-label">Link URL <span class="compose-hint">(optional — add a URL to create a link post)</span></label>
                 <input
@@ -138,12 +174,13 @@
                     aria-label="Banner alt text"
                 >
             </div>
+            {{ end }}
 
             <div class="compose-actions">
                 <button type="submit" name="draft" value="on" class="compose-submit">Save Draft</button>
                 <button type="submit" name="draft" value="" class="compose-submit-secondary">{{ if .editing }}Update{{ else }}Publish{{ end }}</button>
                 {{ if .editing }}
-                <a href="/writing/{{ .slug }}" class="compose-cancel">Cancel</a>
+                <a href="{{ .canonicalPath }}" class="compose-cancel">Cancel</a>
                 {{ else }}
                 <a href="/" class="compose-cancel">Cancel</a>
                 {{ end }}

@@ -67,7 +67,7 @@
         <!-- Reach: AMA always renders here (matches pre-v3.14.0); mailto
              card appears alongside when no full SMTP contact form is available. -->
         <section class="about-reach" id="contact">
-            <h2 class="about-reach-heading">Reach out</h2>
+            <h2 class="about-reach-heading">{{ .about_reach_heading }}</h2>
             <div class="about-reach-affordances">
                 <div class="about-reach-card">
                     <h3 class="about-reach-card-heading">{{ .about_ama_heading }}</h3>
@@ -76,8 +76,8 @@
                 </div>
                 {{ if and .has_contact (not .has_contact_form) }}
                 <div class="about-reach-card">
-                    <h3 class="about-reach-card-heading">Email</h3>
-                    <p class="about-reach-card-text">Or drop a line directly.</p>
+                    <h3 class="about-reach-card-heading">{{ .about_email_heading }}</h3>
+                    <p class="about-reach-card-text">{{ .about_email_intro }}</p>
                     <a href="mailto:{{ .config.Blog.AuthorEmail }}" class="about-reach-link">{{ .config.Blog.AuthorEmail }}</a>
                 </div>
                 {{ end }}
