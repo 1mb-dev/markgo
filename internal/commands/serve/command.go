@@ -349,10 +349,21 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 	}
 
 	router.StaticFS("/static", &gin.OnlyFilesFS{FileSystem: staticFS})
-	// sw.js: served from root for SW scope, follows the same overlay
-	// resolution. See serveSwJs in overlay.go for why this can't route through
-	// c.FileFromFS without a directory-redirect loop.
-	registerGET(router, "/sw.js", serveSwJs(staticFS))
+
+	// sw.js: substituted-version embedded body cached at startup; operator
+	// overlay at <STATIC_PATH>/sw.js serves raw bytes (operator owns their
+	// cache version, bypassing auto-bump). Startup fail-loud if the embedded
+	// placeholder is missing — build invariant.
+	swBody, swModTime, swErr := loadServiceWorker(staticSub, swCacheVersion(constants.AppVersion))
+	if swErr != nil {
+		logger.Error("Failed to load embedded sw.js — cannot start server", "error", swErr)
+		os.Exit(1)
+	}
+	var swLocalFS http.FileSystem
+	if dirExists(cfg.StaticPath) {
+		swLocalFS = http.Dir(cfg.StaticPath)
+	}
+	registerGET(router, "/sw.js", serveSwJs(swLocalFS, swBody, swModTime))
 	// Uploaded assets — filesystem only, never embedded
 	if cfg.Upload.Path != "" {
 		if err := os.MkdirAll(cfg.Upload.Path, 0o755); err != nil { //nolint:gosec // upload dir needs to be accessible

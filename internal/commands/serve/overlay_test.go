@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -125,7 +126,9 @@ func TestStaticMount_OverlayIntegration(t *testing.T) {
 	r := gin.New()
 	overlay := newOverlayFS(http.Dir(localDir), http.FS(embedded), discardLogger())
 	r.StaticFS("/static", &gin.OnlyFilesFS{FileSystem: overlay})
-	swHandler := serveSwJs(overlay)
+	// New signature: localFS for raw-passthrough, substituted body fallback.
+	// Test substituted body uses literal "EMBEDDED-SW" so existing assertions hold.
+	swHandler := serveSwJs(http.Dir(localDir), []byte("EMBEDDED-SW"), time.Now())
 	r.GET("/sw.js", swHandler)
 	r.HEAD("/sw.js", swHandler)
 
@@ -233,21 +236,20 @@ func TestStaticMount_NoDirectoryListings_BothBranches(t *testing.T) {
 	})
 }
 
-// TestStaticMount_SwJsRejectsDirectory: if an operator misconfigures
-// <STATIC_PATH>/sw.js as a directory rather than a file, the sw.js handler
-// must return 404 — not redirect-loop into gin's trailing-slash handler nor
-// expose a listing via http.FileServer's default behavior.
-func TestStaticMount_SwJsRejectsDirectory(t *testing.T) {
+// TestStaticMount_SwJsDirectoryFallsBackToEmbedded: if an operator
+// misconfigures <STATIC_PATH>/sw.js as a directory rather than a file,
+// the sw.js handler falls back to the substituted embedded body rather
+// than 404'ing. More resilient than the pre-v3.17.0 behavior (which
+// returned 404) — operator misconfig no longer breaks SW registration.
+func TestStaticMount_SwJsDirectoryFallsBackToEmbedded(t *testing.T) {
 	localDir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(localDir, "sw.js"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	embedded := fstest.MapFS{}
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	overlay := newOverlayFS(http.Dir(localDir), http.FS(embedded), discardLogger())
-	r.GET("/sw.js", serveSwJs(overlay))
+	r.GET("/sw.js", serveSwJs(http.Dir(localDir), []byte("EMBEDDED-FALLBACK"), time.Now()))
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
@@ -257,8 +259,12 @@ func TestStaticMount_SwJsRejectsDirectory(t *testing.T) {
 		t.Fatalf("GET /sw.js: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 404 {
-		t.Errorf("GET /sw.js (dir at <STATIC_PATH>/sw.js): status %d, want 404", resp.StatusCode)
+	if resp.StatusCode != 200 {
+		t.Errorf("GET /sw.js (dir at <STATIC_PATH>/sw.js): status %d, want 200 (falls back to embedded)", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if string(body) != "EMBEDDED-FALLBACK" {
+		t.Errorf("body %q, want EMBEDDED-FALLBACK", string(body))
 	}
 }
 

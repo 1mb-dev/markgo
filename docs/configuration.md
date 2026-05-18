@@ -117,6 +117,13 @@ Drop your SVG at `<STATIC_PATH>/img/brand-logo.svg`. markgo reads it at startup 
 | `<STATIC_PATH>/img/og-article-default.png` | Per-article OG fallback |
 | `<STATIC_PATH>/fonts/...` | Custom web fonts (referenced via `@font-face` in CSS) |
 | `<STATIC_PATH>/css/<BLOG_STYLE>.css` | Custom theme stylesheet (any `BLOG_STYLE` name accepted) |
+| `<STATIC_PATH>/sw.js` | Custom service worker — operator owns their `CACHE_VERSION` and bypasses the build-version auto-bump (see [Service worker cache version](#service-worker-cache-version-v3170)) |
+
+### Service worker cache version (v3.17.0+)
+
+The embedded `sw.js` declares `CACHE_VERSION` via a placeholder substituted at server startup from the running build's semver (e.g. `3.17.0`; `dev` for unstamped builds). Cache names read `markgo-precache-v3.17.0`, etc. Each release auto-invalidates client caches via the activate handler's generic `markgo-*` prefix cleanup.
+
+Operators overriding `sw.js` via STATIC_PATH ship **raw bytes** — substitution is skipped and the operator's hardcoded `CACHE_VERSION` is served verbatim. The operator owns their cache version and is responsible for bumping it.
 
 ## Pages (v3.13.0+)
 

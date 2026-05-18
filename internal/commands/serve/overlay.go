@@ -13,10 +13,12 @@
 package serve
 
 import (
+	"bytes"
 	"errors"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -45,24 +47,32 @@ func (o *overlayFS) Open(name string) (http.File, error) {
 	return o.embedded.Open(name)
 }
 
-// serveSwJs serves sw.js from the given FS, with explicit directory rejection.
-// Necessary because c.FileFromFS routes through http.FileServer, which redirects
-// on directories — and gin's RedirectTrailingSlash would loop that back. The
-// /static/* mount avoids this because gin's createStaticHandler has an explicit
-// *OnlyFilesFS type-check; the /sw.js route bypasses that path.
-func serveSwJs(staticFS http.FileSystem) func(c *gin.Context) {
+// serveSwJs serves sw.js with overlay precedence: an operator-supplied
+// <STATIC_PATH>/sw.js (localFS) wins as raw bytes; otherwise the embedded
+// copy with __MARKGO_CACHE_VERSION__ substituted at startup is served from
+// the cached substitutedBody. localFS may be nil when STATIC_PATH is unset
+// or missing.
+//
+// Operator-overlay sw.js bypasses the build-version auto-bump (the operator
+// owns their cache version). This is intentional; documented in
+// docs/configuration.md.
+//
+// Explicit directory rejection on the local path mirrors the prior shape:
+// c.FileFromFS routes through http.FileServer which redirects on
+// directories, and gin's RedirectTrailingSlash would loop that back. The
+// /static/* mount avoids this because gin's createStaticHandler has an
+// explicit *OnlyFilesFS type-check; the /sw.js route bypasses that path.
+func serveSwJs(localFS http.FileSystem, substitutedBody []byte, modTime time.Time) func(c *gin.Context) {
 	return func(c *gin.Context) {
-		f, err := staticFS.Open("sw.js")
-		if err != nil {
-			c.Status(http.StatusNotFound)
-			return
+		if localFS != nil {
+			if f, err := localFS.Open("sw.js"); err == nil {
+				defer f.Close()
+				if stat, sErr := f.Stat(); sErr == nil && !stat.IsDir() {
+					http.ServeContent(c.Writer, c.Request, "sw.js", stat.ModTime(), f)
+					return
+				}
+			}
 		}
-		defer f.Close()
-		stat, err := f.Stat()
-		if err != nil || stat.IsDir() {
-			c.Status(http.StatusNotFound)
-			return
-		}
-		http.ServeContent(c.Writer, c.Request, "sw.js", stat.ModTime(), f)
+		http.ServeContent(c.Writer, c.Request, "sw.js", modTime, bytes.NewReader(substitutedBody))
 	}
 }
