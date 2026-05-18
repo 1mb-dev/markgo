@@ -338,6 +338,85 @@ func TestLoadArticle_AMAFields(t *testing.T) {
 	assert.Equal(t, "What is your favorite programming language?", input.Content)
 }
 
+func TestCreatePost_PageType_RequiresSlug(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(dir, "Test Author")
+
+	_, err := svc.CreatePost(&Input{
+		Type:    "page",
+		Title:   "About",
+		Content: "Page body.",
+	})
+
+	assert.Error(t, err, "page with empty slug should fail")
+	assert.Contains(t, err.Error(), "slug")
+
+	// No file should have been written.
+	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
+	assert.Empty(t, files)
+}
+
+func TestCreatePost_PageType_UsesExplicitSlug(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(dir, "Test Author")
+
+	slug, err := svc.CreatePost(&Input{
+		Type:    "page",
+		Slug:    "my-evergreen",
+		Title:   "Unrelated Title",
+		Content: "Page body.",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "my-evergreen", slug, "page slug should come from Input.Slug, not generateSlug(Title)")
+
+	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
+	require.Len(t, files, 1)
+	assert.Contains(t, files[0], "-my-evergreen.md", "filename should still carry the date prefix + explicit slug")
+}
+
+func TestCreatePost_PageType_OmitsDate(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(dir, "Test Author")
+
+	_, err := svc.CreatePost(&Input{
+		Type:    "page",
+		Slug:    "about-the-site",
+		Title:   "About",
+		Content: "Page body.",
+	})
+	require.NoError(t, err)
+
+	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
+	require.Len(t, files, 1)
+	content, err := os.ReadFile(files[0])
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.Contains(t, s, "type: page")
+	assert.Contains(t, s, "slug: about-the-site")
+	assert.NotContains(t, s, "date:", "page frontmatter should omit date")
+}
+
+func TestCreatePost_NonPage_PreservesDateBehavior(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(dir, "Test Author")
+
+	// Regression: non-page types continue to emit date frontmatter.
+	_, err := svc.CreatePost(&Input{
+		Type:    "article",
+		Title:   "Regular Article",
+		Content: "Body.",
+	})
+	require.NoError(t, err)
+
+	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
+	require.Len(t, files, 1)
+	content, err := os.ReadFile(files[0])
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "date:")
+}
+
 func TestUpdateArticle_PreservesAMAFields(t *testing.T) {
 	dir := t.TempDir()
 	svc := NewService(dir, "Test Author")

@@ -55,6 +55,21 @@ func NewComposeHandler(
 	}
 }
 
+// validatePageSlug returns a human-readable error message if the slug
+// is not acceptable for a new type:page article, or empty string on
+// success. Combines the strict ValidateSlug contract (charset, length,
+// reserved set) with a uniqueness check against the in-memory article
+// store. The handler renders the message in the error banner.
+func (h *ComposeHandler) validatePageSlug(slug string) string {
+	if err := articlepkg.ValidateSlug(slug); err != nil {
+		return "Slug invalid: " + err.Error()
+	}
+	if existing, err := h.articleService.GetArticleBySlug(slug); err == nil && existing != nil {
+		return "Slug already in use: " + slug
+	}
+	return ""
+}
+
 // canonicalPathForSlug resolves the canonical URL for a composed or
 // edited post by looking up the article in the in-memory store. Existing
 // type:page articles edited via /compose/edit/:slug must redirect to
@@ -93,6 +108,18 @@ func (h *ComposeHandler) ShowCompose(c *gin.Context) {
 	h.renderHTML(c, http.StatusOK, "base.html", data)
 }
 
+// ShowComposeNewPage renders the compose form in page-authoring mode.
+// Pages need an explicit slug and skip date/tags/categories — the template
+// branches on data["mode"] == "page" to surface a slug input and hide
+// the article-shaped fields.
+func (h *ComposeHandler) ShowComposeNewPage(c *gin.Context) {
+	data := h.buildBaseTemplateData("New page - " + h.config.Blog.Title)
+	data["template"] = templateCompose
+	data["mode"] = articlepkg.TypePage
+	data["csrf_token"] = csrfToken(c)
+	h.renderHTML(c, http.StatusOK, "base.html", data)
+}
+
 // ShowEdit renders the compose form pre-filled with an existing article.
 func (h *ComposeHandler) ShowEdit(c *gin.Context) {
 	slug := c.Param("slug")
@@ -112,6 +139,11 @@ func (h *ComposeHandler) ShowEdit(c *gin.Context) {
 	data["input"] = input
 	data["editing"] = true
 	data["slug"] = slug
+	if input.Type == articlepkg.TypePage {
+		// Surface page-mode so the template can hide article-only fields
+		// (link_url, tags, categories, banner) when editing a page.
+		data["mode"] = articlepkg.TypePage
+	}
 	data["csrf_token"] = csrfToken(c)
 	h.renderHTML(c, http.StatusOK, "base.html", data)
 }
@@ -165,6 +197,7 @@ func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 		Banner:      c.PostForm("banner"),
 		BannerAlt:   c.PostForm("banner_alt"),
 		Draft:       c.PostForm("draft") == "on",
+		Type:        c.PostForm("type"),
 	}
 
 	if input.Content == "" {
@@ -174,6 +207,9 @@ func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 		data["input"] = input
 		data["editing"] = true
 		data["slug"] = slug
+		if input.Type == articlepkg.TypePage {
+			data["mode"] = articlepkg.TypePage
+		}
 		data["csrf_token"] = refreshCSRFToken(c)
 		if c.IsAborted() {
 			return
@@ -190,6 +226,9 @@ func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 		data["input"] = input
 		data["editing"] = true
 		data["slug"] = slug
+		if input.Type == articlepkg.TypePage {
+			data["mode"] = articlepkg.TypePage
+		}
 		data["csrf_token"] = refreshCSRFToken(c)
 		if c.IsAborted() {
 			return
@@ -224,6 +263,8 @@ func (h *ComposeHandler) HandleSubmit(c *gin.Context) {
 		Banner:      c.PostForm("banner"),
 		BannerAlt:   c.PostForm("banner_alt"),
 		Draft:       c.PostForm("draft") == "on",
+		Type:        c.PostForm("type"),
+		Slug:        c.PostForm("slug"),
 	}
 
 	if input.Content == "" {
@@ -231,12 +272,34 @@ func (h *ComposeHandler) HandleSubmit(c *gin.Context) {
 		data["template"] = templateCompose
 		data["error"] = "Content is required"
 		data["input"] = input
+		if input.Type == articlepkg.TypePage {
+			data["mode"] = articlepkg.TypePage
+		}
 		data["csrf_token"] = refreshCSRFToken(c)
 		if c.IsAborted() {
 			return
 		}
 		h.renderHTML(c, http.StatusBadRequest, "base.html", data)
 		return
+	}
+
+	// Page-mode validation: pages need a valid, unique slug. Run before
+	// CreatePost so the operator sees a render with their input intact
+	// rather than a generic 500.
+	if input.Type == articlepkg.TypePage {
+		if errMsg := h.validatePageSlug(input.Slug); errMsg != "" {
+			data := h.buildBaseTemplateData("New page - " + h.config.Blog.Title)
+			data["template"] = templateCompose
+			data["mode"] = articlepkg.TypePage
+			data["error"] = errMsg
+			data["input"] = input
+			data["csrf_token"] = refreshCSRFToken(c)
+			if c.IsAborted() {
+				return
+			}
+			h.renderHTML(c, http.StatusBadRequest, "base.html", data)
+			return
+		}
 	}
 
 	slug, err := h.composeService.CreatePost(&input)
@@ -246,6 +309,9 @@ func (h *ComposeHandler) HandleSubmit(c *gin.Context) {
 		data["template"] = templateCompose
 		data["error"] = "Failed to create post. Please try again."
 		data["input"] = input
+		if input.Type == articlepkg.TypePage {
+			data["mode"] = articlepkg.TypePage
+		}
 		data["csrf_token"] = refreshCSRFToken(c)
 		if c.IsAborted() {
 			return

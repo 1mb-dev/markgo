@@ -451,6 +451,7 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 			middleware.CSRF(secureCookie),
 		)
 		registerGET(composeGroup, "", h.Compose.ShowCompose)
+		registerGET(composeGroup, "/new-page", h.Compose.ShowComposeNewPage)
 		composeGroup.POST("", h.Compose.HandleSubmit)
 		registerGET(composeGroup, "/edit/:slug", h.Compose.ShowEdit)
 		composeGroup.POST("/edit/:slug", h.Compose.HandleEdit)

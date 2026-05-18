@@ -1579,3 +1579,171 @@ func TestShowEdit(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 }
+
+// ---------------------------------------------------------------------------
+// ShowComposeNewPage tests
+// ---------------------------------------------------------------------------
+
+func TestShowComposeNewPage(t *testing.T) {
+	t.Run("renders compose form in page mode", func(t *testing.T) {
+		handler, _ := createFormComposeHandler(t)
+
+		router := gin.New()
+		router.GET("/compose/new-page", handler.ShowComposeNewPage)
+
+		req := httptest.NewRequest("GET", "/compose/new-page", http.NoBody)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// HandleSubmit — page-mode validation
+// ---------------------------------------------------------------------------
+
+func TestHandleSubmit_PageMode(t *testing.T) {
+	t.Run("creates page and redirects to /p/<slug>", func(t *testing.T) {
+		handler, tmpDir := createFormComposeHandler(t)
+
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set("csrf_secure", false)
+			c.Next()
+		})
+		router.POST("/compose", handler.HandleSubmit)
+
+		form := url.Values{
+			"content": {"Evergreen page body."},
+			"title":   {"About"},
+			"type":    {"page"},
+			"slug":    {"about-the-author"},
+			"_csrf":   {"test-token"},
+		}
+		req := httptest.NewRequest("POST", "/compose", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusSeeOther, w.Code)
+		// MockArticleService doesn't know the new slug, so canonicalPathForSlug
+		// falls back to the synthetic empty-Type article — /writing/<slug>.
+		// In production the slug would be reloaded into the repo and resolve
+		// to /p/<slug>. The redirect path itself is exercised; the canonical
+		// resolution is covered by predicate tests.
+		assert.NotEmpty(t, w.Header().Get("Location"))
+
+		entries, err := os.ReadDir(tmpDir)
+		require.NoError(t, err)
+		require.Len(t, entries, 1)
+		assert.Contains(t, entries[0].Name(), "-about-the-author.md")
+
+		content, err := os.ReadFile(tmpDir + "/" + entries[0].Name())
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "type: page")
+		assert.Contains(t, string(content), "slug: about-the-author")
+		assert.NotContains(t, string(content), "date:", "page frontmatter omits date")
+	})
+
+	t.Run("empty slug returns 400", func(t *testing.T) {
+		handler, _ := createFormComposeHandler(t)
+
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set("csrf_secure", false)
+			c.Next()
+		})
+		router.POST("/compose", handler.HandleSubmit)
+
+		form := url.Values{
+			"content": {"Body."},
+			"title":   {"X"},
+			"type":    {"page"},
+			"slug":    {""},
+			"_csrf":   {"test-token"},
+		}
+		req := httptest.NewRequest("POST", "/compose", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("reserved slug returns 400", func(t *testing.T) {
+		handler, _ := createFormComposeHandler(t)
+
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set("csrf_secure", false)
+			c.Next()
+		})
+		router.POST("/compose", handler.HandleSubmit)
+
+		form := url.Values{
+			"content": {"Body."},
+			"title":   {"X"},
+			"type":    {"page"},
+			"slug":    {"feed"},
+			"_csrf":   {"test-token"},
+		}
+		req := httptest.NewRequest("POST", "/compose", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("colliding slug returns 400", func(t *testing.T) {
+		handler, _ := createFormComposeHandler(t)
+
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set("csrf_secure", false)
+			c.Next()
+		})
+		router.POST("/compose", handler.HandleSubmit)
+
+		// MockArticleService.GetArticleBySlug returns a hit for "test-article".
+		form := url.Values{
+			"content": {"Body."},
+			"title":   {"X"},
+			"type":    {"page"},
+			"slug":    {"test-article"},
+			"_csrf":   {"test-token"},
+		}
+		req := httptest.NewRequest("POST", "/compose", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("invalid slug charset returns 400", func(t *testing.T) {
+		handler, _ := createFormComposeHandler(t)
+
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set("csrf_secure", false)
+			c.Next()
+		})
+		router.POST("/compose", handler.HandleSubmit)
+
+		form := url.Values{
+			"content": {"Body."},
+			"title":   {"X"},
+			"type":    {"page"},
+			"slug":    {"My_Page"},
+			"_csrf":   {"test-token"},
+		}
+		req := httptest.NewRequest("POST", "/compose", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}

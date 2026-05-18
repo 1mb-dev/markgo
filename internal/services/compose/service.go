@@ -27,6 +27,11 @@ func NewService(articlesPath, defaultAuthor string) *Service {
 	}
 }
 
+// typePage mirrors article.TypePage. The article package imports compose
+// (for ContainSlugPath), so we can't import the other direction; the
+// constant is duplicated here as a synchronization point.
+const typePage = "page"
+
 // Input represents the compose form or API submission.
 type Input struct {
 	Content     string `json:"content"`
@@ -41,22 +46,40 @@ type Input struct {
 	Asker       string `json:"asker"`
 	AskerEmail  string `json:"asker_email"`
 	Type        string `json:"type"`
+	// Slug is operator-supplied; required when Type == "page" because
+	// pages need stable, hand-picked URLs. Ignored otherwise — other
+	// types derive slugs from title or timestamp.
+	Slug string `json:"slug"`
 }
 
 // CreatePost creates a new markdown post file from compose input.
 // Returns the generated slug.
+//
+// Pages (Type == "page") use input.Slug verbatim and omit the date
+// frontmatter — they're evergreen by definition and served by /p/:slug.
+// All other types derive their slug from title or fall back to a
+// timestamp-prefixed slug.
 func (s *Service) CreatePost(input *Input) (string, error) {
 	now := time.Now()
 
-	// Generate slug (fall back to timestamp-prefixed slug if title produces
-	// empty slug, e.g. non-ASCII titles or empty Title field). Prefix
-	// reflects content type so `ls articles/` reveals intent at a glance.
 	var slug string
-	if input.Title != "" {
-		slug = generateSlug(input.Title)
-	}
-	if slug == "" {
-		slug = fmt.Sprintf("%s-%d", slugPrefixFor(input.Type), now.UnixMilli())
+	switch input.Type {
+	case typePage:
+		if strings.TrimSpace(input.Slug) == "" {
+			return "", fmt.Errorf("page requires an explicit slug")
+		}
+		slug = input.Slug
+	default:
+		// Generate slug from title; fall back to timestamp-prefixed slug
+		// if title produces empty slug (e.g. non-ASCII titles or empty
+		// Title field). Prefix reflects content type so `ls articles/`
+		// reveals intent at a glance.
+		if input.Title != "" {
+			slug = generateSlug(input.Title)
+		}
+		if slug == "" {
+			slug = fmt.Sprintf("%s-%d", slugPrefixFor(input.Type), now.UnixMilli())
+		}
 	}
 
 	// Parse comma-separated tags
@@ -68,10 +91,14 @@ func (s *Service) CreatePost(input *Input) (string, error) {
 		}
 	}
 
-	// Build frontmatter map (only non-empty fields)
+	// Build frontmatter map (only non-empty fields). Pages skip `date:`
+	// because they're evergreen and /p index sorts alphabetically, not
+	// by date.
 	fm := map[string]any{
 		"slug": slug,
-		"date": now.Format(time.RFC3339),
+	}
+	if input.Type != typePage {
+		fm["date"] = now.Format(time.RFC3339)
 	}
 	setIfNonEmpty(fm, "title", input.Title)
 	setIfNonEmpty(fm, "description", input.Description)
