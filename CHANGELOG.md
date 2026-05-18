@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.14.0] - 2026-05-18
+
+Theme: **dedicated-route polish.** v3.13.0 made dedicated-route content
+(`/about`, `/p/:slug`) structurally separate via the predicate but left
+the experience incomplete: pages were invisible to sitemap and had no
+reader-facing index, and `/about`'s adjacent AMA + mailto sections spoke
+in default English even when the operator had configured `/ama` in their
+own voice. v3.14.0 closes both — pages become operationally first-class
+(sitemap + `/p` index + footer link), `/about` joins the sitemap, and
+its reach section consolidates AMA + mailto into one card voiced by the
+existing v3.11.0 `AMA_PAGE_*` env vars (closes #75).
+
+### Added
+
+- **`/p` index lists all published pages alphabetically by title.** New
+  reader-facing route with footer link (between `/categories` and
+  `/about`). Compact list rendering with optional description excerpts.
+  Empty-state copy when no pages exist. Surfaces in `sitemap.xml` itself
+  alongside the per-page entries.
+- **Sitemap now includes pages, `/about`, and `/p`.** Each `type: page`
+  article emits at `/p/<slug>` (priority 0.5, changefreq yearly); the
+  `/p` index and `/about` add as static entries. Closes a latent gap:
+  pages and /about were both silently absent from v3.13.0's sitemap
+  because the upstream `GetPublished` excludes them via the predicate.
+- **`/about` reach section (#75).** AMA promo and mailto-only contact
+  consolidate into a single `about-reach` card with two affordance
+  columns. AMA copy now reads from the existing v3.11.0
+  `AMA_PAGE_HEADING` / `AMA_PAGE_INTRO` / `AMA_SUBMIT_LABEL` env vars,
+  so `/ama` overlay and `/about` reach speak in the same operator voice.
+  Surfaced from log.1mb.dev M3-polish-2 wave-2 feedback.
+
+### Changed
+
+- **All hardcoded `/writing/<slug>` URL emissions now route through
+  `articlepkg.CanonicalURLFor`.** v3.13.0 caught five such sites in
+  templates and `seo_helper`; this release sweeps the remaining 15 in
+  `feed.go` (RSS Link/GUID, JSON Feed id/url, sitemap loc), `compose.go`
+  (redirects + JSON response URLs), `taxonomy_handler.go` (collectionSchema),
+  `post_handler.go` (canonical path + BlogPosting URL), and one
+  `seo_helper.go` site. Compose redirects now do an article lookup so
+  edited `type: page` articles land at `/p/<slug>` directly rather than
+  via the v3.13.0 301.
+- **RSS, JSON Feed, and Sitemap uniformly honor the dedicated-route
+  predicate.** Previously each had its own `!a.Draft`-only filter
+  upstream of the predicate; the canonical-URL switch surfaced and
+  closes that drift class.
+- README "four content types" corrected to five; `docs/design.md`
+  pages discoverability sentence and "Three Streams" heading updated;
+  `docs/configuration.md` Pages section's stale future-enhancement
+  bullets dropped and Sitemap behavior corrected.
+
+### Removed
+
+- **Dead `seo.Helper.GenerateSitemap` method** (and orphan `URLSet` /
+  `URL` types). `feed.Service.GenerateSitemap` is the live implementation
+  served at `/sitemap.xml`; the `seo` package's sitemap was unreachable
+  in production. `SEOServiceInterface` narrowed accordingly.
+
+### Internal (for forkers)
+
+- `Repository` and `ArticleServiceInterface` gain
+  `GetPages() []*models.Article`. Forks implementing either interface
+  (custom repositories or test mocks) need to add a stub. The shipped
+  `FileSystemRepository`, `CachedRepository`, and `CompositeService`
+  cover the default install.
+
 ## [3.13.0] - 2026-05-17
 
 Theme: **one predicate for dedicated-route articles.** Markgo's `/about`
