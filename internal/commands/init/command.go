@@ -140,7 +140,7 @@ func isAlreadyInitialized(dir string) bool {
 func getQuickDefaults() BlogConfig {
 	currentUser, err := user.Current()
 	username := "Blog Author"
-	email := "author@example.com"
+	email := ""
 
 	if err == nil && currentUser != nil {
 		username = currentUser.Username

@@ -71,7 +71,7 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, "Your Blog Title", cfg.Blog.Title)
 	assert.Equal(t, "Your blog description goes here", cfg.Blog.Description)
 	assert.Equal(t, "Your Name", cfg.Blog.Author)
-	assert.Equal(t, "your.email@example.com", cfg.Blog.AuthorEmail)
+	assert.Equal(t, "", cfg.Blog.AuthorEmail)
 	assert.Equal(t, "en", cfg.Blog.Language)
 	assert.Equal(t, "default", cfg.Blog.Theme)
 	assert.Equal(t, 10, cfg.Blog.PostsPerPage)

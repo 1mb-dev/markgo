@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/1mb-dev/markgo/internal/config"
+	"github.com/1mb-dev/markgo/internal/services"
 )
 
 func createTestAboutHandler(cfg *config.Config) (*AboutHandler, *MockTemplateService) {
@@ -172,6 +174,69 @@ func TestAboutHandler_TemplateData(t *testing.T) {
 			assert.Equal(t, tt.wantReachHeading, mockTpl.LastData["about_reach_heading"], "operator voice — reach section heading reaches the template verbatim")
 			assert.Equal(t, tt.wantEmailHeading, mockTpl.LastData["about_email_heading"])
 			assert.Equal(t, tt.wantEmailIntro, mockTpl.LastData["about_email_intro"])
+		})
+	}
+}
+
+// TestAboutHandler_JSONLDEmail locks the contract: about.html JSON-LD emits
+// the "email" field only when BLOG_AUTHOR_EMAIL is configured. With an empty
+// value, no "email": substring may appear inside the JSON-LD block.
+// Sibling of TestArticleHandler_JSONLDEmail — locks the same contract on
+// the second emission site surfaced by #80.
+func TestAboutHandler_JSONLDEmail(t *testing.T) {
+	tests := []struct {
+		name          string
+		authorEmail   string
+		denySubstring string
+		wantSubstring string
+	}{
+		{
+			name:          "empty email — JSON-LD omits email field",
+			authorEmail:   "",
+			denySubstring: `"email":`,
+		},
+		{
+			name:          "configured email — JSON-LD includes email field",
+			authorEmail:   "author@example.com",
+			wantSubstring: `"email": "author@example.com"`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Environment: "test",
+				BaseURL:     "http://localhost:3000",
+				Blog:        config.BlogConfig{Title: "Test Blog", Description: "Test", Author: "Test Author", AuthorEmail: tc.authorEmail},
+			}
+			tplSvc, err := services.NewTemplateService("/nonexistent", cfg)
+			require.NoError(t, err, "real TemplateService falls back to embedded templates")
+
+			logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+			base := NewBaseHandler(cfg, logger, tplSvc, &BuildInfo{Version: "test"}, &MockSEOService{})
+			handler := NewAboutHandler(base, &MockArticleService{}, &MockMarkdownRenderer{})
+
+			router := gin.New()
+			router.GET("/about", handler.ShowAbout)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/about", http.NoBody))
+			require.Equal(t, http.StatusOK, w.Code)
+
+			body := w.Body.String()
+			jsonLDStart := strings.Index(body, `<script type="application/ld+json">`)
+			require.GreaterOrEqual(t, jsonLDStart, 0, "JSON-LD script tag must be present in about body")
+			jsonLDEnd := strings.Index(body[jsonLDStart:], `</script>`)
+			require.Greater(t, jsonLDEnd, 0, "JSON-LD script tag must be closed")
+			jsonLD := body[jsonLDStart : jsonLDStart+jsonLDEnd]
+
+			if tc.denySubstring != "" {
+				assert.NotContains(t, jsonLD, tc.denySubstring,
+					"JSON-LD must not emit email field when AuthorEmail is empty")
+			}
+			if tc.wantSubstring != "" {
+				assert.Contains(t, jsonLD, tc.wantSubstring,
+					"JSON-LD must emit configured email value")
+			}
 		})
 	}
 }

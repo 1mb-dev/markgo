@@ -80,6 +80,70 @@ func createTestBase() (*BaseHandler, *TestArticleService) {
 	return base, svc
 }
 
+// TestArticleHandler_JSONLDEmail locks the contract: article.html JSON-LD
+// emits the "email" field only when BLOG_AUTHOR_EMAIL is configured. With
+// an empty value, no "email": substring may appear inside the JSON-LD block
+// (would be invalid Schema.org). Surfaced by #80.
+func TestArticleHandler_JSONLDEmail(t *testing.T) {
+	tests := []struct {
+		name          string
+		authorEmail   string
+		denySubstring string
+		wantSubstring string
+	}{
+		{
+			name:          "empty email — JSON-LD omits email field",
+			authorEmail:   "",
+			denySubstring: `"email":`,
+		},
+		{
+			name:          "configured email — JSON-LD includes email field",
+			authorEmail:   "author@example.com",
+			wantSubstring: `"email": "author@example.com"`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Environment: "test",
+				BaseURL:     "http://localhost:3000",
+				Blog:        config.BlogConfig{Title: "Test Blog", Description: "Test", Author: "Test Author", AuthorEmail: tc.authorEmail},
+			}
+			tplSvc, err := services.NewTemplateService("/nonexistent", cfg)
+			require.NoError(t, err, "real TemplateService falls back to embedded templates")
+
+			logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+			base := NewBaseHandler(cfg, logger, tplSvc, &BuildInfo{Version: "test"}, &MockSEOService{})
+			svc := &TestArticleService{articles: []*models.Article{
+				{Slug: "test-slug", Title: "Test Article", Date: time.Now(), Content: "body", ProcessedContent: "<p>body</p>"},
+			}}
+
+			router := gin.New()
+			router.GET("/writing/:slug", NewPostHandler(base, svc).Article)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/writing/test-slug", http.NoBody))
+			require.Equal(t, http.StatusOK, w.Code)
+
+			body := w.Body.String()
+			jsonLDStart := strings.Index(body, `<script type="application/ld+json">`)
+			require.GreaterOrEqual(t, jsonLDStart, 0, "JSON-LD script tag must be present in article body")
+			jsonLDEnd := strings.Index(body[jsonLDStart:], `</script>`)
+			require.Greater(t, jsonLDEnd, 0, "JSON-LD script tag must be closed")
+			jsonLD := body[jsonLDStart : jsonLDStart+jsonLDEnd]
+
+			if tc.denySubstring != "" {
+				assert.NotContains(t, jsonLD, tc.denySubstring,
+					"JSON-LD must not emit email field when AuthorEmail is empty (would be invalid Schema.org)")
+			}
+			if tc.wantSubstring != "" {
+				assert.Contains(t, jsonLD, tc.wantSubstring,
+					"JSON-LD must emit configured email value")
+			}
+		})
+	}
+}
+
 func TestArticleBySlug(t *testing.T) {
 	tests := []struct {
 		name string
