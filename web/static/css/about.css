@@ -164,32 +164,62 @@
 }
 
 /* ==========================================================================
-   AMA Section
+   Reach Section (v3.14.0+) — AMA + mailto consolidated in one card.
+   Replaces the prior split .about-ama / .about-email sections so /about
+   shows one labeled reach surface with multiple affordances.
    ========================================================================== */
 
-.about-ama {
+.about-reach {
     max-width: var(--max-content-width);
     margin: 0 auto var(--spacing-5);
     padding: var(--spacing-5);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
+}
+
+.about-reach-heading {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    margin: 0 0 var(--spacing-4);
+    color: var(--color-text-primary);
     text-align: center;
 }
 
-.about-ama-heading {
-    font-size: var(--font-size-xl);
+.about-reach-affordances {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-4);
+}
+
+@media (min-width: 769px) {
+    .about-reach-affordances {
+        flex-direction: row;
+        gap: var(--spacing-5);
+    }
+
+    .about-reach-card {
+        flex: 1;
+    }
+}
+
+.about-reach-card {
+    text-align: center;
+}
+
+.about-reach-card-heading {
+    font-size: var(--font-size-lg);
     font-weight: 600;
     margin: 0 0 var(--spacing-2);
     color: var(--color-text-primary);
 }
 
-.about-ama-text {
+.about-reach-card-text {
     font-size: var(--font-size-base);
     color: var(--color-text-secondary);
-    margin: 0 0 var(--spacing-4);
+    margin: 0 0 var(--spacing-3);
 }
 
-.about-ama-btn {
+.about-reach-btn {
     display: inline-block;
     padding: var(--spacing-3) var(--spacing-6);
     font-family: var(--font-family-sans);
@@ -203,12 +233,30 @@
     transition: background-color var(--transition-fast);
 }
 
-.about-ama-btn:hover {
+.about-reach-btn:hover {
     background-color: var(--color-primary-dark);
 }
 
+.about-reach-link {
+    display: inline-block;
+    padding: var(--spacing-3) var(--spacing-6);
+    color: var(--color-primary);
+    font-weight: 500;
+    font-size: var(--font-size-base);
+    text-decoration: none;
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.about-reach-link:hover {
+    background-color: var(--color-primary);
+    color: var(--color-text-inverse);
+}
+
 /* ==========================================================================
-   Contact Section — card container
+   Contact Section — card container for full SMTP-backed contact form.
+   Mailto-only fallback consolidated into .about-reach (v3.14.0+).
    ========================================================================== */
 
 .about-contact {
@@ -230,29 +278,6 @@
 .about-contact .contact-form {
     display: flex;
     flex-direction: column;
-}
-
-/* Email link (when SMTP not configured) */
-.about-email {
-    text-align: center;
-    padding: var(--spacing-2) 0;
-}
-
-.about-email-link {
-    display: inline-block;
-    padding: var(--spacing-3) var(--spacing-6);
-    color: var(--color-primary);
-    font-weight: 500;
-    font-size: var(--font-size-base);
-    text-decoration: none;
-    border: 1px solid var(--color-primary);
-    border-radius: var(--radius-md);
-    transition: background-color var(--transition-fast), color var(--transition-fast);
-}
-
-.about-email-link:hover {
-    background-color: var(--color-primary);
-    color: var(--color-text-inverse);
 }
 
 /* ==========================================================================

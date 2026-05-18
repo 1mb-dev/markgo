@@ -30,7 +30,21 @@ func NewAboutHandler(
 	}
 }
 
-// ShowAbout handles the GET /about route.
+// ShowAbout handles the GET /about route. Template data keys consumed by
+// about.html:
+//
+//	Identity:  about_avatar, about_tagline, about_location
+//	Bio:       bio_html (rendered HTML; absent if neither about.md nor
+//	           ABOUT_BIO set)
+//	Social:    social_links []socialLink, has_social
+//	Contact:   has_contact (BLOG_AUTHOR_EMAIL set),
+//	           has_contact_form (full SMTP-backed form available)
+//	Reach:     about_ama_heading, about_ama_intro, about_ama_label
+//	           (v3.14.0+, closes #75 — AMA copy from the existing v3.11.0
+//	           AMA_PAGE_* env vars so /ama and /about speak in the same
+//	           operator voice; AMA half always renders, see below)
+//
+// Plus standard base-template keys via buildBaseTemplateData.
 func (h *AboutHandler) ShowAbout(c *gin.Context) {
 	cfg := h.config
 	data := h.buildBaseTemplateData("About - " + cfg.Blog.Title)
@@ -77,6 +91,16 @@ func (h *AboutHandler) ShowAbout(c *gin.Context) {
 	hasContactForm := cfg.Email.Username != "" && cfg.Email.Host != ""
 	data["has_contact"] = hasEmail
 	data["has_contact_form"] = hasContactForm
+
+	// Reach section (v3.14.0+): operator-voiced AMA promo reusing the
+	// v3.11.0 AMA_PAGE_* env vars. AMA half always renders here, matching
+	// pre-v3.14.0 behavior — getEnv treats empty as unset and falls back to
+	// the non-empty default, so there's no operator path to hide it via
+	// .env. Hiding the AMA half requires overriding about.html via
+	// TEMPLATES_PATH.
+	data["about_ama_heading"] = cfg.AMA.PageHeading
+	data["about_ama_intro"] = cfg.AMA.PageIntro
+	data["about_ama_label"] = cfg.AMA.SubmitLabel
 
 	h.enhanceTemplateDataWithSEO(data, "/about")
 	h.renderHTML(c, http.StatusOK, "base.html", data)

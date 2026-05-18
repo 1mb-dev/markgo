@@ -9,112 +9,142 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/1mb-dev/markgo/internal/config"
 )
 
-func createTestAboutHandler(cfg *config.Config) *AboutHandler {
+func createTestAboutHandler(cfg *config.Config) (*AboutHandler, *MockTemplateService) {
 	if cfg == nil {
 		cfg = createTestConfig()
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	base := NewBaseHandler(cfg, logger, &MockTemplateService{}, &BuildInfo{Version: "test"}, &MockSEOService{})
-	return NewAboutHandler(base, &MockArticleService{}, &MockMarkdownRenderer{})
+	mockTpl := &MockTemplateService{}
+	base := NewBaseHandler(cfg, logger, mockTpl, &BuildInfo{Version: "test"}, &MockSEOService{})
+	return NewAboutHandler(base, &MockArticleService{}, &MockMarkdownRenderer{}), mockTpl
 }
 
-func TestAboutHandler(t *testing.T) {
-	t.Run("minimal config shows author name", func(t *testing.T) {
-		cfg := &config.Config{
-			Environment: "test",
-			BaseURL:     "http://localhost:3000",
-			Blog: config.BlogConfig{
-				Title:  "Test Blog",
-				Author: "Test Author",
-			},
-		}
-
-		handler := createTestAboutHandler(cfg)
-
-		router := gin.New()
-		router.GET("/about", handler.ShowAbout)
-
-		req := httptest.NewRequest("GET", "/about", http.NoBody)
-		req.Header.Set("Accept", "application/json")
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-
-	t.Run("full config sets all template data", func(t *testing.T) {
-		cfg := &config.Config{
-			Environment: "test",
-			BaseURL:     "http://localhost:3000",
-			Blog: config.BlogConfig{
-				Title:       "Test Blog",
-				Author:      "Jane Doe",
-				AuthorEmail: "jane@example.com",
-			},
-			About: config.AboutConfig{
-				Avatar:   "img/avatar.jpg",
-				Tagline:  "Building things",
-				Location: "San Francisco, CA",
-				GitHub:   "janedoe",
-				Twitter:  "@janedoe",
-				LinkedIn: "https://linkedin.com/in/janedoe",
-				Website:  "janedoe.com",
-			},
-			Email: config.EmailConfig{
-				Host:     "smtp.example.com",
-				Username: "user",
-			},
-		}
-
-		handler := createTestAboutHandler(cfg)
-
-		router := gin.New()
-		router.GET("/about", handler.ShowAbout)
-
-		req := httptest.NewRequest("GET", "/about", http.NoBody)
-		req.Header.Set("Accept", "application/json")
-		w := httptest.NewRecorder()
-
-		router.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
-
-	t.Run("contact section hidden without email", func(t *testing.T) {
-		cfg := &config.Config{
+// TestAboutHandler_TemplateData verifies the ShowAbout data contract
+// (v3.14.0+ closes #75). The AMA copy keys must reach the template
+// verbatim from the v3.11.0 AMA_PAGE_* env vars (operator voice),
+// and has_contact must gate the reach-section mailto half. The AMA
+// half always renders — matches pre-v3.14.0 behavior; getEnv falls
+// back to non-empty defaults so there's no .env path to hide it.
+func TestAboutHandler_TemplateData(t *testing.T) {
+	baseCfg := func() *config.Config {
+		return &config.Config{
 			Environment: "test",
 			BaseURL:     "http://localhost:3000",
 			Blog: config.BlogConfig{
 				Title:       "Test Blog",
 				Author:      "Test Author",
-				AuthorEmail: "", // no email
+				AuthorEmail: "author@example.com",
+			},
+			AMA: config.AMAConfig{
+				PageHeading: "Ask me anything",
+				PageIntro:   "Curious about something?",
+				SubmitLabel: "Submit Question",
 			},
 		}
+	}
 
-		handler := createTestAboutHandler(cfg)
+	tests := []struct {
+		name           string
+		mutate         func(*config.Config)
+		wantHasContact bool
+		wantHeading    string
+		wantIntro      string
+		wantLabel      string
+	}{
+		{
+			name:           "defaults: AMA + mailto",
+			mutate:         func(*config.Config) {},
+			wantHasContact: true,
+			wantHeading:    "Ask me anything",
+			wantIntro:      "Curious about something?",
+			wantLabel:      "Submit Question",
+		},
+		{
+			name: "no email — AMA still renders solo",
+			mutate: func(c *config.Config) {
+				c.Blog.AuthorEmail = ""
+			},
+			wantHasContact: false,
+			wantHeading:    "Ask me anything",
+			wantIntro:      "Curious about something?",
+			wantLabel:      "Submit Question",
+		},
+		{
+			name: "custom AMA copy reaches template (operator voice)",
+			mutate: func(c *config.Config) {
+				c.AMA.PageHeading = "Hit me up"
+				c.AMA.PageIntro = "Got something on your mind?"
+				c.AMA.SubmitLabel = "Send it"
+			},
+			wantHasContact: true,
+			wantHeading:    "Hit me up",
+			wantIntro:      "Got something on your mind?",
+			wantLabel:      "Send it",
+		},
+	}
 
-		router := gin.New()
-		router.GET("/about", handler.ShowAbout)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := baseCfg()
+			tt.mutate(cfg)
+			handler, mockTpl := createTestAboutHandler(cfg)
 
-		req := httptest.NewRequest("GET", "/about", http.NoBody)
-		req.Header.Set("Accept", "application/json")
-		w := httptest.NewRecorder()
+			router := gin.New()
+			router.GET("/about", handler.ShowAbout)
 
-		router.ServeHTTP(w, req)
+			req := httptest.NewRequest(http.MethodGet, "/about", http.NoBody)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-	})
+			require.Equal(t, http.StatusOK, w.Code)
+			require.NotNil(t, mockTpl.LastData, "ShowAbout must invoke the template renderer")
+
+			assert.Equal(t, tt.wantHasContact, mockTpl.LastData["has_contact"], "has_contact gates the reach-section mailto half")
+			assert.Equal(t, tt.wantHeading, mockTpl.LastData["about_ama_heading"], "operator voice — AMA heading reaches the template verbatim")
+			assert.Equal(t, tt.wantIntro, mockTpl.LastData["about_ama_intro"])
+			assert.Equal(t, tt.wantLabel, mockTpl.LastData["about_ama_label"])
+		})
+	}
+}
+
+// TestAboutHandler_Identity verifies the identity/social/bio composition
+// path still produces expected data after the v3.14.0 reach addition.
+func TestAboutHandler_Identity(t *testing.T) {
+	cfg := &config.Config{
+		Environment: "test",
+		BaseURL:     "http://localhost:3000",
+		Blog:        config.BlogConfig{Title: "Test Blog", Author: "Jane Doe"},
+		About: config.AboutConfig{
+			Avatar:   "img/avatar.jpg",
+			Tagline:  "Building things",
+			Location: "San Francisco, CA",
+			GitHub:   "janedoe",
+		},
+	}
+	handler, mockTpl := createTestAboutHandler(cfg)
+
+	router := gin.New()
+	router.GET("/about", handler.ShowAbout)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/about", http.NoBody))
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mockTpl.LastData)
+	assert.Equal(t, "img/avatar.jpg", mockTpl.LastData["about_avatar"])
+	assert.Equal(t, "Building things", mockTpl.LastData["about_tagline"])
+	assert.Equal(t, "San Francisco, CA", mockTpl.LastData["about_location"])
+	assert.Equal(t, true, mockTpl.LastData["has_social"])
 }
 
 func TestBuildSocialLinks(t *testing.T) {
 	t.Run("no social links configured", func(t *testing.T) {
-		handler := createTestAboutHandler(nil)
+		handler, _ := createTestAboutHandler(nil)
 		links := handler.buildSocialLinks()
 		assert.Empty(t, links)
 	})
@@ -122,7 +152,7 @@ func TestBuildSocialLinks(t *testing.T) {
 	t.Run("normalizes github username to full URL", func(t *testing.T) {
 		cfg := createTestConfig()
 		cfg.About.GitHub = "testuser"
-		handler := createTestAboutHandler(cfg)
+		handler, _ := createTestAboutHandler(cfg)
 		links := handler.buildSocialLinks()
 
 		assert.Len(t, links, 1)
@@ -133,7 +163,7 @@ func TestBuildSocialLinks(t *testing.T) {
 	t.Run("preserves full URLs", func(t *testing.T) {
 		cfg := createTestConfig()
 		cfg.About.GitHub = "https://github.com/testuser"
-		handler := createTestAboutHandler(cfg)
+		handler, _ := createTestAboutHandler(cfg)
 		links := handler.buildSocialLinks()
 
 		assert.Len(t, links, 1)
@@ -143,7 +173,7 @@ func TestBuildSocialLinks(t *testing.T) {
 	t.Run("normalizes twitter handle", func(t *testing.T) {
 		cfg := createTestConfig()
 		cfg.About.Twitter = "@janedoe"
-		handler := createTestAboutHandler(cfg)
+		handler, _ := createTestAboutHandler(cfg)
 		links := handler.buildSocialLinks()
 
 		assert.Len(t, links, 1)
@@ -157,7 +187,7 @@ func TestBuildSocialLinks(t *testing.T) {
 		cfg.About.LinkedIn = "https://linkedin.com/in/user"
 		cfg.About.Mastodon = "https://mastodon.social/@user"
 		cfg.About.Website = "example.com"
-		handler := createTestAboutHandler(cfg)
+		handler, _ := createTestAboutHandler(cfg)
 		links := handler.buildSocialLinks()
 
 		assert.Len(t, links, 5)
