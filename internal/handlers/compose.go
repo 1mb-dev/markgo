@@ -55,17 +55,22 @@ func NewComposeHandler(
 	}
 }
 
-// validatePageSlug returns a human-readable error message if the slug
+// validatePageInput returns a human-readable error message if the input
 // is not acceptable for a new type:page article, or empty string on
-// success. Combines the strict ValidateSlug contract (charset, length,
-// reserved set) with a uniqueness check against the in-memory article
+// success. Pages need (a) a non-empty title because the canonical URL
+// surface (the /p index, browser tab, social previews) is title-driven,
+// and (b) a slug that satisfies the strict ValidateSlug contract
+// (charset, length, reserved set) and is unique within the article
 // store. The handler renders the message in the error banner.
-func (h *ComposeHandler) validatePageSlug(slug string) string {
-	if err := articlepkg.ValidateSlug(slug); err != nil {
+func (h *ComposeHandler) validatePageInput(input *compose.Input) string {
+	if strings.TrimSpace(input.Title) == "" {
+		return "Title is required for pages"
+	}
+	if err := articlepkg.ValidateSlug(input.Slug); err != nil {
 		return "Slug invalid: " + err.Error()
 	}
-	if existing, err := h.articleService.GetArticleBySlug(slug); err == nil && existing != nil {
-		return "Slug already in use: " + slug
+	if existing, err := h.articleService.GetArticleBySlug(input.Slug); err == nil && existing != nil {
+		return "Slug already in use: " + input.Slug
 	}
 	return ""
 }
@@ -139,6 +144,7 @@ func (h *ComposeHandler) ShowEdit(c *gin.Context) {
 	data["input"] = input
 	data["editing"] = true
 	data["slug"] = slug
+	data["canonicalPath"] = h.canonicalPathForSlug(slug)
 	if input.Type == articlepkg.TypePage {
 		// Surface page-mode so the template can hide article-only fields
 		// (link_url, tags, categories, banner) when editing a page.
@@ -207,6 +213,7 @@ func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 		data["input"] = input
 		data["editing"] = true
 		data["slug"] = slug
+		data["canonicalPath"] = h.canonicalPathForSlug(slug)
 		if input.Type == articlepkg.TypePage {
 			data["mode"] = articlepkg.TypePage
 		}
@@ -226,6 +233,7 @@ func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 		data["input"] = input
 		data["editing"] = true
 		data["slug"] = slug
+		data["canonicalPath"] = h.canonicalPathForSlug(slug)
 		if input.Type == articlepkg.TypePage {
 			data["mode"] = articlepkg.TypePage
 		}
@@ -287,7 +295,7 @@ func (h *ComposeHandler) HandleSubmit(c *gin.Context) {
 	// CreatePost so the operator sees a render with their input intact
 	// rather than a generic 500.
 	if input.Type == articlepkg.TypePage {
-		if errMsg := h.validatePageSlug(input.Slug); errMsg != "" {
+		if errMsg := h.validatePageInput(&input); errMsg != "" {
 			data := h.buildBaseTemplateData("New page - " + h.config.Blog.Title)
 			data["template"] = templateCompose
 			data["mode"] = articlepkg.TypePage

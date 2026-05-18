@@ -85,12 +85,13 @@
             </div>
 
             <div class="compose-field">
-                <label for="title" class="compose-label">Title <span class="compose-hint">{{ if eq .mode "page" }}(required for pages){{ else }}(optional — leave empty for thoughts){{ end }}</span></label>
+                <label for="title" class="compose-label">Title {{ if eq .mode "page" }}<span class="compose-required">*</span>{{ else }}<span class="compose-hint">(optional — leave empty for thoughts)</span>{{ end }}</label>
                 <input
                     type="text"
                     id="title"
                     name="title"
                     class="compose-input"
+                    {{ if eq .mode "page" }}required{{ end }}
                     placeholder="{{ if eq .mode "page" }}Page title{{ else }}Article title{{ end }}"
                     value="{{ if .input }}{{ .input.Title }}{{ end }}"
                 >
@@ -179,7 +180,7 @@
                 <button type="submit" name="draft" value="on" class="compose-submit">Save Draft</button>
                 <button type="submit" name="draft" value="" class="compose-submit-secondary">{{ if .editing }}Update{{ else }}Publish{{ end }}</button>
                 {{ if .editing }}
-                <a href="/writing/{{ .slug }}" class="compose-cancel">Cancel</a>
+                <a href="{{ .canonicalPath }}" class="compose-cancel">Cancel</a>
                 {{ else }}
                 <a href="/" class="compose-cancel">Cancel</a>
                 {{ end }}

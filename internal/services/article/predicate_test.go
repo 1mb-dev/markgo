@@ -83,6 +83,14 @@ func TestValidateSlug(t *testing.T) {
 		{"reserved rss", "rss", true},
 		{"reserved atom", "atom", true},
 		{"reserved-adjacent ok", "feed-2026", false},
+
+		// Leading/trailing hyphens — must reject; the codebase-wide
+		// validSlug gate at compose.go:22 also rejects these, and a
+		// mismatch would let pages be created but not edited.
+		{"leading hyphen", "-mypage", true},
+		{"trailing hyphen", "mypage-", true},
+		{"only hyphen", "-", true},
+		{"only hyphens", "---", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -1706,6 +1706,31 @@ func TestHandleSubmit_PageMode(t *testing.T) {
 		assert.NotContains(t, string(content), "date:", "page frontmatter omits date")
 	})
 
+	t.Run("empty title returns 400", func(t *testing.T) {
+		handler, _ := createFormComposeHandler(t)
+
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set("csrf_secure", false)
+			c.Next()
+		})
+		router.POST("/compose", handler.HandleSubmit)
+
+		form := url.Values{
+			"content": {"Body."},
+			"title":   {""},
+			"type":    {"page"},
+			"slug":    {"my-page"},
+			"_csrf":   {"test-token"},
+		}
+		req := httptest.NewRequest("POST", "/compose", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
 	t.Run("empty slug returns 400", func(t *testing.T) {
 		handler, _ := createFormComposeHandler(t)
 

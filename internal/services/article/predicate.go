@@ -52,10 +52,11 @@ func CanonicalURLFor(a *models.Article) string {
 // safety + URL-readability ceiling.
 const SlugMaxLength = 100
 
-// slugCharClass enforces lowercase ASCII letters, digits, and hyphens.
-// generateSlug() in the compose service already produces this shape, so
-// auto-generated slugs are regex-compatible by construction.
-var slugCharClass = regexp.MustCompile(`^[a-z0-9-]+$`)
+// slugCharClass enforces lowercase ASCII letters, digits, and hyphens
+// with no leading or trailing hyphen. Mirrors the codebase-wide
+// validSlug gate in compose handlers so a slug accepted at create-time
+// is also accepted at edit/publish-draft time.
+var slugCharClass = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
 // reservedSlugs blocks slugs that would confuse readers if served from
 // /p/<slug> by shadowing feed-like names. The set is deliberately minimal:
