@@ -276,7 +276,7 @@ func Load() (*Config, error) {
 			Tagline:      getEnv("BLOG_TAGLINE", ""),
 			Description:  getEnv("BLOG_DESCRIPTION", "Your blog description goes here"),
 			Author:       getEnv("BLOG_AUTHOR", "Your Name"),
-			AuthorEmail:  getEnv("BLOG_AUTHOR_EMAIL", "your.email@example.com"),
+			AuthorEmail:  getEnv("BLOG_AUTHOR_EMAIL", ""),
 			Language:     getEnv("BLOG_LANGUAGE", "en"),
 			Theme:        getEnv("BLOG_THEME", "default"),
 			Style:        getEnv("BLOG_STYLE", "minimal"),

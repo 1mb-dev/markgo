@@ -133,8 +133,8 @@
     {{ end }}
     "author": {
         "@type": "Person",
-        "name": "{{ if .article.Author }}{{ .article.Author }}{{ else }}{{ .config.Blog.Author }}{{ end }}",
-        "email": "{{ .config.Blog.AuthorEmail }}",
+        "name": "{{ if .article.Author }}{{ .article.Author }}{{ else }}{{ .config.Blog.Author }}{{ end }}"{{ if .config.Blog.AuthorEmail }},
+        "email": "{{ .config.Blog.AuthorEmail }}"{{ end }},
         "url": "{{ .config.BaseURL }}"
     },
     "publisher": {

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.15.1] - 2026-05-18
+
+### Fixed
+
+- `BLOG_AUTHOR_EMAIL` default dropped (was `your.email@example.com`). Empty
+  value now hides the email card on `/about` and the `email` field in
+  `/about` + article JSON-LD. Operators with the old placeholder in their
+  `.env` should clear it. (#80)
+
 ## [3.15.0] - 2026-05-18
 
 Theme: **page authoring + reach copy.** Wave-4 of log.1mb.dev feedback
