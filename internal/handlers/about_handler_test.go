@@ -47,6 +47,14 @@ func TestAboutHandler_TemplateData(t *testing.T) {
 				PageIntro:   "Curious about something?",
 				SubmitLabel: "Submit Question",
 			},
+			About: config.AboutConfig{
+				// v3.15.0 reach copy: tests assert pipes-through behavior;
+				// byte-exact defaults are guarded at config-load time
+				// (see internal/config/config_test.go).
+				ReachHeading: "Reach out",
+				EmailHeading: "Email",
+				EmailIntro:   "Or drop a line directly.",
+			},
 		}
 	}
 
@@ -58,24 +66,33 @@ func TestAboutHandler_TemplateData(t *testing.T) {
 		wantHeading        string
 		wantIntro          string
 		wantLabel          string
+		wantReachHeading   string
+		wantEmailHeading   string
+		wantEmailIntro     string
 	}{
 		{
-			name:           "defaults: AMA + mailto",
-			mutate:         func(*config.Config) {},
-			wantHasContact: true,
-			wantHeading:    "Ask me anything",
-			wantIntro:      "Curious about something?",
-			wantLabel:      "Submit Question",
+			name:             "defaults: AMA + mailto",
+			mutate:           func(*config.Config) {},
+			wantHasContact:   true,
+			wantHeading:      "Ask me anything",
+			wantIntro:        "Curious about something?",
+			wantLabel:        "Submit Question",
+			wantReachHeading: "Reach out",
+			wantEmailHeading: "Email",
+			wantEmailIntro:   "Or drop a line directly.",
 		},
 		{
 			name: "no email — AMA still renders solo",
 			mutate: func(c *config.Config) {
 				c.Blog.AuthorEmail = ""
 			},
-			wantHasContact: false,
-			wantHeading:    "Ask me anything",
-			wantIntro:      "Curious about something?",
-			wantLabel:      "Submit Question",
+			wantHasContact:   false,
+			wantHeading:      "Ask me anything",
+			wantIntro:        "Curious about something?",
+			wantLabel:        "Submit Question",
+			wantReachHeading: "Reach out",
+			wantEmailHeading: "Email",
+			wantEmailIntro:   "Or drop a line directly.",
 		},
 		{
 			name: "custom AMA copy reaches template (operator voice)",
@@ -84,10 +101,31 @@ func TestAboutHandler_TemplateData(t *testing.T) {
 				c.AMA.PageIntro = "Got something on your mind?"
 				c.AMA.SubmitLabel = "Send it"
 			},
-			wantHasContact: true,
-			wantHeading:    "Hit me up",
-			wantIntro:      "Got something on your mind?",
-			wantLabel:      "Send it",
+			wantHasContact:   true,
+			wantHeading:      "Hit me up",
+			wantIntro:        "Got something on your mind?",
+			wantLabel:        "Send it",
+			wantReachHeading: "Reach out",
+			wantEmailHeading: "Email",
+			wantEmailIntro:   "Or drop a line directly.",
+		},
+		{
+			// v3.15.0 #78: operator overrides for the reach section's
+			// section heading + email card heading/intro must reach the
+			// template verbatim, alongside the AMA copy.
+			name: "custom reach copy reaches template (operator voice)",
+			mutate: func(c *config.Config) {
+				c.About.ReachHeading = "Get in touch"
+				c.About.EmailHeading = "Mail me"
+				c.About.EmailIntro = "I read everything."
+			},
+			wantHasContact:   true,
+			wantHeading:      "Ask me anything",
+			wantIntro:        "Curious about something?",
+			wantLabel:        "Submit Question",
+			wantReachHeading: "Get in touch",
+			wantEmailHeading: "Mail me",
+			wantEmailIntro:   "I read everything.",
 		},
 		{
 			// Regression guard for the v3.14.0 PR #76 finding: AMA card
@@ -104,6 +142,9 @@ func TestAboutHandler_TemplateData(t *testing.T) {
 			wantHeading:        "Ask me anything",
 			wantIntro:          "Curious about something?",
 			wantLabel:          "Submit Question",
+			wantReachHeading:   "Reach out",
+			wantEmailHeading:   "Email",
+			wantEmailIntro:     "Or drop a line directly.",
 		},
 	}
 
@@ -128,6 +169,9 @@ func TestAboutHandler_TemplateData(t *testing.T) {
 			assert.Equal(t, tt.wantHeading, mockTpl.LastData["about_ama_heading"], "operator voice — AMA heading reaches the template verbatim")
 			assert.Equal(t, tt.wantIntro, mockTpl.LastData["about_ama_intro"])
 			assert.Equal(t, tt.wantLabel, mockTpl.LastData["about_ama_label"])
+			assert.Equal(t, tt.wantReachHeading, mockTpl.LastData["about_reach_heading"], "operator voice — reach section heading reaches the template verbatim")
+			assert.Equal(t, tt.wantEmailHeading, mockTpl.LastData["about_email_heading"])
+			assert.Equal(t, tt.wantEmailIntro, mockTpl.LastData["about_email_intro"])
 		})
 	}
 }

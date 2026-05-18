@@ -141,15 +141,18 @@ type LoggingConfig struct {
 
 // AboutConfig holds about page configuration options.
 type AboutConfig struct {
-	Avatar   string `json:"avatar"`   // path relative to static dir
-	Tagline  string `json:"tagline"`  // one-liner under name
-	Bio      string `json:"bio"`      // markdown text (alt to about.md)
-	Location string `json:"location"` // e.g. "San Francisco, CA"
-	GitHub   string `json:"github"`   // username or full URL
-	Twitter  string `json:"twitter"`  // handle or full URL
-	LinkedIn string `json:"linkedin"` // full URL
-	Mastodon string `json:"mastodon"` // full URL
-	Website  string `json:"website"`  // full URL
+	Avatar       string `json:"avatar"`        // path relative to static dir
+	Tagline      string `json:"tagline"`       // one-liner under name
+	Bio          string `json:"bio"`           // markdown text (alt to about.md)
+	Location     string `json:"location"`      // e.g. "San Francisco, CA"
+	GitHub       string `json:"github"`        // username or full URL
+	Twitter      string `json:"twitter"`       // handle or full URL
+	LinkedIn     string `json:"linkedin"`      // full URL
+	Mastodon     string `json:"mastodon"`      // full URL
+	Website      string `json:"website"`       // full URL
+	ReachHeading string `json:"reach_heading"` // h2 above the reach cards
+	EmailHeading string `json:"email_heading"` // email-card h3
+	EmailIntro   string `json:"email_intro"`   // email-card descriptive text
 }
 
 // UploadConfig holds file upload configuration options.
@@ -281,15 +284,18 @@ func Load() (*Config, error) {
 		},
 
 		About: AboutConfig{
-			Avatar:   getEnv("ABOUT_AVATAR", ""),
-			Tagline:  getEnv("ABOUT_TAGLINE", ""),
-			Bio:      getEnv("ABOUT_BIO", ""),
-			Location: getEnv("ABOUT_LOCATION", ""),
-			GitHub:   getEnv("ABOUT_GITHUB", ""),
-			Twitter:  getEnv("ABOUT_TWITTER", ""),
-			LinkedIn: getEnv("ABOUT_LINKEDIN", ""),
-			Mastodon: getEnv("ABOUT_MASTODON", ""),
-			Website:  getEnv("ABOUT_WEBSITE", ""),
+			Avatar:       getEnv("ABOUT_AVATAR", ""),
+			Tagline:      getEnv("ABOUT_TAGLINE", ""),
+			Bio:          getEnv("ABOUT_BIO", ""),
+			Location:     getEnv("ABOUT_LOCATION", ""),
+			GitHub:       getEnv("ABOUT_GITHUB", ""),
+			Twitter:      getEnv("ABOUT_TWITTER", ""),
+			LinkedIn:     getEnv("ABOUT_LINKEDIN", ""),
+			Mastodon:     getEnv("ABOUT_MASTODON", ""),
+			Website:      getEnv("ABOUT_WEBSITE", ""),
+			ReachHeading: getEnv("ABOUT_REACH_HEADING", "Reach out"),
+			EmailHeading: getEnv("ABOUT_EMAIL_HEADING", "Email"),
+			EmailIntro:   getEnv("ABOUT_EMAIL_INTRO", "Or drop a line directly."),
 		},
 
 		Logging: LoggingConfig{

@@ -86,6 +86,12 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, "What would you like to know?", cfg.AMA.FormPlaceholder)
 	assert.Equal(t, "Submit Question", cfg.AMA.SubmitLabel)
 	assert.Equal(t, "Question submitted! It will appear once answered.", cfg.AMA.ThankyouCopy)
+
+	// Test About reach defaults — must be byte-exact to pre-v3.15.0 hardcoded
+	// template literals so /about renders identically when env unset.
+	assert.Equal(t, "Reach out", cfg.About.ReachHeading)
+	assert.Equal(t, "Email", cfg.About.EmailHeading)
+	assert.Equal(t, "Or drop a line directly.", cfg.About.EmailIntro)
 }
 
 func TestLoadWithEnvironmentVariables(t *testing.T) {
@@ -338,6 +344,7 @@ func clearEnvVars() {
 		"ENVIRONMENT", "PORT", "ARTICLES_PATH", "STATIC_PATH", "TEMPLATES_PATH", "BASE_URL",
 		"SERVER_READ_TIMEOUT", "SERVER_WRITE_TIMEOUT", "SERVER_IDLE_TIMEOUT", "SHUTDOWN_TIMEOUT",
 		"AMA_PAGE_HEADING", "AMA_PAGE_INTRO", "AMA_FORM_PLACEHOLDER", "AMA_SUBMIT_LABEL", "AMA_THANKYOU_COPY",
+		"ABOUT_REACH_HEADING", "ABOUT_EMAIL_HEADING", "ABOUT_EMAIL_INTRO",
 		"CACHE_TTL", "CACHE_MAX_SIZE", "CACHE_CLEANUP_INTERVAL",
 		"EMAIL_HOST", "EMAIL_PORT", "EMAIL_USERNAME", "EMAIL_PASSWORD", "EMAIL_FROM", "EMAIL_TO", "EMAIL_USE_SSL",
 		"RATE_LIMIT_GENERAL_REQUESTS", "RATE_LIMIT_GENERAL_WINDOW", "RATE_LIMIT_CONTACT_REQUESTS", "RATE_LIMIT_CONTACT_WINDOW", "RATE_LIMIT_UPLOAD_REQUESTS", "RATE_LIMIT_UPLOAD_WINDOW",
