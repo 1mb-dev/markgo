@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.15.0] - 2026-05-18
+
+Theme: **page authoring + reach copy.** Wave-4 of log.1mb.dev feedback
+closes the v3.13.0 / v3.14.0 deferred threads. Pages become authorable
+through the compose UI rather than markdown-drop only (#79), and the
+`/about` reach section's section heading + email card copy join the
+existing operator-voiced AMA card via three new `ABOUT_REACH_*` env
+vars (#78). A new exported `article.ValidateSlug` contract keeps
+operator-supplied slugs consistent with the codebase-wide URL gate.
+
+### Added
+
+- **`/compose/new-page` authoring affordance (closes #79).** Separate
+  GET route renders the compose form in page mode via `data-mode="page"`:
+  required slug input, hidden `type=page`, banner/tags/categories/link_url
+  hidden. Header "New page →" link surfaces the route from default
+  `/compose`. Edit of an existing `type:page` article surfaces the same
+  mode (header copy + hidden fields) while keeping the slug immutable.
+  Page-mode `CreatePost` branches on `TypePage`: explicit operator-supplied
+  slug, no `date:` frontmatter, no tags/categories. FAB quick-capture
+  stays thought-scoped — pages need a slug and considered authoring;
+  the full `/compose` surface is correct.
+- **`article.ValidateSlug` — exported strict slug contract.** Used by
+  the compose handler before write. Charset
+  `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`, 100-char cap, reserved set
+  `{index, feed, rss, atom}`. Mirrors the codebase-wide `validSlug`
+  gate at compose handlers so a slug accepted at create-time is also
+  accepted at edit/publish-draft time. Path-traversal guard preserved.
+  `FileSystemRepository.validateSlug` stays permissive for
+  already-stored slugs at admin surfaces — two distinct contracts.
+- **Three env vars for `/about` reach section copy (closes #78).**
+  `ABOUT_REACH_HEADING` (section `<h2>`), `ABOUT_EMAIL_HEADING` (email
+  card `<h3>`), `ABOUT_EMAIL_INTRO` (email card descriptive text).
+  Defaults match the pre-v3.15.0 hardcoded literals byte-for-byte so
+  `/about` renders identically without operator override. Pattern
+  parity with the v3.14.0 `about_ama_*` wiring.
+
+### Changed
+
+- **Compose form Cancel link routes through `.canonicalPath`.**
+  Previously hardcoded `/writing/{{ .slug }}`, which on `type:page`
+  edits triggered the v3.13.0 301 to `/p/<slug>`. Now the handler
+  threads `canonicalPathForSlug` into a `canonicalPath` data field
+  consumed by the template, closing one more straggler in the
+  `CanonicalURLFor` sweep.
+- **Title required server-side for `type:page` submissions.** The
+  template hint previously said "(required for pages)" without
+  enforcement — empty-title page submissions silently created the
+  file and redirected to `/`, stranding the operator. Now
+  `validatePageInput` rejects empty title with a 400 + error banner;
+  the template gains a `required` HTML attribute on title for
+  page mode.
+
+### Fixed
+
+- **Compose hidden `type` field plumbed through `HandleSubmit` +
+  `HandleEdit`.** Setup for the new `/compose/new-page` POST path;
+  harmless for existing `/compose` flows because `UpdateArticle`'s
+  generic-map frontmatter round-trip already preserved unknown keys
+  (locked by `TestUpdateArticle_PreservesAMAFields` and a new
+  `TestHandleEdit_PageRoundTrip` regression).
+
+### Notes
+
+- The originally-planned Phase 1 (claimed "edit-loses-type" bug fix)
+  was dropped at execution after verifying the premise was wrong:
+  `UpdateArticle` already preserves unknown frontmatter via generic-map
+  round-trip; no regression existed to fix. Plumbing absorbed into the
+  page-affordance commit. Fifth consecutive full-ritual release
+  reinforces the value of test-first contract-locking before
+  implementing claimed bug fixes.
+- #80 (`BLOG_AUTHOR_EMAIL` placeholder default — surfaced during
+  `/pb-think`) is deferred to its own change as a config-default
+  behavior shift with separate review scope.
+
 ## [3.14.0] - 2026-05-18
 
 Theme: **dedicated-route polish.** v3.13.0 made dedicated-route content
