@@ -64,8 +64,8 @@
         </section>
         {{ end }}
 
-        <!-- Reach: AMA + mailto in one section, when SMTP form not configured -->
-        {{ if not .has_contact_form }}
+        <!-- Reach: AMA always renders here (matches pre-v3.14.0); mailto
+             card appears alongside when no full SMTP contact form is available. -->
         <section class="about-reach" id="contact">
             <h2 class="about-reach-heading">Reach out</h2>
             <div class="about-reach-affordances">
@@ -74,7 +74,7 @@
                     <p class="about-reach-card-text">{{ .about_ama_intro }}</p>
                     <button type="button" class="about-reach-btn ama-trigger">{{ .about_ama_label }}</button>
                 </div>
-                {{ if .has_contact }}
+                {{ if and .has_contact (not .has_contact_form) }}
                 <div class="about-reach-card">
                     <h3 class="about-reach-card-heading">Email</h3>
                     <p class="about-reach-card-text">Or drop a line directly.</p>
@@ -83,12 +83,11 @@
                 {{ end }}
             </div>
         </section>
-        {{ end }}
 
         <!-- Contact form (SMTP-backed full form, untouched by v3.14.0) -->
         {{ if .has_contact }}
         {{ if .has_contact_form }}
-        <section class="about-contact" id="contact">
+        <section class="about-contact" id="contact-form">
             <h2 class="about-contact-heading">Get in touch</h2>
 
             <form class="contact-form" id="contactForm" novalidate>

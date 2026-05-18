@@ -93,11 +93,12 @@ func (h *AboutHandler) ShowAbout(c *gin.Context) {
 	data["has_contact_form"] = hasContactForm
 
 	// Reach section (v3.14.0+): operator-voiced AMA promo reusing the
-	// v3.11.0 AMA_PAGE_* env vars. AMA half always renders here, matching
-	// pre-v3.14.0 behavior — getEnv treats empty as unset and falls back to
-	// the non-empty default, so there's no operator path to hide it via
-	// .env. Hiding the AMA half requires overriding about.html via
-	// TEMPLATES_PATH.
+	// v3.11.0 AMA_PAGE_* env vars. The AMA card in about.html renders
+	// unconditionally regardless of has_contact_form, matching pre-v3.14.0
+	// behavior where /about always showed an AMA section. The mailto card
+	// inside about-reach is gated on has_contact && !has_contact_form (full
+	// SMTP form supplants the mailto fallback). Hiding the AMA card
+	// requires overriding about.html via TEMPLATES_PATH.
 	data["about_ama_heading"] = cfg.AMA.PageHeading
 	data["about_ama_intro"] = cfg.AMA.PageIntro
 	data["about_ama_label"] = cfg.AMA.SubmitLabel

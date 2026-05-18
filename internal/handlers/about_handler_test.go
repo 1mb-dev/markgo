@@ -27,10 +27,11 @@ func createTestAboutHandler(cfg *config.Config) (*AboutHandler, *MockTemplateSer
 
 // TestAboutHandler_TemplateData verifies the ShowAbout data contract
 // (v3.14.0+ closes #75). The AMA copy keys must reach the template
-// verbatim from the v3.11.0 AMA_PAGE_* env vars (operator voice),
-// and has_contact must gate the reach-section mailto half. The AMA
-// half always renders — matches pre-v3.14.0 behavior; getEnv falls
-// back to non-empty defaults so there's no .env path to hide it.
+// verbatim from the v3.11.0 AMA_PAGE_* env vars (operator voice), and
+// has_contact / has_contact_form together gate the mailto card inside
+// about-reach. The AMA card in the template always renders regardless
+// of has_contact_form — matches pre-v3.14.0 behavior where /about
+// always showed an AMA section.
 func TestAboutHandler_TemplateData(t *testing.T) {
 	baseCfg := func() *config.Config {
 		return &config.Config{
@@ -50,12 +51,13 @@ func TestAboutHandler_TemplateData(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		mutate         func(*config.Config)
-		wantHasContact bool
-		wantHeading    string
-		wantIntro      string
-		wantLabel      string
+		name               string
+		mutate             func(*config.Config)
+		wantHasContact     bool
+		wantHasContactForm bool
+		wantHeading        string
+		wantIntro          string
+		wantLabel          string
 	}{
 		{
 			name:           "defaults: AMA + mailto",
@@ -87,6 +89,22 @@ func TestAboutHandler_TemplateData(t *testing.T) {
 			wantIntro:      "Got something on your mind?",
 			wantLabel:      "Send it",
 		},
+		{
+			// Regression guard for the v3.14.0 PR #76 finding: AMA card
+			// must keep rendering even when SMTP is fully configured.
+			// has_contact_form=true gates the mailto card but the
+			// template (about.html) renders AMA unconditionally.
+			name: "SMTP configured — AMA still rendered, mailto suppressed",
+			mutate: func(c *config.Config) {
+				c.Email.Host = "smtp.example.com"
+				c.Email.Username = "user"
+			},
+			wantHasContact:     true,
+			wantHasContactForm: true,
+			wantHeading:        "Ask me anything",
+			wantIntro:          "Curious about something?",
+			wantLabel:          "Submit Question",
+		},
 	}
 
 	for _, tt := range tests {
@@ -105,7 +123,8 @@ func TestAboutHandler_TemplateData(t *testing.T) {
 			require.Equal(t, http.StatusOK, w.Code)
 			require.NotNil(t, mockTpl.LastData, "ShowAbout must invoke the template renderer")
 
-			assert.Equal(t, tt.wantHasContact, mockTpl.LastData["has_contact"], "has_contact gates the reach-section mailto half")
+			assert.Equal(t, tt.wantHasContact, mockTpl.LastData["has_contact"], "has_contact (BLOG_AUTHOR_EMAIL set) feeds the mailto card visibility")
+			assert.Equal(t, tt.wantHasContactForm, mockTpl.LastData["has_contact_form"], "has_contact_form (SMTP configured) gates the full contact form section")
 			assert.Equal(t, tt.wantHeading, mockTpl.LastData["about_ama_heading"], "operator voice — AMA heading reaches the template verbatim")
 			assert.Equal(t, tt.wantIntro, mockTpl.LastData["about_ama_intro"])
 			assert.Equal(t, tt.wantLabel, mockTpl.LastData["about_ama_label"])

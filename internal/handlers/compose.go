@@ -18,15 +18,6 @@ import (
 	"github.com/1mb-dev/markgo/internal/services/compose"
 )
 
-// canonicalSlugPath returns the canonical path for a freshly composed
-// post. Compose never produces type:page content (pages are explicit-
-// only via frontmatter), so a synthetic article with empty Type maps
-// through CanonicalURLFor to /writing/<slug>. Keeping all emissions
-// behind the helper avoids hardcoded literals.
-func canonicalSlugPath(slug string) string {
-	return articlepkg.CanonicalURLFor(&models.Article{Slug: slug})
-}
-
 // validSlug matches URL-safe slugs: lowercase alphanumeric with hyphens, no leading/trailing hyphens, max 200 chars.
 var validSlug = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,198}[a-z0-9])?$`)
 
@@ -62,6 +53,21 @@ func NewComposeHandler(
 		articleService:   articleService,
 		markdownRenderer: markdownRenderer,
 	}
+}
+
+// canonicalPathForSlug resolves the canonical URL for a composed or
+// edited post by looking up the article in the in-memory store. Existing
+// type:page articles edited via /compose/edit/:slug must redirect to
+// /p/<slug>, not /writing/<slug> (which would hit the v3.13.0 301 and
+// add a needless round-trip). For the rare case where lookup fails
+// (article not yet reloaded into the repo after a failed reload), falls
+// back to a synthetic empty-Type article — /writing/<slug>. The 301
+// redirect catches that fallback if it ever surfaces a type:page slug.
+func (h *ComposeHandler) canonicalPathForSlug(slug string) string {
+	if art, err := h.articleService.GetArticleBySlug(slug); err == nil {
+		return articlepkg.CanonicalURLFor(art)
+	}
+	return articlepkg.CanonicalURLFor(&models.Article{Slug: slug})
 }
 
 // ShowCompose renders the compose form.
@@ -200,7 +206,7 @@ func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 
 	// Redirect to the edited article, or feed if reload failed (stale cache would show old version)
 	if reloadOK {
-		c.Redirect(http.StatusSeeOther, canonicalSlugPath(slug))
+		c.Redirect(http.StatusSeeOther, h.canonicalPathForSlug(slug))
 	} else {
 		c.Redirect(http.StatusSeeOther, "/")
 	}
@@ -259,7 +265,7 @@ func (h *ComposeHandler) HandleSubmit(c *gin.Context) {
 	if !reloadOK || input.Title == "" {
 		c.Redirect(http.StatusSeeOther, "/")
 	} else {
-		c.Redirect(http.StatusSeeOther, canonicalSlugPath(slug))
+		c.Redirect(http.StatusSeeOther, h.canonicalPathForSlug(slug))
 	}
 }
 
@@ -348,7 +354,7 @@ func (h *ComposeHandler) HandleQuickPublish(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"slug":    slug,
-		"url":     canonicalSlugPath(slug),
+		"url":     h.canonicalPathForSlug(slug),
 		"type":    postType,
 		"draft":   input.Draft,
 		"message": message,
@@ -378,7 +384,7 @@ func (h *ComposeHandler) PublishDraft(c *gin.Context) {
 	if !input.Draft {
 		c.JSON(http.StatusOK, gin.H{
 			"slug":    slug,
-			"url":     canonicalSlugPath(slug),
+			"url":     h.canonicalPathForSlug(slug),
 			"message": "Already published",
 		})
 		return
@@ -403,7 +409,7 @@ func (h *ComposeHandler) PublishDraft(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"slug":    slug,
-		"url":     canonicalSlugPath(slug),
+		"url":     h.canonicalPathForSlug(slug),
 		"message": "Published",
 	})
 }
