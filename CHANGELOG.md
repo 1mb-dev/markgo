@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.16.0] - 2026-05-18
+
+Theme: **security headers + demo retire.** First user-driven scoping pass —
+no anchoring issue. Closes two broken windows: the Pages demo had been
+serving 96-day-stale wrong-account content, and the Security middleware
+was shipping deprecated `X-XSS-Protection` while missing CSP / HSTS /
+Permissions-Policy. A consolidated frontend audit doc catalogs deferred
+items for v3.17.0+ cycles.
+
+### Added
+
+- **Content-Security-Policy** (enforcing) with a hardcoded SHA-256 hash
+  for the single inline FOUC-prevention script in `base.html`.
+  Directives: `default-src 'self'; base-uri 'self'; connect-src 'self';
+  font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src
+  'self' data: https:; object-src 'none'; script-src 'self' 'sha256-...';
+  style-src 'self'`. JSON-LD blocks are unaffected (non-JS MIME).
+- **Strict-Transport-Security**: `max-age=31536000; includeSubDomains`.
+  The `preload` directive is intentionally omitted; opt-in deferred to a
+  later cycle after observed stability.
+- **Permissions-Policy**: denies camera, microphone, geolocation, payment,
+  USB, magnetometer, gyroscope, accelerometer, and FLoC (`interest-cohort`).
+- **`CSP_DISABLE` env var** (default `false`): set to `true` when an edge
+  proxy emits its own CSP and you want to avoid double-headers. Other
+  security headers always ship.
+- **Regression tests** lock the FOUC script hash to `base.html` contents
+  and assert exactly one inline JavaScript across templates — a future
+  inline `<script>` addition without a hash entry fails CI before
+  reaching users' browsers.
+- **`Live install` README section** points at https://log.1mb.dev with
+  honest-expectation framing ("may briefly lag during binary-pull cycles").
+- **`docs/audit-2026-05-frontend.md`** indexes 11 deferred frontend
+  findings (innerHTML at compose-sheet, compose accretion, modulepreload,
+  Cmd-K, `<meta>` proliferation, etc.) — each filed as a GitHub issue with
+  the `audit-finding` label for v3.17.0+ scoping.
+
+### Removed
+
+- **`X-XSS-Protection` header.** Deprecated by Chrome (removed in v78),
+  never supported by Firefox, ignored by Safari. The `1; mode=block` value
+  is meaningless on modern browsers and can introduce vulnerabilities on
+  legacy ones. No migration impact.
+
+### Operator actions (manual, post-merge)
+
+- Disable the unused GitHub Pages deploy via repo settings or
+  `gh api repos/1mb-dev/markgo/pages --method DELETE` — the current
+  Pages serve is months-stale content from a pre-migration repo state.
+- Update the repo `homepage` field to `https://log.1mb.dev` so the
+  sidebar link survives the Pages disable.
+- File 11 audit-finding issues from `docs/audit-2026-05-frontend.md` and
+  backfill the `Issue` column with the resulting issue numbers.
+
 ## [3.15.1] - 2026-05-18
 
 ### Fixed

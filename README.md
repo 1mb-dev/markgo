@@ -21,6 +21,10 @@ make build
 
 Or download a release from [GitHub Releases](https://github.com/1mb-dev/markgo/releases).
 
+## Live Install
+
+[log.1mb.dev](https://log.1mb.dev) — running latest release (may briefly lag during binary-pull cycles).
+
 ## What You Get
 
 **Write from anywhere** — CLI for drafting in your editor, web compose form for publishing from your phone. Quick capture: tap the FAB, type a thought, hit Publish. Under 5 seconds.

@@ -250,7 +250,7 @@ func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *service
 		middleware.Performance(logger),
 		middleware.SmartCacheHeaders(),
 		middleware.CORS(cfg.CORS.AllowedOrigins, cfg.Environment == envDevelopment),
-		middleware.Security(),
+		middleware.Security(cfg),
 		middleware.RateLimit(cfg.RateLimit.General.Requests, cfg.RateLimit.General.Window),
 		middleware.ErrorHandler(logger),
 		middleware.DiscardBodyOnHEAD(),
