@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.17.0] - 2026-05-18
+
+Theme: **dark-mode contrast verification + SW cache auto-bump.** A WCAG
+AA sweep across 5 color presets × 2 modes (light/dark) found 4 link-color
+contexts failing the 4.5:1 ratio; all lifted to passing. Service-worker
+cache version is now auto-injected from the build version at startup —
+operators no longer need to remember to bump it on each release.
+
+### Added
+
+- **WCAG AA verification across all theme contexts.** `--color-primary`
+  lifted in 4 contexts: ocean light (3.68 → 5.36), forest light
+  (3.77 → 5.48), sunset light (3.56 → 5.18), default dark (3.45 → 7.02).
+  The default-dark fix lives in `themes/minimal.css` — the lift was
+  declared in main.css's dark block but `var(--theme-primary, #60a5fa)`
+  never triggered because minimal.css set `--theme-primary` on `:root`
+  unconditionally.
+- **Auto-injected SW `CACHE_VERSION`.** Embedded `sw.js` ships a
+  placeholder substituted at server startup from the running build
+  version (`strings.TrimPrefix(constants.AppVersion, "v")`, `"dev"`
+  fallback for unstamped builds). Operator-supplied
+  `<STATIC_PATH>/sw.js` serves raw — operator owns their cache version
+  and bypasses the auto-bump. Documented in `docs/configuration.md`.
+
+### Removed
+
+- **`web/static/css/articles.css`** — 5-line header-comment-only file;
+  layout came from `components.css` all along.
+- **`msapplication-navbutton-color`** meta tag — IE/Edge legacy, MDN
+  deprecated, no modern browser honors it.
+
+### Changed
+
+- **`prependCard` in `compose-sheet.js`** now constructs DOM via
+  `createElement` + `textContent` instead of `innerHTML` string
+  concatenation. Behavior unchanged; the prior code escaped via a
+  helper. Hygiene swap for grep-ability, not a security fix.
+
 ## [3.16.0] - 2026-05-18
 
 Theme: **security headers + demo retire.** First user-driven scoping pass —
