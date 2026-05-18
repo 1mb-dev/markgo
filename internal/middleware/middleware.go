@@ -16,16 +16,64 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/1mb-dev/markgo/internal/config"
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
 )
 
-// Security adds basic security headers
-func Security() gin.HandlerFunc {
+// foucScriptHash is the SHA-256 (base64) of the inline FOUC-prevention script in
+// web/templates/base.html. Required by the CSP script-src directive because the
+// script reads localStorage before stylesheets load — it cannot move to an
+// external file without reintroducing the flash. The hash is locked by
+// TestSecurity_FOUCScriptHashMatches; editing the inline script without
+// updating this constant fails the test before reaching users' browsers.
+const foucScriptHash = "sha256-0pz7XU3iscvI1rWHhJ8OyLJ4xXNoivNIt1N5xpF6GUg="
+
+// cspPolicy is the Content-Security-Policy emitted by Security(). Keep
+// directives alphabetically ordered to make diffs reviewable.
+//
+// connect-src 'self' covers same-origin fetches: search, compose, AMA submit,
+// offline-queue replay on reconnect, contact form, login. Adding analytics or
+// a third-party error reporter requires extending this directive.
+//
+// img-src includes https: because article banner fields accept absolute URLs
+// to externally-hosted images (operator's choice, see compose banner-path
+// forms). data: covers favicons and inline preview thumbnails.
+var cspPolicy = strings.Join([]string{
+	"default-src 'self'",
+	"base-uri 'self'",
+	"connect-src 'self'",
+	"font-src 'self'",
+	"form-action 'self'",
+	"frame-ancestors 'none'",
+	"img-src 'self' data: https:",
+	"object-src 'none'",
+	"script-src 'self' '" + foucScriptHash + "'",
+	"style-src 'self'",
+}, "; ")
+
+// permissionsPolicy denies access to powerful features the app does not use,
+// including FLoC opt-out (interest-cohort).
+const permissionsPolicy = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), interest-cohort=()"
+
+// hstsValue ships without preload — preload-list registration is irreversible
+// without months of pain. Opt-in via v3.17+ after one cycle of observed stability.
+const hstsValue = "max-age=31536000; includeSubDomains"
+
+// Security adds security headers: X-Content-Type-Options, X-Frame-Options,
+// Referrer-Policy, Strict-Transport-Security, Content-Security-Policy,
+// Permissions-Policy. CSP can be disabled via the CSP_DISABLE env var for
+// operators whose edge proxy emits its own policy.
+func Security(cfg *config.Config) gin.HandlerFunc {
+	cspEnabled := cfg == nil || !cfg.Security.CSPDisable
 	return func(c *gin.Context) {
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-Frame-Options", "DENY")
-		c.Header("X-XSS-Protection", "1; mode=block")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Header("Strict-Transport-Security", hstsValue)
+		c.Header("Permissions-Policy", permissionsPolicy)
+		if cspEnabled {
+			c.Header("Content-Security-Policy", cspPolicy)
+		}
 		c.Next()
 	}
 }

@@ -1,11 +1,15 @@
 package middleware
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +17,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/1mb-dev/markgo/internal/config"
+	"github.com/1mb-dev/markgo/web"
 )
 
 func init() {
@@ -248,7 +255,7 @@ func TestRateLimit(t *testing.T) {
 // TestSecurity tests the security headers middleware
 func TestSecurity(t *testing.T) {
 	router := setupTestRouter()
-	router.Use(Security())
+	router.Use(Security(&config.Config{}))
 	router.GET("/test", func(c *gin.Context) {
 		c.String(200, "ok")
 	})
@@ -261,8 +268,83 @@ func TestSecurity(t *testing.T) {
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
 	assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
-	assert.Equal(t, "1; mode=block", w.Header().Get("X-XSS-Protection"))
 	assert.Equal(t, "strict-origin-when-cross-origin", w.Header().Get("Referrer-Policy"))
+	assert.Equal(t, "max-age=31536000; includeSubDomains", w.Header().Get("Strict-Transport-Security"))
+	assert.Contains(t, w.Header().Get("Content-Security-Policy"), "default-src 'self'")
+	assert.Contains(t, w.Header().Get("Content-Security-Policy"), "'sha256-0pz7XU3iscvI1rWHhJ8OyLJ4xXNoivNIt1N5xpF6GUg='")
+	assert.Contains(t, w.Header().Get("Permissions-Policy"), "interest-cohort=()")
+	assert.Empty(t, w.Header().Get("X-XSS-Protection"), "X-XSS-Protection is deprecated and must not be emitted")
+}
+
+// TestSecurity_FOUCScriptHashMatches locks the CSP script-src hash to the
+// actual contents of the inline <script> in base.html. Editing the inline
+// script without updating foucScriptHash in middleware.go fails this test
+// before reaching users' browsers (where CSP would silently block the script).
+func TestSecurity_FOUCScriptHashMatches(t *testing.T) {
+	data, err := web.Assets.ReadFile("templates/base.html")
+	require.NoError(t, err)
+
+	re := regexp.MustCompile(`(?s)<script>(.*?)</script>`)
+	match := re.FindSubmatch(data)
+	require.NotNil(t, match, "expected exactly one inline <script> in base.html")
+
+	sum := sha256.Sum256(match[1])
+	expected := "sha256-" + base64.StdEncoding.EncodeToString(sum[:])
+	assert.Equal(t, expected, foucScriptHash,
+		"FOUC script content changed; update foucScriptHash in middleware.go to %s", expected)
+}
+
+// TestSecurity_ExactlyOneInlineJavaScript asserts only the FOUC script is
+// inlined as executable JavaScript. JSON-LD blocks (type="application/ld+json")
+// are excluded — browsers treat non-JS MIME types as data, not script, so CSP
+// script-src does not gate them.
+//
+// Hash-based CSP fails open on template diff: any new inline executable
+// <script> would be silently blocked in browsers. This test catches the drift
+// before merge.
+func TestSecurity_ExactlyOneInlineJavaScript(t *testing.T) {
+	scriptOpen := regexp.MustCompile(`<script[^>]*>[^<]`) // inline content (excludes <script src="..."></script>)
+	jsonLD := regexp.MustCompile(`<script[^>]*type="application/ld\+json"[^>]*>`)
+	count := 0
+	err := fs.WalkDir(web.Assets, "templates", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".html") {
+			return nil
+		}
+		data, err := web.Assets.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		inlineJS := len(scriptOpen.FindAll(data, -1)) - len(jsonLD.FindAll(data, -1))
+		if inlineJS > 0 {
+			t.Logf("inline JS in %s: %d", path, inlineJS)
+		}
+		count += inlineJS
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, count,
+		"expected exactly one inline JavaScript across templates (the FOUC script in base.html); "+
+			"any new inline executable script needs a CSP hash entry — see foucScriptHash in middleware.go")
+}
+
+// TestSecurity_CSPDisableSkipsCSPHeader verifies CSP_DISABLE=true skips the CSP
+// header without affecting the other security headers.
+func TestSecurity_CSPDisableSkipsCSPHeader(t *testing.T) {
+	router := setupTestRouter()
+	router.Use(Security(&config.Config{Security: config.SecurityConfig{CSPDisable: true}}))
+	router.GET("/test", func(c *gin.Context) { c.String(200, "ok") })
+
+	req := httptest.NewRequest("GET", "/test", http.NoBody)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Empty(t, w.Header().Get("Content-Security-Policy"))
+	assert.Equal(t, "max-age=31536000; includeSubDomains", w.Header().Get("Strict-Transport-Security"))
+	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+	assert.Contains(t, w.Header().Get("Permissions-Policy"), "interest-cohort=()")
 }
 
 // TestLogger tests the logger middleware

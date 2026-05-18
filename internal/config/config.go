@@ -46,6 +46,15 @@ type Config struct {
 	SEO           SEOConfig       `json:"seo"`
 	Upload        UploadConfig    `json:"upload"`
 	AMA           AMAConfig       `json:"ama"`
+	Security      SecurityConfig  `json:"security"`
+}
+
+// SecurityConfig holds security-header configuration. Most security headers
+// always ship (X-Content-Type-Options, X-Frame-Options, Referrer-Policy,
+// HSTS, Permissions-Policy); only Content-Security-Policy is operator-toggleable
+// because edge proxies (Caddy, nginx) often emit their own policy.
+type SecurityConfig struct {
+	CSPDisable bool `json:"csp_disable"` // CSP_DISABLE=true skips the Content-Security-Policy header (use when edge proxy emits its own)
 }
 
 // AMAConfig holds operator-controlled copy for the AMA (Ask Me Anything) submission
@@ -339,6 +348,10 @@ func Load() (*Config, error) {
 			FormPlaceholder: getEnv("AMA_FORM_PLACEHOLDER", "What would you like to know?"),
 			SubmitLabel:     getEnv("AMA_SUBMIT_LABEL", "Submit Question"),
 			ThankyouCopy:    getEnv("AMA_THANKYOU_COPY", "Question submitted! It will appear once answered."),
+		},
+
+		Security: SecurityConfig{
+			CSPDisable: getEnvBool("CSP_DISABLE", false),
 		},
 	}
 

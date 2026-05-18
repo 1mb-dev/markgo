@@ -238,6 +238,29 @@ Operator-controllable copy on the AMA (Ask Me Anything) submission overlay. All 
 | `AMA_SUBMIT_LABEL` | `Submit Question` | Label on the submit button on both the AMA sheet and the `/about` reach section (v3.14.0+). |
 | `AMA_THANKYOU_COPY` | `Question submitted! It will appear once answered.` | Toast shown after a successful submission. |
 
+## Security Headers (v3.16.0+)
+
+markgo emits a fixed set of security headers on every response:
+
+| Header | Value | Notes |
+|--------|-------|-------|
+| `X-Content-Type-Options` | `nosniff` | Disables MIME sniffing. |
+| `X-Frame-Options` | `DENY` | Disallows embedding in frames. |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Sends origin-only on cross-origin requests. |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | One-year HSTS. The `preload` directive is intentionally omitted; preload-list registration is irreversible and only safe after observed stability. |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), interest-cohort=()` | Denies powerful features the app does not use, including FLoC opt-out. |
+| `Content-Security-Policy` | See below | Enforced by default; disable via `CSP_DISABLE=true` when an edge proxy emits its own. |
+
+**CSP value:** `default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: https:; object-src 'none'; script-src 'self' 'sha256-...'; style-src 'self'`. The `script-src` hash covers the single inline FOUC-prevention script in `base.html`; any new inline executable script needs a hash entry (regression test enforces this).
+
+`img-src` includes `https:` so article banner fields accept absolute URLs to externally-hosted images. JSON-LD blocks (`<script type="application/ld+json">`) are unaffected — browsers treat non-JS MIME types as data.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CSP_DISABLE` | `false` | Set to `true` to skip the `Content-Security-Policy` header (other security headers always ship). Useful when an edge proxy (Caddy, nginx, Cloudflare) emits its own policy. |
+
+X-XSS-Protection is intentionally **not** emitted — it is deprecated, Chrome removed support in v78, and the `1; mode=block` value can introduce vulnerabilities on legacy browsers.
+
 ## Logging
 
 | Variable | Default | Description |
