@@ -363,7 +363,7 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 	if dirExists(cfg.StaticPath) {
 		swLocalFS = http.Dir(cfg.StaticPath)
 	}
-	registerGET(router, "/sw.js", serveSwJs(swLocalFS, swBody, swModTime))
+	registerGET(router, "/sw.js", serveSwJs(swLocalFS, swBody, swModTime, logger))
 	// Uploaded assets — filesystem only, never embedded
 	if cfg.Upload.Path != "" {
 		if err := os.MkdirAll(cfg.Upload.Path, 0o755); err != nil { //nolint:gosec // upload dir needs to be accessible

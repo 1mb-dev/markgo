@@ -2,17 +2,53 @@ package serve
 
 import (
 	"bytes"
+	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
+
+// captureHandler is a slog.Handler that records each entry's level + message
+// for assertions. Race-safe so it works under t.Parallel and httptest.
+type captureHandler struct {
+	mu      sync.Mutex
+	records []slog.Record
+}
+
+func (h *captureHandler) Enabled(_ context.Context, _ slog.Level) bool { return true }
+
+// Handle takes slog.Record by value per the slog.Handler interface contract;
+// the heavyParam lint warning here is a false positive for an interface impl.
+func (h *captureHandler) Handle(_ context.Context, r slog.Record) error { //nolint:gocritic // slog.Handler interface
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.records = append(h.records, r)
+	return nil
+}
+func (h *captureHandler) WithAttrs(_ []slog.Attr) slog.Handler { return h }
+func (h *captureHandler) WithGroup(_ string) slog.Handler      { return h }
+
+func (h *captureHandler) warnings() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	out := make([]string, 0, len(h.records))
+	for i := range h.records {
+		if h.records[i].Level == slog.LevelWarn {
+			out = append(out, h.records[i].Message)
+		}
+	}
+	return out
+}
 
 // TestSwCacheVersion: the three cases that determine cache-name shape —
 // stamped build, "dev" (or empty) build, and leading-v strip.
@@ -88,7 +124,7 @@ func TestServeSwJs_EmbeddedSubstitutesVersion(t *testing.T) {
 	substituted := []byte("const CACHE_VERSION = '3.17.0';")
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.GET("/sw.js", serveSwJs(nil, substituted, time.Now()))
+	r.GET("/sw.js", serveSwJs(nil, substituted, time.Now(), discardLogger()))
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
@@ -119,7 +155,7 @@ func TestServeSwJs_DevFallbackInCacheNames(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.GET("/sw.js", serveSwJs(nil, body, modTime))
+	r.GET("/sw.js", serveSwJs(nil, body, modTime, discardLogger()))
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
@@ -134,6 +170,42 @@ func TestServeSwJs_DevFallbackInCacheNames(t *testing.T) {
 	}
 }
 
+// TestServeSwJs_OverlayDirectoryEmitsWarning: operator misconfig (directory
+// at <STATIC_PATH>/sw.js) falls back to embedded AND emits slog.Warn so
+// the regression isn't silent — mirroring overlayFS.Open's contract at
+// lines 41-46 and the brand-logo template-overlay pattern.
+func TestServeSwJs_OverlayDirectoryEmitsWarning(t *testing.T) {
+	localDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(localDir, "sw.js"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	capture := &captureHandler{}
+	logger := slog.New(capture)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.GET("/sw.js", serveSwJs(http.Dir(localDir), []byte("FALLBACK"), time.Now(), logger))
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/sw.js")
+	if err != nil {
+		t.Fatalf("GET /sw.js: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Errorf("status %d, want 200 (falls back to embedded)", resp.StatusCode)
+	}
+
+	warns := capture.warnings()
+	if len(warns) == 0 {
+		t.Fatal("expected slog.Warn on directory overlay; got 0 warnings")
+	}
+	if !strings.Contains(warns[0], "directory") {
+		t.Errorf("warning %q should mention directory", warns[0])
+	}
+}
+
 // TestServeSwJs_OverlayBypassesSubstitution: when an operator drops
 // <STATIC_PATH>/sw.js, raw bytes serve verbatim — no substitution
 // attempted on operator-owned content. Operator owns their cache version.
@@ -145,7 +217,7 @@ func TestServeSwJs_OverlayBypassesSubstitution(t *testing.T) {
 	substituted := []byte("EMBEDDED-WITH-SUBSTITUTION-MUST-NOT-LEAK")
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.GET("/sw.js", serveSwJs(http.Dir(localDir), substituted, time.Now()))
+	r.GET("/sw.js", serveSwJs(http.Dir(localDir), substituted, time.Now(), discardLogger()))
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 

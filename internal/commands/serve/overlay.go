@@ -57,20 +57,33 @@ func (o *overlayFS) Open(name string) (http.File, error) {
 // owns their cache version). This is intentional; documented in
 // docs/configuration.md.
 //
-// Explicit directory rejection on the local path mirrors the prior shape:
-// c.FileFromFS routes through http.FileServer which redirects on
-// directories, and gin's RedirectTrailingSlash would loop that back. The
-// /static/* mount avoids this because gin's createStaticHandler has an
-// explicit *OnlyFilesFS type-check; the /sw.js route bypasses that path.
-func serveSwJs(localFS http.FileSystem, substitutedBody []byte, modTime time.Time) func(c *gin.Context) {
+// Failure-mode mirror with overlayFS.Open: ENOENT is silent (operator chose
+// not to override), but non-ENOENT errors and operator misconfig (e.g. a
+// directory at the overlay path) emit slog.Warn before fall-through so the
+// regression isn't silent. The IsDir guard also avoids the directory
+// redirect loop that c.FileFromFS / http.FileServer would trigger via
+// gin's RedirectTrailingSlash.
+func serveSwJs(localFS http.FileSystem, substitutedBody []byte, modTime time.Time, logger *slog.Logger) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		if localFS != nil {
-			if f, err := localFS.Open("sw.js"); err == nil {
+			f, err := localFS.Open("sw.js")
+			switch {
+			case err == nil:
 				defer f.Close()
-				if stat, sErr := f.Stat(); sErr == nil && !stat.IsDir() {
+				stat, sErr := f.Stat()
+				switch {
+				case sErr != nil:
+					logger.Warn("sw.js overlay stat failed; falling back to embedded", "error", sErr)
+				case stat.IsDir():
+					logger.Warn("sw.js overlay path is a directory; falling back to embedded")
+				default:
 					http.ServeContent(c.Writer, c.Request, "sw.js", stat.ModTime(), f)
 					return
 				}
+			case errors.Is(err, fs.ErrNotExist):
+				// Operator chose not to override — silent fall-through.
+			default:
+				logger.Warn("sw.js overlay open failed; falling back to embedded", "error", err)
 			}
 		}
 		http.ServeContent(c.Writer, c.Request, "sw.js", modTime, bytes.NewReader(substitutedBody))

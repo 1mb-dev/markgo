@@ -128,7 +128,7 @@ func TestStaticMount_OverlayIntegration(t *testing.T) {
 	r.StaticFS("/static", &gin.OnlyFilesFS{FileSystem: overlay})
 	// New signature: localFS for raw-passthrough, substituted body fallback.
 	// Test substituted body uses literal "EMBEDDED-SW" so existing assertions hold.
-	swHandler := serveSwJs(http.Dir(localDir), []byte("EMBEDDED-SW"), time.Now())
+	swHandler := serveSwJs(http.Dir(localDir), []byte("EMBEDDED-SW"), time.Now(), discardLogger())
 	r.GET("/sw.js", swHandler)
 	r.HEAD("/sw.js", swHandler)
 
@@ -249,7 +249,7 @@ func TestStaticMount_SwJsDirectoryFallsBackToEmbedded(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.GET("/sw.js", serveSwJs(http.Dir(localDir), []byte("EMBEDDED-FALLBACK"), time.Now()))
+	r.GET("/sw.js", serveSwJs(http.Dir(localDir), []byte("EMBEDDED-FALLBACK"), time.Now(), discardLogger()))
 
 	srv := httptest.NewServer(r)
 	defer srv.Close()
