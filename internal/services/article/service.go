@@ -19,6 +19,7 @@ import (
 type Service interface {
 	// Repository operations
 	GetAllArticles() []*models.Article
+	GetPages() []*models.Article
 	GetArticleBySlug(slug string) (*models.Article, error)
 	GetArticlesByTag(tag string) []*models.Article
 	GetArticlesByCategory(category string) []*models.Article
@@ -143,6 +144,12 @@ func (s *CompositeService) Stop() error {
 // GetAllArticles returns all articles
 func (s *CompositeService) GetAllArticles() []*models.Article {
 	return s.repository.GetPublished()
+}
+
+// GetPages returns published type:page articles. See Repository.GetPages for
+// the contract — natural insertion order, type-filtered, draft-excluded.
+func (s *CompositeService) GetPages() []*models.Article {
+	return s.repository.GetPages()
 }
 
 // GetArticleBySlug retrieves an article by slug

@@ -69,6 +69,11 @@ func (a *ServiceAdapter) GetAllArticles() []*models.Article {
 	return a.service.GetAllArticles()
 }
 
+// GetPages retrieves all published type:page articles.
+func (a *ServiceAdapter) GetPages() []*models.Article {
+	return a.service.GetPages()
+}
+
 // GetArticleBySlug retrieves an article by slug.
 func (a *ServiceAdapter) GetArticleBySlug(slug string) (*models.Article, error) {
 	return a.service.GetArticleBySlug(slug)

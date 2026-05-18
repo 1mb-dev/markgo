@@ -64,17 +64,30 @@
         </section>
         {{ end }}
 
-        <!-- AMA -->
-        <section class="about-ama">
-            <h2 class="about-ama-heading">Ask Me Anything</h2>
-            <p class="about-ama-text">Curious about something? Submit a question and I'll answer it publicly.</p>
-            <button type="button" class="about-ama-btn ama-trigger">Ask a Question</button>
+        <!-- Reach: AMA always renders here (matches pre-v3.14.0); mailto
+             card appears alongside when no full SMTP contact form is available. -->
+        <section class="about-reach" id="contact">
+            <h2 class="about-reach-heading">Reach out</h2>
+            <div class="about-reach-affordances">
+                <div class="about-reach-card">
+                    <h3 class="about-reach-card-heading">{{ .about_ama_heading }}</h3>
+                    <p class="about-reach-card-text">{{ .about_ama_intro }}</p>
+                    <button type="button" class="about-reach-btn ama-trigger">{{ .about_ama_label }}</button>
+                </div>
+                {{ if and .has_contact (not .has_contact_form) }}
+                <div class="about-reach-card">
+                    <h3 class="about-reach-card-heading">Email</h3>
+                    <p class="about-reach-card-text">Or drop a line directly.</p>
+                    <a href="mailto:{{ .config.Blog.AuthorEmail }}" class="about-reach-link">{{ .config.Blog.AuthorEmail }}</a>
+                </div>
+                {{ end }}
+            </div>
         </section>
 
-        <!-- Contact -->
+        <!-- Contact form (SMTP-backed full form, untouched by v3.14.0) -->
         {{ if .has_contact }}
-        <section class="about-contact" id="contact">
-            {{ if .has_contact_form }}
+        {{ if .has_contact_form }}
+        <section class="about-contact" id="contact-form">
             <h2 class="about-contact-heading">Get in touch</h2>
 
             <form class="contact-form" id="contactForm" novalidate>
@@ -134,14 +147,8 @@
                 <button type="submit" class="contact-submit">Send</button>
                 <p class="form-note">Your information will never be shared.</p>
             </form>
-            {{ else }}
-            <address class="about-email">
-                <a href="mailto:{{ .config.Blog.AuthorEmail }}" class="about-email-link">
-                    Say hello &rarr; {{ .config.Blog.AuthorEmail }}
-                </a>
-            </address>
-            {{ end }}
         </section>
+        {{ end }}
         {{ end }}
     </div>
 </div>

@@ -1,0 +1,36 @@
+{{ define "pages-content" }}
+<div class="pages-index">
+    <div class="container">
+        <header class="page-header">
+            <h1 class="page-title">Pages</h1>
+            <p class="page-subtitle">Evergreen content from {{ .config.Blog.Title }}.</p>
+        </header>
+
+        {{ if eq .pageCount 0 }}
+        <div class="empty-state">
+            <h2>No pages yet</h2>
+            <p>Evergreen pages (set <code>type: page</code> in frontmatter) will appear here.</p>
+        </div>
+        {{ else }}
+        <ul class="pages-list">
+            {{ range .pages }}
+            <li class="pages-list-item">
+                <a href="/p/{{ .Slug }}" class="pages-list-link">
+                    <span class="pages-list-title">{{ .Title }}</span>
+                    {{ if .Description }}
+                    <span class="pages-list-excerpt">{{ .Description }}</span>
+                    {{ end }}
+                </a>
+            </li>
+            {{ end }}
+        </ul>
+        {{ end }}
+    </div>
+</div>
+{{ end }}
+
+{{ define "pages-head" }}
+{{ if not .config.SEO.Enabled }}
+<meta name="description" content="Evergreen pages from {{ .config.Blog.Title }}.">
+{{ end }}
+{{ end }}

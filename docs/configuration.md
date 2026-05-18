@@ -144,7 +144,7 @@ The slug determines the URL: `/p/run-your-own` in this example. Pages support th
 
 - **URL:** `/p/<slug>` is canonical. Legacy `/writing/<slug>` requests for `type: page` articles 301-redirect to `/p/<slug>`.
 - **Feed exclusion:** pages do not appear in `/writing`, RSS (`/feed.xml`), JSON Feed (`/feed.json`), `/tags/<tag>`, or `/categories/<cat>`.
-- **Sitemap:** pages are not currently emitted in the sitemap article section. Search engines discover pages via canonical links from articles or via direct URL.
+- **Sitemap:** pages are emitted in `sitemap.xml` with their canonical `/p/<slug>` URLs, alongside a static `/p` index entry. `/about` is also included via the same predicate-aware logic (v3.14.0+).
 - **Search:** pages remain indexed; readers can find them via `/search?q=...` and follow the result to `/p/<slug>`.
 - **Date and "Updated" line:** hidden in the rendered page. Pages are evergreen, not dated.
 - **Tags:** rendered on the page itself but do not surface the page in tag indexes.
@@ -160,10 +160,8 @@ Change `type: article` → `type: page` in the frontmatter and save. The article
 
 ### Future enhancements
 
-- Auto-populated nav slot listing pages (v3.14.0+)
-- `/p` index page (v3.14.0+; currently returns 404)
-- `nav_priority` ordering frontmatter (v3.14.0+)
-- Compose form "new page" affordance (v3.14.0+; for now, author pages by dropping markdown into `articles/` or editing an existing page via `/compose/edit/<slug>`)
+- `nav_priority` ordering frontmatter (v3.14.0+ deferred; for now pages are listed alphabetically on `/p`)
+- Compose form "new page" affordance (v3.14.0+ deferred; for now, author pages by dropping markdown into `articles/` or editing an existing page via `/compose/edit/<slug>`)
 
 ## Admin
 
@@ -234,10 +232,10 @@ Operator-controllable copy on the AMA (Ask Me Anything) submission overlay. All 
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AMA_PAGE_HEADING` | `Ask me anything` | Heading shown at the top of the AMA sheet. |
-| `AMA_PAGE_INTRO` | `Curious about something? Submit a question and I'll answer it publicly.` | Intro paragraph rendered between the heading and the form. |
+| `AMA_PAGE_HEADING` | `Ask me anything` | Heading shown at the top of the AMA sheet AND in the `/about` reach section (v3.14.0+). Setting this empty in `.env` falls back to the default — hiding the AMA half requires overriding `about.html` via `TEMPLATES_PATH`. |
+| `AMA_PAGE_INTRO` | `Curious about something? Submit a question and I'll answer it publicly.` | Intro paragraph rendered between the heading and the form on both the AMA sheet and the `/about` reach section (v3.14.0+). |
 | `AMA_FORM_PLACEHOLDER` | `What would you like to know?` | Placeholder for the question textarea. |
-| `AMA_SUBMIT_LABEL` | `Submit Question` | Label on the submit button. |
+| `AMA_SUBMIT_LABEL` | `Submit Question` | Label on the submit button on both the AMA sheet and the `/about` reach section (v3.14.0+). |
 | `AMA_THANKYOU_COPY` | `Question submitted! It will appear once answered.` | Toast shown after a successful submission. |
 
 ## Logging

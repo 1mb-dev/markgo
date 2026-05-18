@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -25,6 +26,28 @@ func NewPostHandler(base *BaseHandler, articleService services.ArticleServiceInt
 		BaseHandler:    base,
 		articleService: articleService,
 	}
+}
+
+// Pages renders the /p index, listing all published type:page articles
+// alphabetically by title. The sort is a presentation concern — the
+// repository returns natural insertion order; ordering for reader
+// browsing lives here.
+func (h *PostHandler) Pages(c *gin.Context) {
+	pages := h.articleService.GetPages()
+
+	sort.SliceStable(pages, func(i, j int) bool {
+		return strings.ToLower(pages[i].Title) < strings.ToLower(pages[j].Title)
+	})
+
+	data := h.buildBaseTemplateData("Pages - " + h.config.Blog.Title)
+	data["description"] = "Evergreen content from " + h.config.Blog.Title
+	data["pages"] = pages
+	data["pageCount"] = len(pages)
+	data["template"] = "pages"
+	data["canonicalPath"] = "/p"
+
+	h.enhanceTemplateDataWithSEO(data, c.Request.URL.Path)
+	h.renderHTML(c, http.StatusOK, "base.html", data)
 }
 
 // Articles handles the articles listing page.
@@ -129,7 +152,7 @@ func (h *PostHandler) getArticleData(slug string) (map[string]any, error) {
 	data["article"] = art
 	data["description"] = art.Description
 	data["template"] = templateArticle
-	data["canonicalPath"] = "/writing/" + art.Slug
+	data["canonicalPath"] = article.CanonicalURLFor(art)
 	data["breadcrumbs"] = []services.Breadcrumb{
 		{Name: "Home", URL: "/"},
 		{Name: "Writing", URL: "/writing"},
@@ -179,7 +202,7 @@ func (h *PostHandler) getArticlesPage(page int) (map[string]any, error) {
 				"position":      i + 1,
 				"headline":      a.DisplayTitle(),
 				"description":   a.Excerpt,
-				"url":           baseURL + "/writing/" + a.Slug,
+				"url":           baseURL + article.CanonicalURLFor(a),
 				"datePublished": a.Date.Format("2006-01-02T15:04:05Z07:00"),
 				"author": map[string]any{
 					"@type": "Person",

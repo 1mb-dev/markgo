@@ -30,6 +30,7 @@ func (m *MockArticleService) GetArticleBySlug(slug string) (*models.Article, err
 }
 
 // Implement other required methods as no-ops
+func (m *MockArticleService) GetPages() []*models.Article                           { return nil }
 func (m *MockArticleService) GetArticlesByTag(_ string) []*models.Article           { return nil }
 func (m *MockArticleService) GetArticlesByCategory(_ string) []*models.Article      { return nil }
 func (m *MockArticleService) GetArticlesForFeed(_ int) []*models.Article            { return nil }
@@ -91,41 +92,6 @@ func createTestHelper() (*Helper, *MockArticleService) {
 
 	helper := NewHelper(mockArticles, &siteConfig, &robotsConfig, logger, true)
 	return helper, mockArticles
-}
-
-func TestSitemapGeneration(t *testing.T) {
-	helper, _ := createTestHelper()
-
-	sitemap, err := helper.GenerateSitemap()
-	if err != nil {
-		t.Fatalf("Failed to generate sitemap: %v", err)
-	}
-
-	sitemapStr := string(sitemap)
-
-	// Basic XML validation
-	if !strings.Contains(sitemapStr, "<?xml") {
-		t.Error("Sitemap missing XML declaration")
-	}
-
-	if !strings.Contains(sitemapStr, "<urlset") {
-		t.Error("Sitemap missing urlset tag")
-	}
-
-	// Check homepage is included
-	if !strings.Contains(sitemapStr, "https://example.com</loc>") {
-		t.Error("Sitemap missing homepage")
-	}
-
-	// Check published article is included
-	if !strings.Contains(sitemapStr, "/writing/test-article") {
-		t.Error("Sitemap missing published article")
-	}
-
-	// Check draft article is NOT included
-	if strings.Contains(sitemapStr, "draft-article") {
-		t.Error("Sitemap should not include draft articles")
-	}
 }
 
 func TestRobotsGeneration(t *testing.T) {
@@ -382,8 +348,8 @@ func TestDisabledHelper(t *testing.T) {
 		t.Error("Helper should be disabled")
 	}
 
-	_, err := helper.GenerateSitemap()
+	_, err := helper.GenerateRobotsTxt()
 	if err == nil {
-		t.Error("Disabled helper should return error for sitemap generation")
+		t.Error("Disabled helper should return error for robots.txt generation")
 	}
 }

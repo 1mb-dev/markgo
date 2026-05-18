@@ -9,6 +9,7 @@ import (
 	"github.com/1mb-dev/markgo/internal/config"
 	"github.com/1mb-dev/markgo/internal/models"
 	"github.com/1mb-dev/markgo/internal/services"
+	articlepkg "github.com/1mb-dev/markgo/internal/services/article"
 )
 
 // Service generates RSS, JSON Feed, and Sitemap content.
@@ -55,12 +56,13 @@ func (s *Service) GenerateRSS() (string, error) {
 
 	items := make([]rssItem, 0, len(published))
 	for _, a := range published {
+		canonical := s.config.BaseURL + articlepkg.CanonicalURLFor(a)
 		items = append(items, rssItem{
 			Title:       a.DisplayTitle(),
-			Link:        s.config.BaseURL + "/writing/" + a.Slug,
+			Link:        canonical,
 			Description: a.Description,
 			PubDate:     a.Date.Format(time.RFC1123Z),
-			GUID:        s.config.BaseURL + "/writing/" + a.Slug,
+			GUID:        canonical,
 		})
 	}
 
@@ -88,9 +90,10 @@ func (s *Service) GenerateJSONFeed() (string, error) {
 
 	items := make([]map[string]any, 0, len(published))
 	for _, a := range published {
+		canonical := s.config.BaseURL + articlepkg.CanonicalURLFor(a)
 		item := map[string]any{
-			"id":             s.config.BaseURL + "/writing/" + a.Slug,
-			"url":            s.config.BaseURL + "/writing/" + a.Slug,
+			"id":             canonical,
+			"url":            canonical,
 			"title":          a.DisplayTitle(),
 			"summary":        a.Description,
 			"date_published": a.Date.Format(time.RFC3339),
@@ -129,26 +132,47 @@ func (s *Service) GenerateJSONFeed() (string, error) {
 	return string(out), nil
 }
 
-// GenerateSitemap produces an XML sitemap.
+// GenerateSitemap produces an XML sitemap. Includes:
+//   - Site-wide static entries (home, /writing, /tags, /categories, /about, /p)
+//   - Published articles (from GetAllArticles, which is GetPublished — already
+//     excludes dedicated-route content via the predicate)
+//   - Pages (from GetPages, the only list-shaped accessor that returns
+//     dedicated-route type:page content)
+//
+// All URLs route through articlepkg.CanonicalURLFor — no hardcoded paths.
+// /about and /p surface as static entries since neither maps to a single
+// article: /about is its own handler, /p is the pages index.
 func (s *Service) GenerateSitemap() (string, error) {
 	allArticles := s.articleService.GetAllArticles()
+	pages := s.articleService.GetPages()
 
 	urls := []models.SitemapURL{
 		{Loc: s.config.BaseURL, LastMod: time.Now(), ChangeFreq: "weekly", Priority: 1.0},
 		{Loc: s.config.BaseURL + "/writing", LastMod: time.Now(), ChangeFreq: "daily", Priority: 0.8},
 		{Loc: s.config.BaseURL + "/tags", LastMod: time.Now(), ChangeFreq: "weekly", Priority: 0.6},
 		{Loc: s.config.BaseURL + "/categories", LastMod: time.Now(), ChangeFreq: "weekly", Priority: 0.6},
+		{Loc: s.config.BaseURL + "/about", LastMod: time.Now(), ChangeFreq: "yearly", Priority: 0.5},
+		{Loc: s.config.BaseURL + "/p", LastMod: time.Now(), ChangeFreq: "monthly", Priority: 0.5},
 	}
 
 	for _, a := range allArticles {
 		if !a.Draft {
 			urls = append(urls, models.SitemapURL{
-				Loc:        s.config.BaseURL + "/writing/" + a.Slug,
+				Loc:        s.config.BaseURL + articlepkg.CanonicalURLFor(a),
 				LastMod:    a.Date,
 				ChangeFreq: "monthly",
 				Priority:   0.7,
 			})
 		}
+	}
+
+	for _, p := range pages {
+		urls = append(urls, models.SitemapURL{
+			Loc:        s.config.BaseURL + articlepkg.CanonicalURLFor(p),
+			LastMod:    p.Date,
+			ChangeFreq: "yearly",
+			Priority:   0.5,
+		})
 	}
 
 	sitemap := models.Sitemap{

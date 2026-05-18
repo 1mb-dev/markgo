@@ -35,6 +35,7 @@ func (m *TestArticleService) GetArticleBySlug(slug string) (*models.Article, err
 	}
 	return nil, apperrors.ErrArticleNotFound
 }
+func (m *TestArticleService) GetPages() []*models.Article                      { return m.articles }
 func (m *TestArticleService) GetArticlesByTag(_ string) []*models.Article      { return m.articles }
 func (m *TestArticleService) GetArticlesByCategory(_ string) []*models.Article { return m.articles }
 func (m *TestArticleService) GetArticlesForFeed(_ int) []*models.Article       { return m.articles }
@@ -222,6 +223,98 @@ func TestPage_HEAD_Supported(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodHead, "/p/ok", http.NoBody))
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// TestPages_Handler verifies /p index renders pages sorted alphabetically
+// by title (case-insensitive), shows an empty state when no pages exist,
+// and exposes the expected template-data keys for the pages.html template.
+func TestPages_Handler(t *testing.T) {
+	t.Run("empty pages list renders empty state", func(t *testing.T) {
+		base, svc := createTestBase()
+		svc.articles = nil
+
+		mockTpl := requireMockTemplateService(t, base)
+		mockTpl.LastData = nil
+
+		router := gin.New()
+		router.GET("/p", NewPostHandler(base, svc).Pages)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/p", http.NoBody))
+
+		require.Equal(t, http.StatusOK, w.Code)
+		require.NotNil(t, mockTpl.LastData)
+		assert.Equal(t, "pages", mockTpl.LastData["template"])
+		assert.Equal(t, 0, mockTpl.LastData["pageCount"])
+	})
+
+	t.Run("alphabetical sort case-insensitive", func(t *testing.T) {
+		base, svc := createTestBase()
+		// Inject in non-alphabetical order with mixed case to verify
+		// case-insensitive lowercase comparison.
+		svc.articles = []*models.Article{
+			{Slug: "zoo", Title: "Zoo", Type: "page", Date: time.Now()},
+			{Slug: "alpha", Title: "alpha", Type: "page", Date: time.Now()},
+			{Slug: "beta", Title: "Beta", Type: "page", Date: time.Now()},
+		}
+
+		mockTpl := requireMockTemplateService(t, base)
+		mockTpl.LastData = nil
+
+		router := gin.New()
+		router.GET("/p", NewPostHandler(base, svc).Pages)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/p", http.NoBody))
+
+		require.Equal(t, http.StatusOK, w.Code)
+		require.NotNil(t, mockTpl.LastData)
+		assert.Equal(t, 3, mockTpl.LastData["pageCount"])
+
+		pages, ok := mockTpl.LastData["pages"].([]*models.Article)
+		require.True(t, ok, "pages must be []*models.Article, got %T", mockTpl.LastData["pages"])
+		require.Len(t, pages, 3)
+		assert.Equal(t, "alpha", pages[0].Title, "case-insensitive sort: 'alpha' first")
+		assert.Equal(t, "Beta", pages[1].Title)
+		assert.Equal(t, "Zoo", pages[2].Title)
+	})
+
+	t.Run("canonicalPath set to /p", func(t *testing.T) {
+		base, svc := createTestBase()
+		svc.articles = []*models.Article{{Slug: "x", Title: "X", Type: "page", Date: time.Now()}}
+
+		mockTpl := requireMockTemplateService(t, base)
+		mockTpl.LastData = nil
+
+		router := gin.New()
+		router.GET("/p", NewPostHandler(base, svc).Pages)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/p", http.NoBody))
+
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "/p", mockTpl.LastData["canonicalPath"])
+	})
+}
+
+// TestPages_HEAD_Supported — HEAD verb on /p returns the same status as GET.
+func TestPages_HEAD_Supported(t *testing.T) {
+	base, svc := createTestBase()
+	svc.articles = []*models.Article{{Slug: "ok", Title: "OK", Type: "page", Date: time.Now()}}
+	router := gin.New()
+	router.HEAD("/p", NewPostHandler(base, svc).Pages)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodHead, "/p", http.NoBody))
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// requireMockTemplateService extracts the MockTemplateService from a
+// BaseHandler for data-inspection tests. Fails the test if the base
+// wasn't wired with a mock (which would render real templates and
+// invalidate the data-capture).
+func requireMockTemplateService(t *testing.T, base *BaseHandler) *MockTemplateService {
+	t.Helper()
+	mockTpl, ok := base.templateService.(*MockTemplateService)
+	require.True(t, ok, "createTestBase must wire a MockTemplateService for data inspection")
+	return mockTpl
 }
 
 // TestPage_BreadcrumbsExcludeWriting — pages live outside /writing, so

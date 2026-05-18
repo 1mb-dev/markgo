@@ -159,6 +159,7 @@
     <link rel="stylesheet" href="/static/css/feed.css">
     <link rel="stylesheet" href="/static/css/article.css">
     <link rel="stylesheet" href="/static/css/articles.css">
+    <link rel="stylesheet" href="/static/css/pages.css">
     <link rel="stylesheet" href="/static/css/search.css">
     <link rel="stylesheet" href="/static/css/about.css">
     <link rel="stylesheet" href="/static/css/taxonomy.css">
@@ -181,6 +182,7 @@
     {{ if eq $tpl "feed" }}{{ template "feed-head" . }}{{ end }}
     {{ if eq $tpl "compose" }}{{ template "compose-head" . }}{{ end }}
     {{ if eq $tpl "articles" }}{{ template "articles-head" . }}{{ end }}
+    {{ if eq $tpl "pages" }}{{ template "pages-head" . }}{{ end }}
     {{ if eq $tpl "article" }}{{ template "article-head" . }}{{ end }}
     {{ if eq $tpl "search" }}{{ template "search-head" . }}{{ end }}
     {{ if eq $tpl "about" }}{{ template "about-head" . }}{{ end }}
@@ -198,6 +200,7 @@
 </head>
 <body data-template="{{ .template | default "feed" }}"{{ if .authenticated }} data-authenticated="true"{{ end }} class="{{- $tpl := .template | default "feed" -}}
     {{- if eq $tpl "articles" -}}articles-page
+    {{- else if eq $tpl "pages" -}}pages-page
     {{- else if eq $tpl "article" -}}article-page
     {{- else if eq $tpl "search" -}}search-page
     {{- else if eq $tpl "about" -}}about-page
@@ -390,6 +393,7 @@
         {{ if eq $tpl "feed" }}{{ template "feed-content" . }}{{ end }}
         {{ if eq $tpl "compose" }}{{ template "compose-content" . }}{{ end }}
         {{ if eq $tpl "articles" }}{{ template "articles-content" . }}{{ end }}
+        {{ if eq $tpl "pages" }}{{ template "pages-content" . }}{{ end }}
         {{ if eq $tpl "article" }}{{ template "article-content" . }}{{ end }}
         {{ if eq $tpl "search" }}{{ template "search-content" . }}{{ end }}
         {{ if eq $tpl "about" }}{{ template "about-content" . }}{{ end }}
@@ -448,6 +452,7 @@
                 <a href="/feed.xml" class="footer-link footer-subscribe">Subscribe</a>
                 <a href="/tags" class="footer-link">Tags</a>
                 <a href="/categories" class="footer-link">Categories</a>
+                <a href="/p" class="footer-link">Pages</a>
                 <a href="/about" class="footer-link">About</a>
                 <a href="/writing" class="footer-link">Writing</a>
             </nav>

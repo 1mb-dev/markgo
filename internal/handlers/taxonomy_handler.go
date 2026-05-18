@@ -10,6 +10,7 @@ import (
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
 	"github.com/1mb-dev/markgo/internal/models"
 	"github.com/1mb-dev/markgo/internal/services"
+	articlepkg "github.com/1mb-dev/markgo/internal/services/article"
 )
 
 // TaxonomyHandler handles tag and category pages.
@@ -129,7 +130,7 @@ func (h *TaxonomyHandler) getTagArticles(tag string) (map[string]any, error) {
 			items[i] = map[string]any{
 				"@type":    "ListItem",
 				"position": i + 1,
-				"url":      baseURL + "/writing/" + a.Slug,
+				"url":      baseURL + articlepkg.CanonicalURLFor(a),
 			}
 		}
 		data["collectionSchema"] = map[string]any{
@@ -177,7 +178,7 @@ func (h *TaxonomyHandler) getCategoryArticles(category string) (map[string]any, 
 			items[i] = map[string]any{
 				"@type":    "ListItem",
 				"position": i + 1,
-				"url":      baseURL + "/writing/" + a.Slug,
+				"url":      baseURL + articlepkg.CanonicalURLFor(a),
 			}
 		}
 		data["collectionSchema"] = map[string]any{
