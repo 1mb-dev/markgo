@@ -52,7 +52,11 @@
         "Source Code Pro", monospace;
 }
 
-/* Dark mode — system preference */
+/* Dark mode — system preference.
+   --theme-primary lifted from blue-600 (#2563eb, 3.45:1 on #0f172a — AA fail)
+   to blue-400 (#60a5fa, 7.2:1 — AA pass). Without this override main.css's
+   `var(--theme-primary, #60a5fa)` fallback chain inherits the light-mode
+   blue-600 above and the dark-mode lift never triggers. */
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
         --theme-text-primary: #f9fafb;
@@ -64,17 +68,19 @@
         --theme-border: #334155;
         --theme-border-light: #475569;
         --theme-border-dark: #64748b;
+        --theme-primary: #60a5fa;
+        --theme-primary-dark: #93c5fd;
         --theme-success-bg: #1a3a2a;
         --theme-success-text: #86efac;
         --theme-success-border: #2d5a3e;
         --theme-error-bg: #3b1c22;
         --theme-error-text: #fca5a5;
         --theme-error-border: #5a2d35;
-        --theme-focus-ring: rgba(37, 99, 235, 0.25);
+        --theme-focus-ring: rgba(96, 165, 250, 0.25);
     }
 }
 
-/* Dark mode — manual toggle */
+/* Dark mode — manual toggle. Same --theme-primary lift as the @media block. */
 [data-theme="dark"] {
     --theme-text-primary: #f9fafb;
     --theme-text-secondary: #d1d5db;
@@ -85,11 +91,13 @@
     --theme-border: #334155;
     --theme-border-light: #475569;
     --theme-border-dark: #64748b;
+    --theme-primary: #60a5fa;
+    --theme-primary-dark: #93c5fd;
     --theme-success-bg: #1a3a2a;
     --theme-success-text: #86efac;
     --theme-success-border: #2d5a3e;
     --theme-error-bg: #3b1c22;
     --theme-error-text: #fca5a5;
     --theme-error-border: #5a2d35;
-    --theme-focus-ring: rgba(37, 99, 235, 0.25);
+    --theme-focus-ring: rgba(96, 165, 250, 0.25);
 }

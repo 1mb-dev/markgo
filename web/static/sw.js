@@ -8,7 +8,13 @@
  * - Network-only: auth routes, compose, admin, feeds, API
  */
 
-const CACHE_VERSION = 7;
+// CACHE_VERSION is injected at server startup from buildInfo.Version
+// (see internal/commands/serve/sw.go). The literal below is a placeholder
+// for the embedded copy; the served bytes have it substituted to the
+// running build's semver (e.g. "3.17.0") or "dev" for unstamped builds.
+// Operators overriding sw.js via STATIC_PATH ship raw bytes — they own
+// their cache version and bypass auto-bump.
+const CACHE_VERSION = '__MARKGO_CACHE_VERSION__';
 const PRECACHE = `markgo-precache-v${CACHE_VERSION}`;
 const STATIC_CACHE = `markgo-static-v${CACHE_VERSION}`;
 const CONTENT_CACHE = `markgo-content-v${CACHE_VERSION}`;
