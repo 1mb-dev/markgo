@@ -355,12 +355,6 @@ function handleKeydown(e) {
     }
 }
 
-function escapeHTML(str) {
-    const el = document.createElement('span');
-    el.textContent = str;
-    return el.innerHTML;
-}
-
 function prependCard(data, content, title) {
     // Only update if we're on the feed page
     if (document.body.dataset.template !== 'feed') return;
@@ -373,29 +367,57 @@ function prependCard(data, content, title) {
 
     if (data.type === 'thought') {
         card.className = 'feed-card feed-card-thought';
-        card.innerHTML =
-            '<div class="feed-card-accent"></div>' +
-            '<div class="feed-card-body">' +
-                '<div class="feed-card-content thought-content">' +
-                    '<p>' + escapeHTML(content) + '</p>' +
-                '</div>' +
-                '<div class="feed-card-meta">' +
-                    '<time class="feed-card-time" datetime="' + now + '">just now</time>' +
-                '</div>' +
-            '</div>';
+
+        const accent = document.createElement('div');
+        accent.className = 'feed-card-accent';
+
+        const body = document.createElement('div');
+        body.className = 'feed-card-body';
+
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'feed-card-content thought-content';
+        const p = document.createElement('p');
+        p.textContent = content;
+        contentDiv.appendChild(p);
+
+        const meta = document.createElement('div');
+        meta.className = 'feed-card-meta';
+        const time = document.createElement('time');
+        time.className = 'feed-card-time';
+        time.dateTime = now;
+        time.textContent = 'just now';
+        meta.appendChild(time);
+
+        body.append(contentDiv, meta);
+        card.append(accent, body);
     } else {
         // Article or link — card with title
         card.className = 'feed-card';
-        card.innerHTML =
-            '<div class="feed-card-body">' +
-                '<h3 class="feed-card-title">' +
-                    '<a href="' + escapeHTML(data.url) + '">' + escapeHTML(title || 'Untitled') + '</a>' +
-                '</h3>' +
-                '<p class="feed-card-excerpt">' + escapeHTML(content.substring(0, 160)) + '</p>' +
-                '<div class="feed-card-meta">' +
-                    '<time class="feed-card-time" datetime="' + now + '">just now</time>' +
-                '</div>' +
-            '</div>';
+
+        const body = document.createElement('div');
+        body.className = 'feed-card-body';
+
+        const h3 = document.createElement('h3');
+        h3.className = 'feed-card-title';
+        const a = document.createElement('a');
+        a.href = data.url;
+        a.textContent = title || 'Untitled';
+        h3.appendChild(a);
+
+        const excerpt = document.createElement('p');
+        excerpt.className = 'feed-card-excerpt';
+        excerpt.textContent = content.substring(0, 160);
+
+        const meta = document.createElement('div');
+        meta.className = 'feed-card-meta';
+        const time = document.createElement('time');
+        time.className = 'feed-card-time';
+        time.dateTime = now;
+        time.textContent = 'just now';
+        meta.appendChild(time);
+
+        body.append(h3, excerpt, meta);
+        card.appendChild(body);
     }
 
     // Animate entrance
