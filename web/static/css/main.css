@@ -1041,26 +1041,29 @@ html {
    Theme Presets
    ========================================================================== */
 
-/* Theme: Ocean */
+/* Theme: Ocean — primary lifted to cyan-700 (was cyan-600) for AA 4.5:1
+   on white; primary-dark stepped to cyan-800 to preserve hover contrast. */
 [data-color-theme="ocean"] {
-    --color-primary: #0891b2;
-    --color-primary-dark: #0e7490;
+    --color-primary: #0e7490;
+    --color-primary-dark: #155e75;
     --color-accent: #22d3ee;
     --color-success: #14b8a6;
 }
 
-/* Theme: Forest */
+/* Theme: Forest — primary lifted to emerald-700 (was emerald-600) for AA;
+   primary-dark stepped to emerald-800. */
 [data-color-theme="forest"] {
-    --color-primary: #059669;
-    --color-primary-dark: #047857;
+    --color-primary: #047857;
+    --color-primary-dark: #065f46;
     --color-accent: #34d399;
     --color-success: #34d399;
 }
 
-/* Theme: Sunset */
+/* Theme: Sunset — primary lifted to orange-700 (was orange-600) for AA;
+   primary-dark stepped to orange-800. */
 [data-color-theme="sunset"] {
-    --color-primary: #ea580c;
-    --color-primary-dark: #c2410c;
+    --color-primary: #c2410c;
+    --color-primary-dark: #9a3412;
     --color-accent: #fb923c;
     --color-success: #10b981;
 }
