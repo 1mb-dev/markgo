@@ -16,9 +16,16 @@ const sweepTimeout = 60 * time.Second
 
 // articleLister is the slice of ArticleServiceInterface that the sweep
 // needs. Declared locally to avoid importing the parent services package.
+//
+// GetPages is included alongside GetAllArticles because GetAllArticles
+// applies the DedicatedRouteArticle predicate (v3.13.0) and excludes
+// published type:page content from its result. Without GetPages in the
+// reference set, Page banner uploads would appear unreferenced and be
+// swept on every restart.
 type articleLister interface {
 	GetAllArticles() []*models.Article
 	GetDraftArticles() []*models.Article
+	GetPages() []*models.Article
 }
 
 // runOrphanSweep launches a single post-boot pass that removes upload
@@ -47,7 +54,15 @@ func runOrphanSweep(cfg *config.Config, articleSvc articleLister, logger *slog.L
 	ctx, cancel := context.WithTimeout(context.Background(), sweepTimeout)
 	defer cancel()
 
-	articles := append(articleSvc.GetAllArticles(), articleSvc.GetDraftArticles()...)
+	// GetAllArticles excludes dedicated-route content (type:page + about
+	// slug) via the v3.13.0 predicate. Bring Pages back in explicitly
+	// so Page banner uploads don't appear unreferenced. The /about
+	// article remains a known gap — operators using a banner there
+	// should rely on per-action unlink (Phase 3) and ORPHAN_SWEEP_DISABLED
+	// for the startup pass.
+	articles := articleSvc.GetAllArticles()
+	articles = append(articles, articleSvc.GetDraftArticles()...)
+	articles = append(articles, articleSvc.GetPages()...)
 
 	start := time.Now()
 	cleaned, errs := article.OrphanSweep(ctx, articles, cfg.Upload.Path, logger)
