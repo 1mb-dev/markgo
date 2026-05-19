@@ -515,6 +515,132 @@ func TestCSRF(t *testing.T) {
 	})
 }
 
+// TestCSRF_CookieStability covers the v3.18.1 fix: the middleware reuses a
+// valid existing _csrf cookie on GET/HEAD instead of unconditionally
+// regenerating it. SPA navigation only swaps <main>, so the meta tag in
+// <head> goes stale if the cookie rotates underneath it — the subsequent
+// XHR's X-CSRF-Token header (from stale meta) then mismatches the new
+// cookie and the POST 403s. Cookie must be session-stable.
+func TestCSRF_CookieStability(t *testing.T) {
+	t.Run("GET preserves valid existing cookie", func(t *testing.T) {
+		router := setupTestRouter()
+		router.Use(CSRF(true))
+		var contextToken string
+		router.GET("/page", func(c *gin.Context) {
+			if v, exists := c.Get("csrf_token"); exists {
+				contextToken, _ = v.(string)
+			}
+			c.String(200, "ok")
+		})
+
+		existing := generateCSRFToken()
+		require.NotEmpty(t, existing)
+
+		req := httptest.NewRequest("GET", "/page", http.NoBody)
+		req.AddCookie(&http.Cookie{Name: "_csrf", Value: existing})
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, 200, w.Code)
+		assert.Equal(t, existing, contextToken,
+			"middleware must reuse the existing valid cookie, not generate a new token")
+
+		// No rotating Set-Cookie should be emitted when the cookie is reused.
+		for _, c := range w.Result().Cookies() {
+			if c.Name == "_csrf" {
+				assert.Equal(t, existing, c.Value,
+					"if a Set-Cookie is emitted, it must echo the existing token, not a rotated one")
+			}
+		}
+	})
+
+	t.Run("GET generates when cookie absent", func(t *testing.T) {
+		router := setupTestRouter()
+		router.Use(CSRF(true))
+		var contextToken string
+		router.GET("/page", func(c *gin.Context) {
+			if v, exists := c.Get("csrf_token"); exists {
+				contextToken, _ = v.(string)
+			}
+			c.String(200, "ok")
+		})
+
+		req := httptest.NewRequest("GET", "/page", http.NoBody)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, 200, w.Code)
+		require.NotEmpty(t, contextToken)
+
+		var csrfCookie *http.Cookie
+		for _, c := range w.Result().Cookies() {
+			if c.Name == "_csrf" {
+				csrfCookie = c
+			}
+		}
+		require.NotNil(t, csrfCookie, "Set-Cookie must be emitted when no cookie was sent")
+		assert.Equal(t, contextToken, csrfCookie.Value)
+	})
+
+	t.Run("GET regenerates when cookie malformed", func(t *testing.T) {
+		router := setupTestRouter()
+		router.Use(CSRF(true))
+		var contextToken string
+		router.GET("/page", func(c *gin.Context) {
+			if v, exists := c.Get("csrf_token"); exists {
+				contextToken, _ = v.(string)
+			}
+			c.String(200, "ok")
+		})
+
+		// Wrong length and non-hex characters — must be rejected, not trusted.
+		req := httptest.NewRequest("GET", "/page", http.NoBody)
+		req.AddCookie(&http.Cookie{Name: "_csrf", Value: "not-a-valid-hex-token"})
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, 200, w.Code)
+		require.NotEmpty(t, contextToken)
+		assert.NotEqual(t, "not-a-valid-hex-token", contextToken,
+			"middleware must not accept a malformed cookie as-is")
+
+		var csrfCookie *http.Cookie
+		for _, c := range w.Result().Cookies() {
+			if c.Name == "_csrf" {
+				csrfCookie = c
+			}
+		}
+		require.NotNil(t, csrfCookie, "Set-Cookie must be emitted when malformed cookie is rejected")
+		assert.Equal(t, contextToken, csrfCookie.Value)
+	})
+
+	t.Run("POST validates against preserved cookie", func(t *testing.T) {
+		router := setupTestRouter()
+		router.Use(CSRF(true))
+		router.GET("/api", func(c *gin.Context) { c.String(200, "ok") })
+		router.POST("/api", func(c *gin.Context) { c.String(200, "posted") })
+
+		existing := generateCSRFToken()
+		require.NotEmpty(t, existing)
+
+		// GET with the cookie — middleware should reuse it.
+		getReq := httptest.NewRequest("GET", "/api", http.NoBody)
+		getReq.AddCookie(&http.Cookie{Name: "_csrf", Value: existing})
+		getW := httptest.NewRecorder()
+		router.ServeHTTP(getW, getReq)
+		require.Equal(t, 200, getW.Code)
+
+		// POST with the original token — must succeed because cookie was preserved.
+		postReq := httptest.NewRequest("POST", "/api", strings.NewReader(""))
+		postReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		postReq.Header.Set("X-CSRF-Token", existing)
+		postReq.AddCookie(&http.Cookie{Name: "_csrf", Value: existing})
+		postW := httptest.NewRecorder()
+		router.ServeHTTP(postW, postReq)
+		assert.Equal(t, 200, postW.Code, "POST must validate against the preserved cookie")
+	})
+}
+
 // TestSmartCacheHeaders tests the smart cache headers middleware
 func TestSmartCacheHeaders(t *testing.T) {
 	router := setupTestRouter()
