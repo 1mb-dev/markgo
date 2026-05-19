@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/1mb-dev/markgo/internal/config"
 	"github.com/1mb-dev/markgo/internal/models"
+	"github.com/1mb-dev/markgo/web"
 )
 
 func TestNewTemplateService(t *testing.T) {
@@ -1025,4 +1027,20 @@ func TestBrandLogo_RendersThroughTemplateService(t *testing.T) {
 	out := buf.String()
 	assert.Contains(t, out, `id="operator-marker"`, "rendered HTML must contain operator SVG")
 	assert.Contains(t, out, `class="brand-logo"`, "class must be injected end-to-end")
+}
+
+// TestComposeTemplate_SaveWarningHiddenByDefault pins the #102 server-side
+// contract: the autosave warning element must always be rendered with the
+// `hidden` attribute. The only path to visible-on-screen is compose.js
+// flipping it after a localStorage.setItem failure. Without `hidden`, CSS
+// does not suppress display and the operator sees the warning at initial
+// load. If this test breaks, a future template change has removed the
+// guard.
+func TestComposeTemplate_SaveWarningHiddenByDefault(t *testing.T) {
+	body, err := web.Assets.ReadFile("templates/compose.html")
+	require.NoError(t, err, "embedded compose.html must be readable")
+
+	pattern := regexp.MustCompile(`<div\b[^>]*\bid="compose-save-warning"[^>]*\bhidden\b[^>]*>`)
+	assert.Regexp(t, pattern, string(body),
+		"compose-save-warning must carry the hidden attribute at initial render")
 }
