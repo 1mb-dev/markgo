@@ -25,7 +25,17 @@ type articleLister interface {
 // files no article references. Honors ORPHAN_SWEEP_DISABLED. Logs a
 // single slog.Info on completion with cleanup count and duration; errors
 // during the walk are warn-logged inside the sweep itself.
+//
+// Recovers from any panic in the sweep path: best-effort cleanup must
+// never bring down the server. A panic is logged at Error level so it
+// surfaces in operator triage without losing the running process.
 func runOrphanSweep(cfg *config.Config, articleSvc articleLister, logger *slog.Logger) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("orphan sweep panicked", "panic", r)
+		}
+	}()
+
 	if cfg.OrphanSweepDisabled {
 		logger.Info("orphan sweep disabled via ORPHAN_SWEEP_DISABLED")
 		return
