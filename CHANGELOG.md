@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.18.0] - 2026-05-19
+
+Compose readability pass. No behavior change.
+
+### Changed
+
+- `compose.js` `init()` decomposed into 6 inner-function helpers (preview,
+  autosave, submit, image upload, banner upload, drag-drop). Shared
+  utilities hoisted to outer scope; section-local helpers scoped to their
+  section. AbortController signal closure preserved.
+
+### Removed
+
+- Dead `data-mode` attribute on `.compose-form` — set by template, read
+  by no JS or CSS.
+
 ## [3.17.0] - 2026-05-18
 
 Theme: **dark-mode contrast verification + SW cache auto-bump.** A WCAG

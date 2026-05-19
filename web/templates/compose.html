@@ -36,7 +36,7 @@
             Draft saving unavailable — copy your work before leaving
         </div>
 
-        <form class="compose-form" method="POST" action="{{ if .editing }}/compose/edit/{{ .slug }}{{ else }}/compose{{ end }}" data-slug="{{ if .editing }}{{ .slug }}{{ end }}" data-mode="{{ if eq .mode "page" }}page{{ else }}default{{ end }}" data-max-upload="{{ .config.Upload.MaxSize }}">
+        <form class="compose-form" method="POST" action="{{ if .editing }}/compose/edit/{{ .slug }}{{ else }}/compose{{ end }}" data-slug="{{ if .editing }}{{ .slug }}{{ end }}" data-max-upload="{{ .config.Upload.MaxSize }}">
             <input type="hidden" name="_csrf" value="{{ .csrf_token }}">
             <input type="hidden" name="type" value="{{ if eq .mode "page" }}page{{ else }}{{ with .input }}{{ .Type }}{{ end }}{{ end }}">
 
