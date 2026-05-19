@@ -1204,6 +1204,66 @@ func TestHandleEdit(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
+	t.Run("banner swap unlinks previous upload", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		uploadPath := filepath.Join(tmpDir, "uploads")
+		cfg := &config.Config{
+			Environment:  "test",
+			BaseURL:      "http://localhost:3000",
+			ArticlesPath: tmpDir,
+			Upload:       config.UploadConfig{Path: uploadPath},
+			Blog:         config.BlogConfig{Title: "Test Blog", Author: "Test Author"},
+		}
+		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		base := NewBaseHandler(cfg, logger, &MockTemplateService{}, &BuildInfo{Version: "test"}, &MockSEOService{})
+		composeSvc := compose.NewService(tmpDir, cfg.Blog.Author)
+		handler := NewComposeHandler(base, composeSvc, &MockArticleService{}, &MockMarkdownRenderer{})
+
+		slug := "edit-banner-swap"
+		// Article on disk references uploads/<slug>/old.png as its banner.
+		articleBody := fmt.Sprintf(
+			"---\nslug: %s\ntitle: Banner Owner\nbanner: /uploads/%s/old.png\ndraft: false\ndate: 2026-01-01T00:00:00Z\n---\n\nHello.\n",
+			slug, slug,
+		)
+		articlePath := filepath.Join(tmpDir, "2026-01-01-"+slug+".md")
+		require.NoError(t, os.WriteFile(articlePath, []byte(articleBody), 0o644))
+
+		// Stage both files: previous (to be unlinked) and new (to be preserved).
+		slugUploadDir := filepath.Join(uploadPath, slug)
+		require.NoError(t, os.MkdirAll(slugUploadDir, 0o755))
+		oldPath := filepath.Join(slugUploadDir, "old.png")
+		newPath := filepath.Join(slugUploadDir, "new.png")
+		require.NoError(t, os.WriteFile(oldPath, []byte("old"), 0o600))
+		require.NoError(t, os.WriteFile(newPath, []byte("new"), 0o600))
+
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set("csrf_secure", false)
+			c.Next()
+		})
+		router.POST("/compose/edit/:slug", handler.HandleEdit)
+
+		form := url.Values{
+			"content":    {"Updated body."},
+			"title":      {"Banner Owner"},
+			"banner":     {"/uploads/" + slug + "/new.png"},
+			"banner_alt": {"new"},
+			"_csrf":      {"test-token"},
+		}
+		req := httptest.NewRequest("POST", "/compose/edit/"+slug, strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusSeeOther, w.Code, "edit must succeed")
+
+		_, oldErr := os.Stat(oldPath)
+		assert.True(t, os.IsNotExist(oldErr),
+			"previous banner upload must be unlinked on swap; old.png still exists")
+		_, newErr := os.Stat(newPath)
+		assert.NoError(t, newErr, "new banner upload must be preserved")
+	})
+
 	t.Run("edit toggles to draft → redirects to /admin/drafts", func(t *testing.T) {
 		handler, tmpDir := createFormComposeHandler(t)
 		writeDraftArticle(t, tmpDir, "edit-to-draft", false)
@@ -1609,6 +1669,7 @@ func TestShowEdit(t *testing.T) {
 		// handleError wraps this as ErrArticleNotFound → 404
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
+
 }
 
 // ---------------------------------------------------------------------------

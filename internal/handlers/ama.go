@@ -133,7 +133,7 @@ func (h *AMAHandler) Answer(c *gin.Context) {
 	input.Content = input.Content + "\n\n---\n\n" + form.Answer
 	input.Draft = false
 
-	if err := h.composeService.UpdateArticle(slug, input); err != nil {
+	if _, err := h.composeService.UpdateArticle(slug, input); err != nil {
 		h.handleError(c, err, "Failed to publish answer")
 		return
 	}

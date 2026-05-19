@@ -229,21 +229,25 @@ func (s *Service) LoadArticle(slug string) (*Input, error) {
 
 // UpdateArticle overwrites an existing article file with updated content.
 // Preserves fields not exposed in the compose form (slug, date, author).
-func (s *Service) UpdateArticle(slug string, input *Input) error {
+// Returns the previous frontmatter banner value (empty when unset) so
+// callers can clean up orphan uploads on swap or remove.
+func (s *Service) UpdateArticle(slug string, input *Input) (prevBanner string, err error) {
 	filePath, existingContent, err := s.findFileBySlug(slug)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	parts := strings.SplitN(string(existingContent), "---", 3)
 	if len(parts) < 3 {
-		return fmt.Errorf("invalid article format: missing frontmatter")
+		return "", fmt.Errorf("invalid article format: missing frontmatter")
 	}
 
 	var fm map[string]any
 	if unmarshalErr := yaml.Unmarshal([]byte(parts[1]), &fm); unmarshalErr != nil {
-		return fmt.Errorf("failed to parse frontmatter: %w", unmarshalErr)
+		return "", fmt.Errorf("failed to parse frontmatter: %w", unmarshalErr)
 	}
+
+	prevBanner = stringFieldOr(fm, "banner", "")
 
 	// Update editable fields, preserve everything else (slug, date, author)
 	if input.Title != "" {
@@ -306,7 +310,7 @@ func (s *Service) UpdateArticle(slug string, input *Input) error {
 
 	yamlBytes, err := yaml.Marshal(fm)
 	if err != nil {
-		return fmt.Errorf("failed to marshal frontmatter: %w", err)
+		return "", fmt.Errorf("failed to marshal frontmatter: %w", err)
 	}
 
 	fileContent := fmt.Sprintf("---\n%s---\n\n%s\n", string(yamlBytes), strings.TrimSpace(input.Content))
@@ -314,25 +318,25 @@ func (s *Service) UpdateArticle(slug string, input *Input) error {
 	// Atomic write: temp file + rename prevents data loss on crash
 	tmpFile, err := os.CreateTemp(filepath.Dir(filePath), ".markgo-*.tmp")
 	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
+		return "", fmt.Errorf("failed to create temp file: %w", err)
 	}
 	tmpPath := tmpFile.Name()
 
 	if _, err := tmpFile.WriteString(fileContent); err != nil {
 		tmpFile.Close()    //nolint:gosec // best-effort cleanup
 		os.Remove(tmpPath) //nolint:gosec // best-effort cleanup
-		return fmt.Errorf("failed to write temp file: %w", err)
+		return "", fmt.Errorf("failed to write temp file: %w", err)
 	}
 	if err := tmpFile.Close(); err != nil {
 		os.Remove(tmpPath) //nolint:gosec // best-effort cleanup
-		return fmt.Errorf("failed to close temp file: %w", err)
+		return "", fmt.Errorf("failed to close temp file: %w", err)
 	}
 	if err := os.Rename(tmpPath, filePath); err != nil {
 		os.Remove(tmpPath) //nolint:gosec // best-effort cleanup
-		return fmt.Errorf("failed to rename temp file: %w", err)
+		return "", fmt.Errorf("failed to rename temp file: %w", err)
 	}
 
-	return nil
+	return prevBanner, nil
 }
 
 // DeletePost removes an article file by slug.
@@ -462,6 +466,16 @@ func setIfNonEmpty(m map[string]any, key, val string) {
 	if val != "" {
 		m[key] = val
 	}
+}
+
+// stringFieldOr returns m[key] as a string, or fallback when the key is
+// missing or not a string. Lifted out of UpdateArticle to keep its
+// cyclomatic budget intact while still reading the previous banner value.
+func stringFieldOr(m map[string]any, key, fallback string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return fallback
 }
 
 func generateSlug(title string) string {
