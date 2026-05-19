@@ -1028,7 +1028,7 @@ func TestHandleSubmit(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
-	t.Run("draft mode redirects to feed", func(t *testing.T) {
+	t.Run("draft mode redirects to /admin/drafts", func(t *testing.T) {
 		handler, _ := createFormComposeHandler(t)
 
 		router := gin.New()
@@ -1050,13 +1050,10 @@ func TestHandleSubmit(t *testing.T) {
 
 		router.ServeHTTP(w, req)
 
-		// Draft posts without title redirect to "/" but with title they also redirect to "/"
-		// because the condition is `!reloadOK || input.Title == ""` — with a title and
-		// successful reload, it goes to /writing/slug. But it's a draft so let's test:
-		// Actually, the redirect target depends on reloadOK and title presence.
-		// With MockArticleService.ReloadArticles returning nil and title set, it goes to /writing/slug.
+		// Drafts have no public URL — canonicalPathForSlug would 404. Operator
+		// must land on /admin/drafts to find and publish.
 		assert.Equal(t, http.StatusSeeOther, w.Code)
-		assert.Equal(t, "/writing/draft-post", w.Header().Get("Location"))
+		assert.Equal(t, "/admin/drafts", w.Header().Get("Location"))
 	})
 
 	t.Run("content without title redirects to feed", func(t *testing.T) {
@@ -1205,6 +1202,33 @@ func TestHandleEdit(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("edit toggles to draft → redirects to /admin/drafts", func(t *testing.T) {
+		handler, tmpDir := createFormComposeHandler(t)
+		writeDraftArticle(t, tmpDir, "edit-to-draft", false)
+
+		router := gin.New()
+		router.Use(func(c *gin.Context) {
+			c.Set("csrf_secure", false)
+			c.Next()
+		})
+		router.POST("/compose/edit/:slug", handler.HandleEdit)
+
+		form := url.Values{
+			"content": {"Demoted to draft."},
+			"title":   {"Demoted"},
+			"draft":   {"on"},
+			"_csrf":   {"test-token"},
+		}
+		req := httptest.NewRequest("POST", "/compose/edit/edit-to-draft", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusSeeOther, w.Code)
+		assert.Equal(t, "/admin/drafts", w.Header().Get("Location"))
 	})
 
 	t.Run("edit reload failure redirects to feed", func(t *testing.T) {

@@ -9,7 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.18.0] - 2026-05-19
 
-Compose readability pass. No behavior change.
+Compose readability pass + "Save Draft" regression fix.
+
+### Fixed
+
+- **Save Draft button published instead of drafting (#98).** `compose.js`
+  disabled the submitter button before constructing `FormData(form,
+  submitter)`. Per the HTML spec, disabled fields are skipped during
+  entry-list construction — including the submitter — so `draft=on`
+  never reached the wire. Reorder: build `body` before disabling
+  buttons. Pre-existing in v3.17.0; surfaced during the readability pass.
+- **Draft post-save redirected to a 404.** Server redirected to
+  `canonicalPathForSlug(slug)` regardless of draft state; public routes
+  exclude drafts, so the operator landed on `/writing/<slug>` 404 after
+  a successful Save Draft. Now redirects to `/admin/drafts` when
+  `input.Draft` is true. Same fix applied to `HandleEdit` for the
+  edit-to-draft path.
 
 ### Changed
 

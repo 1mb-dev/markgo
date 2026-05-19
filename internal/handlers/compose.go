@@ -251,6 +251,12 @@ func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 		reloadOK = false
 	}
 
+	// Drafts have no public URL — canonicalPathForSlug would 404. Send to the
+	// drafts list where the operator can find and publish.
+	if input.Draft {
+		c.Redirect(http.StatusSeeOther, "/admin/drafts")
+		return
+	}
 	// Redirect to the edited article, or feed if reload failed (stale cache would show old version)
 	if reloadOK {
 		c.Redirect(http.StatusSeeOther, h.canonicalPathForSlug(slug))
@@ -335,6 +341,12 @@ func (h *ComposeHandler) HandleSubmit(c *gin.Context) {
 		reloadOK = false
 	}
 
+	// Drafts have no public URL — canonicalPathForSlug would 404. Send to the
+	// drafts list where the operator can find and publish.
+	if input.Draft {
+		c.Redirect(http.StatusSeeOther, "/admin/drafts")
+		return
+	}
 	// Redirect to the new post, or feed if reload failed (article won't be in memory)
 	if !reloadOK || input.Title == "" {
 		c.Redirect(http.StatusSeeOther, "/")
