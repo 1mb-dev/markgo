@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.18.1] - 2026-05-19
+
+Wave-5 operator feedback patch. Four issues from log.1mb.dev.
+
+### Fixed
+
+- **CSRF cookie now stable across GETs (#101).** The middleware rotated
+  `_csrf` on every GET, even when a valid cookie was already present.
+  SPA navigation only swaps `<main>`, so the meta token rendered in
+  `<head>` went stale relative to the rotated cookie and subsequent
+  XHRs (banner upload, etc.) 403'd. The middleware now reuses the
+  existing cookie when its value decodes as 32 raw bytes of hex;
+  rotation only on absence or malformed value.
+- **Banner uploads no longer orphan on swap or remove (#103).**
+  `HandleEdit` unlinks the previous banner file when it matches
+  `/uploads/<slug>/<filename>` shape and the operator swaps or clears
+  the field. External URLs, `/static/...` paths, and bare frontmatter
+  filenames are operator-managed and left alone. ENOENT silent; other
+  os.Remove failures warn-logged.
+- **Autosave warning element contract pinned (#102).** The reported
+  "Draft saving unavailable" at edit-mode load is not reproducible
+  from the codebase: the template renders the warning element with
+  `hidden`, and `compose.js` only flips it visible after a
+  `localStorage.setItem` failure. Regression test added at the
+  template layer.
+
+### Added
+
+- **Startup orphan-upload sweep (#103).** One pass per boot walks
+  `<UPLOAD_PATH>/<slug>/` and removes files no article references —
+  via banner field or body content (markdown image, raw HTML img/src,
+  or plain link). URL-decoded, traversal-rejected. Async post-bind,
+  60s timeout bound. Disable with `ORPHAN_SWEEP_DISABLED=true` if
+  the operator manages files in the uploads tree independently of
+  article references.
+- **`data-count` on `.tag-cloud-item` (#100).** Lets forkers size or
+  weight tags via CSS attribute selectors without JS.
+
 ## [3.18.0] - 2026-05-19
 
 Compose readability pass + "Save Draft" regression fix.

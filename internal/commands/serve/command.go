@@ -196,6 +196,8 @@ func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *service
 		return nil, nil, nil, fmt.Errorf("article service: %w", err)
 	}
 
+	go runOrphanSweep(cfg, articleService, logger)
+
 	emailService := services.NewEmailService(&cfg.Email, cfg.Blog.Title, logger)
 	composeService := compose.NewService(cfg.ArticlesPath, cfg.Blog.Author)
 

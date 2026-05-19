@@ -47,6 +47,13 @@ type Config struct {
 	Upload        UploadConfig    `json:"upload"`
 	AMA           AMAConfig       `json:"ama"`
 	Security      SecurityConfig  `json:"security"`
+
+	// OrphanSweepDisabled skips the post-boot orphan-upload sweep when true.
+	// Default false: the sweep runs once per startup, removing files in
+	// <UPLOAD_PATH>/<slug>/ that no article (banner field or body content)
+	// references. Operators who manually drop assets into the uploads tree
+	// without referencing them from an article should set this to true.
+	OrphanSweepDisabled bool `json:"orphan_sweep_disabled"`
 }
 
 // SecurityConfig holds security-header configuration. Most security headers
@@ -353,6 +360,8 @@ func Load() (*Config, error) {
 		Security: SecurityConfig{
 			CSPDisable: getEnvBool("CSP_DISABLE", false),
 		},
+
+		OrphanSweepDisabled: getEnvBool("ORPHAN_SWEEP_DISABLED", false),
 	}
 
 	// Validate the configuration

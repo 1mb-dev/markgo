@@ -381,8 +381,12 @@ const (
 )
 
 // CSRF implements double-submit cookie CSRF protection.
-// On GET/HEAD: generates a token, sets it as an HttpOnly cookie, and stores it in gin context as "csrf_token".
+// On GET/HEAD: reuses the existing _csrf cookie when present and well-formed (64-char hex);
+// otherwise generates a new token and sets it as an HttpOnly cookie. Stored in gin context as "csrf_token".
 // On other methods (POST, PUT, DELETE): verifies the form field or X-CSRF-Token header matches the cookie value.
+// The cookie is session-stable across reads — SPA navigations that only swap <main>
+// must not invalidate the meta-rendered token in <head>. Rotation happens only when
+// the cookie is absent or malformed.
 // secureCookie controls the Secure flag — set false for localhost/HTTP development.
 func CSRF(secureCookie bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -395,6 +399,13 @@ func CSRF(secureCookie bool) gin.HandlerFunc {
 					c.Next()
 					return
 				}
+			}
+			// Reuse a well-formed existing cookie so SPA navigations don't rotate
+			// the token underneath stale meta tags rendered in a prior <head>.
+			if existing, err := c.Cookie(csrfCookieName); err == nil && isValidCSRFToken(existing) {
+				c.Set("csrf_token", existing)
+				c.Next()
+				return
 			}
 			token := generateCSRFToken()
 			if token == "" {

@@ -225,7 +225,8 @@ func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 		return
 	}
 
-	if err := h.composeService.UpdateArticle(slug, &input); err != nil {
+	prevBanner, err := h.composeService.UpdateArticle(slug, &input)
+	if err != nil {
 		h.logger.Error("Failed to update post", "error", err, "slug", slug)
 		data := h.buildBaseTemplateData("Edit - " + h.config.Blog.Title)
 		data["template"] = templateCompose
@@ -244,6 +245,7 @@ func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 		h.renderHTML(c, http.StatusInternalServerError, "base.html", data)
 		return
 	}
+	compose.UnlinkOwnedUpload(prevBanner, input.Banner, slug, h.config.Upload.Path, h.logger)
 
 	reloadOK := true
 	if err := h.articleService.ReloadArticles(); err != nil {
@@ -477,7 +479,7 @@ func (h *ComposeHandler) PublishDraft(c *gin.Context) {
 	}
 
 	input.Draft = false
-	if err := h.composeService.UpdateArticle(slug, input); err != nil {
+	if _, err := h.composeService.UpdateArticle(slug, input); err != nil {
 		h.logger.Error("Failed to publish draft", "error", err, "slug", slug)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to publish draft"})
 		return

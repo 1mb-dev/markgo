@@ -165,7 +165,7 @@ func TestUpdateArticle(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update it with description and categories
-	err = svc.UpdateArticle(slug, &Input{
+	_, err = svc.UpdateArticle(slug, &Input{
 		Title:       "Updated Title",
 		Description: "Updated description for SEO",
 		Content:     "Updated content with **markdown**.",
@@ -200,7 +200,7 @@ func TestUpdateArticle_PreservesMetadata(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update only content
-	err = svc.UpdateArticle(slug, &Input{
+	_, err = svc.UpdateArticle(slug, &Input{
 		Title:   "Metadata Test",
 		Content: "New content.",
 	})
@@ -431,7 +431,7 @@ func TestUpdateArticle_PreservesAMAFields(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update content (simulate answering) — don't set Asker/Type in input
-	err = svc.UpdateArticle(slug, &Input{
+	_, err = svc.UpdateArticle(slug, &Input{
 		Content: "What is your favorite language?\n\n---\n\nGo, for its simplicity.",
 		Draft:   false,
 	})
@@ -589,7 +589,7 @@ func TestUpdateArticle_BannerAltDroppedWhenBannerRemoved(t *testing.T) {
 
 	// User clicks "Remove banner" but the form still posts the old alt text
 	// (the bug this test guards against). Server must drop banner_alt too.
-	err = svc.UpdateArticle(slug, &Input{
+	_, err = svc.UpdateArticle(slug, &Input{
 		Title:     "Has Banner",
 		Content:   "Body.",
 		Banner:    "",
@@ -630,7 +630,7 @@ func TestUpdateArticle_BannerPreservedOnEdit(t *testing.T) {
 
 	// Simulate an edit that doesn't touch the banner: same Banner/BannerAlt
 	// submitted (the hidden field round-trips the existing value).
-	err = svc.UpdateArticle("editorial", &Input{
+	_, err = svc.UpdateArticle("editorial", &Input{
 		Title:     "Editorial Piece (edited)",
 		Content:   "Body with edits.",
 		Banner:    loaded.Banner,

@@ -9,7 +9,7 @@
         {{ if .tags }}
         <div class="tag-cloud">
             {{ range .tags }}
-            <a href="/tags/{{ .Tag | urlquery }}" class="tag-cloud-item">
+            <a href="/tags/{{ .Tag | urlquery }}" class="tag-cloud-item" data-count="{{ .Count }}">
                 <span class="tag-cloud-label">{{ .Tag }}</span>
                 <span class="tag-cloud-count">{{ .Count }}</span>
             </a>
