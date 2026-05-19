@@ -326,7 +326,13 @@ export function init() {
             const submitter = e.submitter;
             const isDraft = submitter?.value === 'on';
 
-            // Disable both buttons during submit
+            // Build the body BEFORE disabling buttons. Per the HTML spec,
+            // entry-list construction skips disabled form fields \u2014 including
+            // the submitter when passed to FormData(form, submitter). Disabling
+            // first would drop the "draft=on" entry from a Save Draft click and
+            // silently publish.
+            const body = new FormData(form, submitter);
+
             if (saveDraftBtn) saveDraftBtn.disabled = true;
             if (publishBtn) publishBtn.disabled = true;
 
@@ -337,7 +343,7 @@ export function init() {
             try {
                 const response = await authenticatedFetch(form.action, {
                     method: 'POST',
-                    body: new FormData(form, submitter),
+                    body,
                     headers: { Accept: 'text/html' },
                 });
 
