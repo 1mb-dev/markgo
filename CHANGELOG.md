@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.20.0] - 2026-06-03
+
+Each feed card represents its content type as what it is. The AMA card no
+longer dumps the whole answer into the feed.
+
+### Changed
+
+- **AMA cards show the question, not the answer.** An AMA card now renders the
+  reader's question with a "Read the answer →" cue; the detail page reveals the
+  answer. The question is stored in frontmatter (`question:`) and the answer in
+  the body, so the answer can never leak into the card's data path. Existing
+  answered AMAs (question + `---` + answer in the body) are normalized at load
+  with no migration. The AMA detail page shows the question as its header and
+  the answer as the body, and the question is indexed for search.
+- **Thought cards drop the "→" arrow.** It implied more content behind the
+  click, but thoughts are shown whole; the timestamp remains as an honest share
+  permalink. Only AMA cards carry the arrow, where the click genuinely reveals
+  the answer.
+
+### Fixed
+
+- Titleless posts (AMA, thought) had a blank `<title>`, `og:title`,
+  `twitter:title`, and schema headline. These now derive from the post's
+  display title — an AMA's question, a thought's opening line.
+
 ## [3.19.0] - 2026-06-03
 
 Consistent card→detail navigation across every feed card type. Fixes #105.
