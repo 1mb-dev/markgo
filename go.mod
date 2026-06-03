@@ -2,6 +2,8 @@ module github.com/1mb-dev/markgo
 
 go 1.26.0
 
+toolchain go1.26.4
+
 require (
 	github.com/1mb-dev/goflow v1.5.1
 	github.com/1mb-dev/obcache-go/v2 v2.0.2

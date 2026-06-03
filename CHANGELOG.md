@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.18.2] - 2026-06-03
+
+Security: Go toolchain bump.
+
+### Security
+
+- **Bump Go to 1.26.4** for standard-library fixes flagged by
+  govulncheck: GO-2026-5039 (`net/textproto` includes unescaped input
+  in errors — reachable from upload MIME parsing, SMTP, and error
+  formatting) and GO-2026-5037 (`crypto/x509`). go.mod `toolchain`, the
+  CI Go version, and the Docker build image now pin 1.26.4.
+
 ## [3.18.1] - 2026-05-19
 
 Wave-5 operator feedback patch. Four issues from log.1mb.dev.
