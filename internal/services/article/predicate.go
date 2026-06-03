@@ -12,6 +12,10 @@ import (
 // served by the /p/:slug route.
 const TypePage = "page"
 
+// TypeAMA is the frontmatter type value for reader Q&A posts. The question
+// is the card hook (frontmatter); the answer is the body.
+const TypeAMA = "ama"
+
 // aboutSlug is the reserved slug whose markdown body is rendered by the
 // dedicated /about handler. The dedicated-route predicate excludes it from
 // the writing-feed graph; tests and the predicate reference this constant
