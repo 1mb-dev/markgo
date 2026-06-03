@@ -46,9 +46,11 @@ func (h *AMAHandler) Submit(c *gin.Context) {
 		return
 	}
 
-	// Create post via compose service with type=ama, draft=true
+	// Create post via compose service with type=ama, draft=true. The question
+	// is stored in frontmatter (not the body) — the body holds the answer once
+	// published, so the question never shares the answer's render path.
 	slug, err := h.composeService.CreatePost(&compose.Input{
-		Content:    form.Question,
+		Question:   form.Question,
 		Title:      "",
 		Draft:      true,
 		Asker:      form.Name,
@@ -129,8 +131,17 @@ func (h *AMAHandler) Answer(c *gin.Context) {
 		return
 	}
 
-	// Prepend original question, then add answer below
-	input.Content = input.Content + "\n\n---\n\n" + form.Answer
+	// Legacy promotion: a pre-upgrade pending draft kept the question in the
+	// body with no frontmatter question. Promote it so overwriting the body
+	// with the answer doesn't drop the question. New drafts already carry the
+	// question in frontmatter (input.Question set), so this is a no-op for them.
+	if input.Question == "" && input.Content != "" {
+		input.Question = input.Content
+	}
+
+	// The answer becomes the body; the question rides in frontmatter (preserved
+	// by UpdateArticle's set-if-provided round-trip).
+	input.Content = form.Answer
 	input.Draft = false
 
 	if _, err := h.composeService.UpdateArticle(slug, input); err != nil {

@@ -136,6 +136,101 @@ func TestAMASubmit(t *testing.T) {
 	})
 }
 
+func TestAMASubmit_QuestionInFrontmatter(t *testing.T) {
+	handler, dir := createTestAMAHandler(t)
+
+	router := gin.New()
+	router.POST("/ama/submit", handler.Submit)
+
+	question := "Which engineering decision aged the best in hindsight?"
+	body, _ := json.Marshal(map[string]string{
+		"name":     "Hemant",
+		"email":    "hemant@example.com",
+		"question": question,
+	})
+	req := httptest.NewRequest("POST", "/ama/submit", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	entries, err := readDir(dir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	content, err := os.ReadFile(filepath.Join(dir, entries[0]))
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.Contains(t, s, "question: "+question, "question stored in frontmatter")
+	assert.Contains(t, s, "type: ama")
+	assert.Contains(t, s, "draft: true")
+	// Body is empty — the question is not duplicated into the body.
+	body3 := strings.SplitN(s, "---", 3)[2]
+	assert.Empty(t, strings.TrimSpace(body3), "body must be empty for an unanswered submission")
+}
+
+// TestAMAAnswer_QuestionAnswerSeparation covers both storage shapes: a new
+// submission (question already in frontmatter) and a legacy pending draft
+// (question in the body). Both must end with question-in-frontmatter,
+// answer-in-body, draft cleared.
+func TestAMAAnswer_QuestionAnswerSeparation(t *testing.T) {
+	answer := "Plain markdown files in a git repo, served by one binary."
+
+	setup := func(t *testing.T) (*AMAHandler, *compose.Service, *gin.Engine) {
+		t.Helper()
+		dir := t.TempDir()
+		cfg := createTestConfig()
+		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		base := NewBaseHandler(cfg, logger, &MockTemplateService{}, &BuildInfo{Version: "test"}, &MockSEOService{})
+		composeService := compose.NewService(dir, "Test Author")
+		handler := NewAMAHandler(base, composeService, &AMAArticleService{})
+		router := gin.New()
+		router.POST("/admin/ama/:slug/answer", handler.Answer)
+		return handler, composeService, router
+	}
+
+	postAnswer := func(t *testing.T, router *gin.Engine, slug string) {
+		t.Helper()
+		body, _ := json.Marshal(map[string]string{"answer": answer})
+		req := httptest.NewRequest("POST", "/admin/ama/"+slug+"/answer", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, "answer must succeed (body=%s)", w.Body.String())
+	}
+
+	t.Run("new shape: question already in frontmatter", func(t *testing.T) {
+		_, svc, router := setup(t)
+		question := "What survived the longest without a rewrite?"
+		slug, err := svc.CreatePost(&compose.Input{Question: question, Type: "ama", Asker: "A", Draft: true})
+		require.NoError(t, err)
+
+		postAnswer(t, router, slug)
+
+		got, err := svc.LoadArticle(slug)
+		require.NoError(t, err)
+		assert.Equal(t, question, got.Question, "question preserved in frontmatter")
+		assert.Equal(t, answer, got.Content, "answer is the body")
+		assert.False(t, got.Draft)
+	})
+
+	t.Run("legacy shape: question promoted from body", func(t *testing.T) {
+		_, svc, router := setup(t)
+		question := "Was the no-database bet worth it?"
+		// Legacy pending draft: question lives in the body, no frontmatter question.
+		slug, err := svc.CreatePost(&compose.Input{Content: question, Type: "ama", Asker: "B", Draft: true})
+		require.NoError(t, err)
+
+		postAnswer(t, router, slug)
+
+		got, err := svc.LoadArticle(slug)
+		require.NoError(t, err)
+		assert.Equal(t, question, got.Question, "legacy question promoted to frontmatter")
+		assert.Equal(t, answer, got.Content, "answer replaces the body")
+		assert.False(t, got.Draft)
+	})
+}
+
 func TestAMAListPending(t *testing.T) {
 	t.Run("returns pending AMAs as JSON", func(t *testing.T) {
 		cfg := createTestConfig()
