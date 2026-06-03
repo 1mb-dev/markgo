@@ -45,7 +45,10 @@ type Input struct {
 	Draft       bool   `json:"draft"`
 	Asker       string `json:"asker"`
 	AskerEmail  string `json:"asker_email"`
-	Type        string `json:"type"`
+	// Question is an AMA's reader-submitted question, stored in frontmatter
+	// so the answer (Content/body) never shares the card's data path.
+	Question string `json:"question"`
+	Type     string `json:"type"`
 	// Slug is operator-supplied; required when Type == "page" because
 	// pages need stable, hand-picked URLs. Ignored otherwise — other
 	// types derive slugs from title or timestamp.
@@ -125,6 +128,7 @@ func (s *Service) CreatePost(input *Input) (string, error) {
 	setIfNonEmpty(fm, "type", input.Type)
 	setIfNonEmpty(fm, "asker", input.Asker)
 	setIfNonEmpty(fm, "asker_email", input.AskerEmail)
+	setIfNonEmpty(fm, "question", input.Question)
 	fm["draft"] = input.Draft
 
 	// Marshal frontmatter to YAML
@@ -220,6 +224,9 @@ func (s *Service) LoadArticle(slug string) (*Input, error) {
 	if askerEmail, ok := fm["asker_email"].(string); ok {
 		input.AskerEmail = askerEmail
 	}
+	if question, ok := fm["question"].(string); ok {
+		input.Question = question
+	}
 	if typ, ok := fm["type"].(string); ok {
 		input.Type = typ
 	}
@@ -307,6 +314,15 @@ func (s *Service) UpdateArticle(slug string, input *Input) (prevBanner string, e
 	}
 
 	fm["draft"] = input.Draft
+
+	// Question (AMA): set-if-provided, preserve-on-empty. Deliberately NOT
+	// delete-on-empty like the editable fields above — the question is
+	// reader-submitted and rendered read-only in the edit form, so an edit
+	// that doesn't carry it back must not nuke it. The existing value already
+	// lives in fm (generic round-trip), so no-op when input.Question is empty.
+	if input.Question != "" {
+		fm["question"] = input.Question
+	}
 
 	yamlBytes, err := yaml.Marshal(fm)
 	if err != nil {

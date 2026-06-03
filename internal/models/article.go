@@ -10,19 +10,25 @@ import (
 
 // Article represents a blog article
 type Article struct {
-	Slug         string    `yaml:"slug" json:"slug"`
-	Title        string    `yaml:"title" json:"title"`
-	Description  string    `yaml:"description" json:"description"`
-	Date         time.Time `yaml:"date" json:"date"`
-	Tags         []string  `yaml:"tags" json:"tags"`
-	Categories   []string  `yaml:"categories" json:"categories"`
-	Draft        bool      `yaml:"draft" json:"draft"`
-	Featured     bool      `yaml:"featured" json:"featured"`
-	Author       string    `yaml:"author" json:"author"`
-	Type         string    `yaml:"type,omitempty" json:"type"`
-	LinkURL      string    `yaml:"link_url,omitempty" json:"link_url,omitempty"`
-	Asker        string    `yaml:"asker,omitempty" json:"asker,omitempty"`
-	AskerEmail   string    `yaml:"asker_email,omitempty" json:"asker_email,omitempty"`
+	Slug        string    `yaml:"slug" json:"slug"`
+	Title       string    `yaml:"title" json:"title"`
+	Description string    `yaml:"description" json:"description"`
+	Date        time.Time `yaml:"date" json:"date"`
+	Tags        []string  `yaml:"tags" json:"tags"`
+	Categories  []string  `yaml:"categories" json:"categories"`
+	Draft       bool      `yaml:"draft" json:"draft"`
+	Featured    bool      `yaml:"featured" json:"featured"`
+	Author      string    `yaml:"author" json:"author"`
+	Type        string    `yaml:"type,omitempty" json:"type"`
+	LinkURL     string    `yaml:"link_url,omitempty" json:"link_url,omitempty"`
+	Asker       string    `yaml:"asker,omitempty" json:"asker,omitempty"`
+	AskerEmail  string    `yaml:"asker_email,omitempty" json:"asker_email,omitempty"`
+	// Question holds an AMA's reader-submitted question. It is the AMA's
+	// title-analog: the card's hook and the detail page's header. The answer
+	// lives in the body (Content). New AMAs carry this in frontmatter; legacy
+	// AMAs (question + "---" + answer in the body) have it derived at load time
+	// by the normalizer in ProcessArticleContent. Plain text, not markdown.
+	Question     string    `yaml:"question,omitempty" json:"question,omitempty"`
 	Banner       string    `yaml:"banner,omitempty" json:"banner,omitempty"`
 	BannerAlt    string    `yaml:"banner_alt,omitempty" json:"banner_alt,omitempty"`
 	Content      string    `yaml:"-" json:"content"`
