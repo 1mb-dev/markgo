@@ -257,21 +257,9 @@ func (s *Service) UpdateArticle(slug string, input *Input) (prevBanner string, e
 	prevBanner = stringFieldOr(fm, "banner", "")
 
 	// Update editable fields, preserve everything else (slug, date, author)
-	if input.Title != "" {
-		fm["title"] = input.Title
-	} else {
-		delete(fm, "title")
-	}
-	if input.Description != "" {
-		fm["description"] = input.Description
-	} else {
-		delete(fm, "description")
-	}
-	if input.LinkURL != "" {
-		fm["link_url"] = input.LinkURL
-	} else {
-		delete(fm, "link_url")
-	}
+	setOrDelete(fm, "title", input.Title)
+	setOrDelete(fm, "description", input.Description)
+	setOrDelete(fm, "link_url", input.LinkURL)
 
 	var tags []string
 	for _, t := range strings.Split(input.Tags, ",") {
@@ -481,6 +469,17 @@ func slugPrefixFor(contentType string) string {
 func setIfNonEmpty(m map[string]any, key, val string) {
 	if val != "" {
 		m[key] = val
+	}
+}
+
+// setOrDelete is the UpdateArticle convention for editable string fields:
+// set m[key] when non-empty, otherwise clear it (empty form input removes the
+// field). Distinct from setIfNonEmpty, which never deletes.
+func setOrDelete(m map[string]any, key, val string) {
+	if val != "" {
+		m[key] = val
+	} else {
+		delete(m, key)
 	}
 }
 
