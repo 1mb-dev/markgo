@@ -77,7 +77,7 @@
 <article class="feed-card feed-card-link">
     <div class="feed-card-body">
         <h2 class="feed-card-title">
-            <a href="/writing/{{ .Slug }}">{{ .Title }}</a>
+            <a href="{{ permalink . }}">{{ .Title }}</a>
         </h2>
         {{ if .LinkURL }}
         <a href="{{ .LinkURL }}" class="feed-card-link-url" target="_blank" rel="noopener">
@@ -97,7 +97,7 @@
 <article class="feed-card feed-card-article">
     <div class="feed-card-body">
         <h2 class="feed-card-title">
-            <a href="/writing/{{ .Slug }}">{{ .Title }}</a>
+            <a href="{{ permalink . }}">{{ .Title }}</a>
         </h2>
         {{ if .Description }}
         <p class="feed-card-description">{{ .Description }}</p>
@@ -152,7 +152,7 @@
 {{ $isTitleless := or (eq .Type "thought") (eq .Type "ama") }}
 <div class="feed-card-meta">
     <a href="{{ permalink . }}" class="feed-card-permalink">
-        <span class="sr-only">{{ if eq .Type "ama" }}View question{{ else if eq .Type "thought" }}View thought{{ else if eq .Type "link" }}View post{{ else }}View article{{ end }} from </span>
+        <span class="sr-only">{{ if eq .Type "ama" }}View question{{ else if eq .Type "thought" }}View thought{{ else if eq .Type "link" }}View post{{ else }}View article{{ end }} posted </span>
         <time class="feed-card-time" datetime="{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}">{{ if $isArticle }}{{ .Date.Format "Jan 2, 2006" }}{{ else }}{{ relativeTime .Date }}{{ end }}</time>
         {{ if $isTitleless }}<span class="feed-card-permalink-arrow" aria-hidden="true">→</span>{{ end }}
     </a>

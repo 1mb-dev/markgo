@@ -1107,3 +1107,20 @@ func TestTemplateService_CardMeta(t *testing.T) {
 		})
 	}
 }
+
+// TestTemplateService_CardTitleUsesPermalink locks that titled cards route their
+// title link through `permalink` too, not a hardcoded /writing/<slug>. A drafted
+// type=page renders via card-article (the card-by-type fallback) and must point
+// the title at its canonical /p/<slug>, matching the card-meta timestamp.
+func TestTemplateService_CardTitleUsesPermalink(t *testing.T) {
+	svc, err := NewTemplateService("/nonexistent/path", &config.Config{})
+	require.NoError(t, err)
+
+	var buf strings.Builder
+	require.NoError(t, svc.Render(&buf, "card-article",
+		&models.Article{Slug: "colophon", Type: "page", Title: "Colophon", Date: time.Now(), ReadingTime: 2}))
+	out := buf.String()
+
+	assert.Contains(t, out, `href="/p/colophon">Colophon</a>`, "title link must use the canonical path")
+	assert.NotContains(t, out, "/writing/colophon", "no hardcoded /writing/<slug> for a page")
+}
