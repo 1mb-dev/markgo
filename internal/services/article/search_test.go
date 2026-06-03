@@ -325,3 +325,30 @@ func TestRemoveDuplicateStrings(t *testing.T) {
 	result = removeDuplicateStrings(nil)
 	assert.Nil(t, result)
 }
+
+// TestSearch_FindsAMAQuestion verifies an AMA is findable by a word that
+// appears only in its question (frontmatter), not its answer (body). Guards
+// against the question becoming unsearchable once it left the body.
+func TestSearch_FindsAMAQuestion(t *testing.T) {
+	svc := newTestSearchService()
+	amas := []*models.Article{
+		{
+			Slug:     "ama-stack",
+			Type:     TypeAMA,
+			Question: "Which architecture decision aged exceptionally well?",
+			Content:  "Plain files in git, served by one binary.", // no "architecture" here
+			Date:     time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC),
+		},
+	}
+
+	// Linear path.
+	results := svc.Search(amas, "architecture", 10)
+	if assert.Len(t, results, 1, "AMA must be findable by a question-only term") {
+		assert.Contains(t, results[0].MatchedFields, "question")
+	}
+
+	// Index path.
+	index := svc.BuildSearchIndex(amas)
+	indexed := svc.SearchWithIndex(index, "architecture", 10)
+	assert.Len(t, indexed, 1, "index path must also surface the AMA by question term")
+}
