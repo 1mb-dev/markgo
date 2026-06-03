@@ -148,7 +148,9 @@ func (h *PostHandler) getArticleData(slug string) (map[string]any, error) {
 		}
 	}
 
-	data := h.buildArticlePageData(art.Title+" - "+h.config.Blog.Title, recent)
+	// DisplayTitle so titleless posts (AMA → question, thought → body opening)
+	// get a real page title/breadcrumb instead of a blank one.
+	data := h.buildArticlePageData(art.DisplayTitle()+" - "+h.config.Blog.Title, recent)
 	data["article"] = art
 	data["description"] = art.Description
 	data["template"] = templateArticle
@@ -156,7 +158,7 @@ func (h *PostHandler) getArticleData(slug string) (map[string]any, error) {
 	data["breadcrumbs"] = []services.Breadcrumb{
 		{Name: "Home", URL: "/"},
 		{Name: "Writing", URL: "/writing"},
-		{Name: art.Title},
+		{Name: art.DisplayTitle()},
 	}
 
 	return data, nil

@@ -110,7 +110,7 @@ func (h *Helper) GenerateOpenGraphTags(article *models.Article, baseURL string) 
 		ogType = ogTypeWebsite
 	}
 	tags["og:type"] = ogType
-	tags["og:title"] = article.Title
+	tags["og:title"] = article.DisplayTitle()
 	tags["og:site_name"] = h.siteConfig.Name
 
 	// URL
@@ -131,7 +131,7 @@ func (h *Helper) GenerateOpenGraphTags(article *models.Article, baseURL string) 
 
 	// Image: 3-tier precedence — banner (declarative) > first inline image > static default.
 	tags["og:image"] = h.resolveOGImage(article, baseURL)
-	tags["og:image:alt"] = fmt.Sprintf("Featured image for %s", article.Title)
+	tags["og:image:alt"] = fmt.Sprintf("Featured image for %s", article.DisplayTitle())
 
 	// Article-specific tags
 	tags["article:published_time"] = article.Date.Format("2006-01-02T15:04:05Z07:00")
@@ -185,10 +185,10 @@ func (h *Helper) GenerateTwitterCardTags(article *models.Article, baseURL string
 	// Always emit summary_large_image since we always have *some* image now.
 	tags["twitter:card"] = "summary_large_image"
 	tags["twitter:image"] = h.resolveOGImage(article, baseURL)
-	tags["twitter:image:alt"] = fmt.Sprintf("Featured image for %s", article.Title)
+	tags["twitter:image:alt"] = fmt.Sprintf("Featured image for %s", article.DisplayTitle())
 
 	// Basic Twitter tags
-	tags["twitter:title"] = article.Title
+	tags["twitter:title"] = article.DisplayTitle()
 
 	// Description
 	description := article.Description
@@ -227,7 +227,7 @@ func (h *Helper) GenerateMetaTags(article *models.Article) (map[string]string, e
 	tags := make(map[string]string)
 
 	// Title
-	tags["title"] = article.Title
+	tags["title"] = article.DisplayTitle()
 
 	// Description
 	description := article.Description
@@ -374,7 +374,7 @@ func (h *Helper) GenerateArticleSchema(article *models.Article, baseURL string) 
 	schema := map[string]interface{}{
 		"@context": "https://schema.org",
 		"@type":    schemaType,
-		"headline": article.Title,
+		"headline": article.DisplayTitle(),
 		"url":      articleURL,
 	}
 

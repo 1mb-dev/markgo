@@ -172,3 +172,31 @@ func TestSearchResult(t *testing.T) {
 	assert.Equal(t, 0.85, result.Score)
 	assert.Len(t, result.MatchedFields, 2)
 }
+
+func TestArticleDisplayTitle(t *testing.T) {
+	t.Run("explicit title wins", func(t *testing.T) {
+		a := &Article{Title: "Getting Started with Go", Content: "body"}
+		assert.Equal(t, "Getting Started with Go", a.DisplayTitle())
+	})
+
+	t.Run("AMA uses its question, not the answer body", func(t *testing.T) {
+		a := &Article{
+			Type:     "ama",
+			Question: "Which decision aged exceptionally well?",
+			Content:  "Markdown files in a git repo.", // the answer
+		}
+		assert.Equal(t, "Which decision aged exceptionally well?", a.DisplayTitle())
+	})
+
+	t.Run("thought synthesizes from the body opening", func(t *testing.T) {
+		a := &Article{Type: "thought", Content: "A short morning thought about routines."}
+		assert.Equal(t, "A short morning thought about routines.", a.DisplayTitle())
+	})
+
+	t.Run("long titleless text is truncated at a word boundary", func(t *testing.T) {
+		a := &Article{Question: "This is a deliberately long AMA question that exceeds the sixty character display ceiling"}
+		got := a.DisplayTitle()
+		assert.LessOrEqual(t, len(got), 63) // 60 + "..."
+		assert.Contains(t, got, "...")
+	})
+}
