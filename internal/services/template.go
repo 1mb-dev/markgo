@@ -36,6 +36,7 @@ import (
 	"github.com/1mb-dev/markgo/internal/config"
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
 	"github.com/1mb-dev/markgo/internal/models"
+	"github.com/1mb-dev/markgo/internal/services/article"
 	"github.com/1mb-dev/markgo/web"
 )
 
@@ -963,6 +964,12 @@ var templateFuncs = template.FuncMap{
 	},
 	"displayTitle": func(a *models.Article) string {
 		return a.DisplayTitle()
+	},
+	// permalink returns an article's canonical path (/writing/<slug>, /p/<slug>,
+	// or /about) via the single source of truth, so card templates never hardcode
+	// the URL shape.
+	"permalink": func(a *models.Article) string {
+		return article.CanonicalURLFor(a)
 	},
 }
 

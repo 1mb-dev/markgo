@@ -1044,3 +1044,66 @@ func TestComposeTemplate_SaveWarningHiddenByDefault(t *testing.T) {
 	assert.Regexp(t, pattern, string(body),
 		"compose-save-warning must carry the hidden attribute at initial render")
 }
+
+// TestTemplateFunctions_Permalink locks the card permalink wiring: the
+// `permalink` func must delegate to article.CanonicalURLFor so card templates
+// never hardcode the URL shape (CLAUDE.md canonical-URL rule).
+func TestTemplateFunctions_Permalink(t *testing.T) {
+	funcMap := GetTemplateFuncMap()
+	permalink, ok := funcMap["permalink"].(func(*models.Article) string)
+	require.True(t, ok, "permalink func must be registered with the expected signature")
+
+	assert.Equal(t, "/writing/hello-world", permalink(&models.Article{Slug: "hello-world", Type: "article"}))
+	assert.Equal(t, "/writing/a-thought", permalink(&models.Article{Slug: "a-thought", Type: "thought"}))
+	assert.Equal(t, "/p/colophon", permalink(&models.Article{Slug: "colophon", Type: "page"}))
+	assert.Equal(t, "/about", permalink(&models.Article{Slug: "about"}))
+}
+
+// TestTemplateService_CardMeta pins the v3.19.0 unified card-navigation model:
+// every feed card type renders one VISIBLE permalink to its detail post, with no
+// whole-card overlay (issue #105). It also guards the strict-typed or/not/eq
+// usage in the card-meta define against the silent render-truncation failure mode.
+func TestTemplateService_CardMeta(t *testing.T) {
+	cfg := &config.Config{}
+	svc, err := NewTemplateService("/nonexistent/path", cfg) // falls back to embedded templates
+	require.NoError(t, err)
+
+	cases := []struct {
+		typ          string
+		slug         string
+		wantHref     string
+		wantContains string // type-specific marker
+		wantArrow    bool   // visible arrow cue only on title-less cards
+	}{
+		{"thought", "a-thought", "/writing/a-thought", `View thought`, true},
+		{"ama", "an-ama", "/writing/an-ama", `View question`, true},
+		{"link", "a-link", "/writing/a-link", `View post`, false},
+		{"article", "an-article", "/writing/an-article", `min read`, false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.typ, func(t *testing.T) {
+			a := &models.Article{
+				Slug:        c.slug,
+				Type:        c.typ,
+				Date:        time.Now(),
+				ReadingTime: 5,
+				Tags:        []string{"go"},
+			}
+			var buf strings.Builder
+			require.NoError(t, svc.Render(&buf, "card-meta", a)) // strict-FuncMap render must not fail
+			out := buf.String()
+
+			assert.Contains(t, out, `class="feed-card-permalink"`)
+			assert.Contains(t, out, `href="`+c.wantHref+`"`)
+			assert.Contains(t, out, c.wantContains)
+			assert.Contains(t, out, `class="feed-tag"`, "tags render as real links, lifted out from under any overlay")
+			assert.NotContains(t, out, "feed-card--clickable", "no whole-card overlay in Model B")
+			if c.wantArrow {
+				assert.Contains(t, out, "feed-card-permalink-arrow", "title-less cards carry the arrow cue")
+			} else {
+				assert.NotContains(t, out, "feed-card-permalink-arrow", "titled cards omit the arrow cue (title is the door)")
+			}
+		})
+	}
+}

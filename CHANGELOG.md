@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.19.0] - 2026-06-03
+
+Consistent card→detail navigation across every feed card type. Fixes #105.
+
+### Fixed
+
+- **Title-less feed cards no longer steal clicks from the cards above
+  them (#105).** Whole-card click on thought/AMA cards was a stretched
+  link — `.feed-card-permalink::after { position:absolute; inset:0 }` —
+  that assumed its own card supplied a positioned containing block.
+  `.feed-card-thought` set `position:relative`; `.feed-card-ama` did
+  not, so the AMA card's overlay escaped to the initial containing
+  block and blanketed every card above it — clicks across that whole
+  region routed to the AMA post. `router.js` was never involved.
+
+### Changed
+
+- **Unified card navigation: one visible permalink per card, no
+  whole-card overlay.** The stretched-link overlay is removed entirely
+  (eliminating the bug class, not containing it). Titled cards (article,
+  link) navigate via their title as before; title-less cards (thought,
+  AMA) navigate via a visible, focusable timestamp permalink with an
+  arrow cue and an `sr-only` accessible name. Card body text is now
+  selectable on every card, and inline links inside thought/AMA content
+  are clickable (the overlay previously swallowed them). Card meta is
+  consolidated into one shared `card-meta` partial, and a new
+  `permalink` template func routes every card href through
+  `CanonicalURLFor` instead of a hardcoded `/writing/<slug>`.
+
 ## [3.18.2] - 2026-06-03
 
 Security: Go toolchain bump.

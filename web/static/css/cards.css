@@ -84,14 +84,12 @@
     text-decoration: none;
 }
 
-/* Thought Card — clickable via stretched permalink */
+/* Thought Card — full content + visible permalink (no whole-card overlay) */
 .feed-card-thought {
-    position: relative;
     display: flex;
     flex-direction: row;
     padding: 0;
     overflow: hidden;
-    cursor: pointer;
 }
 
 .feed-card-accent {
@@ -116,23 +114,27 @@
     margin: 0;
 }
 
-/* Permalink — stretched link covers entire thought card */
+/* Permalink — visible link to the post's own page, on every card type.
+   On title-less cards (thought, AMA) it is the primary affordance; on titled
+   cards it is a secondary, consistent one. No overlay (issue #105). */
 .feed-card-permalink {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-1);
     color: var(--color-text-muted);
     text-decoration: none;
+    padding-block: var(--spacing-1);
 }
 
-.feed-card-permalink::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 0;
+.feed-card-permalink:hover,
+.feed-card-permalink:focus-visible {
+    color: var(--color-primary);
+    text-decoration: underline;
 }
 
-/* Elevate interactive elements above stretched link */
-.feed-card-thought .feed-tag {
-    position: relative;
-    z-index: 1;
+/* Decorative arrow cue on title-less cards (aria-hidden in markup) */
+.feed-card-permalink-arrow {
+    line-height: 1;
 }
 
 /* Link Card */
