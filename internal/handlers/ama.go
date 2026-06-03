@@ -7,6 +7,7 @@ import (
 
 	"github.com/1mb-dev/markgo/internal/models"
 	"github.com/1mb-dev/markgo/internal/services"
+	articlepkg "github.com/1mb-dev/markgo/internal/services/article"
 	"github.com/1mb-dev/markgo/internal/services/compose"
 )
 
@@ -131,12 +132,13 @@ func (h *AMAHandler) Answer(c *gin.Context) {
 		return
 	}
 
-	// Legacy promotion: a pre-upgrade pending draft kept the question in the
-	// body with no frontmatter question. Promote it so overwriting the body
-	// with the answer doesn't drop the question. New drafts already carry the
-	// question in frontmatter (input.Question set), so this is a no-op for them.
-	if input.Question == "" && input.Content != "" {
-		input.Question = input.Content
+	// Legacy promotion: a pre-v3.20.0 pending draft kept the question in the
+	// body with no frontmatter question. Recover it via the shared split (which
+	// also handles the rare body that already contains a separator) so
+	// overwriting the body with the answer never drops or corrupts the question.
+	// New drafts carry the question in frontmatter, so this is a no-op for them.
+	if input.Question == "" {
+		input.Question, _ = articlepkg.SplitLegacyAMA(input.Content)
 	}
 
 	// The answer becomes the body; the question rides in frontmatter (preserved

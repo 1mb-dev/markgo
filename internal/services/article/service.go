@@ -240,15 +240,18 @@ func (s *CompositeService) GetSearchSuggestions(query string, limit int) []strin
 	return s.searchService.GetSuggestions(articles, query, limit)
 }
 
-// amaSeparator is the deterministic boundary the AMA answer flow writes
-// between a legacy question and its answer ("question\n\n---\n\nanswer").
+// amaSeparator is the boundary legacy AMA bodies used between question and
+// answer ("question\n\n---\n\nanswer"). Read-only now: answers no longer write
+// it (the question lives in frontmatter). SplitLegacyAMA uses it to recover the
+// question from pre-v3.20.0 files at load and at the edit/answer surfaces.
 const amaSeparator = "\n\n---\n\n"
 
-// splitLegacyAMA splits a legacy AMA body into (question, answer) at the FIRST
+// SplitLegacyAMA splits a legacy AMA body into (question, answer) at the FIRST
 // separator. Unanswered legacy drafts (no separator) return (whole, ""). The
 // split is on the FIRST separator only, so a question is always taken whole;
-// any "---" inside an answer stays with the answer.
-func splitLegacyAMA(body string) (question, answer string) {
+// any "---" inside an answer stays with the answer. Exported so the compose
+// edit and answer surfaces recover the question identically — one split site.
+func SplitLegacyAMA(body string) (question, answer string) {
 	q, a, found := strings.Cut(body, amaSeparator)
 	if !found {
 		return strings.TrimSpace(body), ""
@@ -266,7 +269,7 @@ func (s *CompositeService) ProcessArticleContent(article *models.Article) error 
 	// repository), so the Question=="" guard skips them, leaving any author
 	// "---" in their answer untouched.
 	if article.Type == TypeAMA && article.Question == "" {
-		article.Question, article.Content = splitLegacyAMA(article.Content)
+		article.Question, article.Content = SplitLegacyAMA(article.Content)
 	}
 
 	// Process markdown content to HTML

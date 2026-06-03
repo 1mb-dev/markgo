@@ -579,7 +579,7 @@ func TestSplitLegacyAMA(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			q, ans := splitLegacyAMA(tt.body)
+			q, ans := SplitLegacyAMA(tt.body)
 			assert.Equal(t, tt.wantQ, q)
 			assert.Equal(t, tt.wantAns, ans)
 		})
