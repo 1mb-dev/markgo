@@ -44,6 +44,11 @@ type Article struct {
 // mdSyntax matches common markdown formatting syntax for stripping.
 var mdSyntax = regexp.MustCompile(`[*_~` + "`" + `\[\]#>]+`)
 
+// mdLink matches markdown links [text](url); stripMarkdown keeps the text.
+// Hoisted to package scope because DisplayTitle (and thus stripMarkdown) is now
+// on the article-detail hot path via the SEO meta helpers.
+var mdLink = regexp.MustCompile(`\[([^\]]+)\]\([^)]+\)`)
+
 // BannerSrc returns the HTTP-servable URL for the banner image. Three branches:
 //   - Absolute URL (http/https): pass through.
 //   - Server-absolute (leading slash, e.g. /static/img/foo.png): pass through;
@@ -102,7 +107,7 @@ func (a *Article) DisplayTitle() string {
 // stripMarkdown removes common markdown formatting from text.
 func stripMarkdown(s string) string {
 	// Remove markdown links [text](url) → text
-	s = regexp.MustCompile(`\[([^\]]+)\]\([^)]+\)`).ReplaceAllString(s, "$1")
+	s = mdLink.ReplaceAllString(s, "$1")
 	// Remove inline formatting: *, _, ~, `, [, ], #, >
 	s = mdSyntax.ReplaceAllString(s, "")
 	// Collapse whitespace
