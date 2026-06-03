@@ -550,3 +550,78 @@ func TestCompositeService_GetLastReloadTime(t *testing.T) {
 	reloadTime := svc.GetLastReloadTime()
 	assert.Equal(t, 2026, reloadTime.Year())
 }
+
+func TestSplitLegacyAMA(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    string
+		wantQ   string
+		wantAns string
+	}{
+		{
+			name:    "answered: question and answer split on first separator",
+			body:    "What aged well?\n\n---\n\nPlain files did.",
+			wantQ:   "What aged well?",
+			wantAns: "Plain files did.",
+		},
+		{
+			name:    "unanswered: no separator, whole body is the question",
+			body:    "What is your take on plain files?",
+			wantQ:   "What is your take on plain files?",
+			wantAns: "",
+		},
+		{
+			name:    "answer containing its own thematic break: split only on the first",
+			body:    "Short question?\n\n---\n\nFirst part.\n\n---\n\nSecond part.",
+			wantQ:   "Short question?",
+			wantAns: "First part.\n\n---\n\nSecond part.",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q, ans := SplitLegacyAMA(tt.body)
+			assert.Equal(t, tt.wantQ, q)
+			assert.Equal(t, tt.wantAns, ans)
+		})
+	}
+}
+
+func TestProcessArticleContent_AMANormalization(t *testing.T) {
+	svc := newTestService(nil)
+
+	t.Run("legacy answered: body split, answer in Content, question excluded", func(t *testing.T) {
+		a := &models.Article{Type: TypeAMA, Content: "Which decision aged well?\n\n---\n\nMarkdown files in git."}
+		require.NoError(t, svc.ProcessArticleContent(a))
+		assert.Equal(t, "Which decision aged well?", a.Question)
+		assert.Equal(t, "Markdown files in git.", a.Content)
+		// ProcessedContent (the card/detail answer body) must not leak the question.
+		assert.Contains(t, a.ProcessedContent, "Markdown files in git.")
+		assert.NotContains(t, a.ProcessedContent, "Which decision aged well?")
+	})
+
+	t.Run("new shape: Question set in frontmatter, answer with --- left intact", func(t *testing.T) {
+		a := &models.Article{
+			Type:     TypeAMA,
+			Question: "Which decision aged well?",
+			Content:  "Markdown files.\n\n---\n\nStill true today.",
+		}
+		require.NoError(t, svc.ProcessArticleContent(a))
+		assert.Equal(t, "Which decision aged well?", a.Question)
+		// Not split — the author's own thematic break survives.
+		assert.Equal(t, "Markdown files.\n\n---\n\nStill true today.", a.Content)
+	})
+
+	t.Run("legacy unanswered: question only, empty answer", func(t *testing.T) {
+		a := &models.Article{Type: TypeAMA, Content: "Just a pending question, no answer yet."}
+		require.NoError(t, svc.ProcessArticleContent(a))
+		assert.Equal(t, "Just a pending question, no answer yet.", a.Question)
+		assert.Empty(t, a.Content)
+	})
+
+	t.Run("non-ama untouched", func(t *testing.T) {
+		a := &models.Article{Type: "thought", Content: "A thought with a\n\n---\n\nbreak in it."}
+		require.NoError(t, svc.ProcessArticleContent(a))
+		assert.Empty(t, a.Question)
+		assert.Equal(t, "A thought with a\n\n---\n\nbreak in it.", a.Content)
+	})
+}

@@ -139,6 +139,14 @@ func (h *ComposeHandler) ShowEdit(c *gin.Context) {
 		return
 	}
 
+	// Legacy AMA recovery: pre-v3.20.0 files keep the question in the body (no
+	// frontmatter question). Split it out so the edit form shows the question
+	// read-only and the textarea holds only the answer — same single split site
+	// the load-time normalizer uses.
+	if input.Type == articlepkg.TypeAMA && input.Question == "" {
+		input.Question, input.Content = articlepkg.SplitLegacyAMA(input.Content)
+	}
+
 	data := h.buildBaseTemplateData("Edit - " + h.config.Blog.Title)
 	data["template"] = templateCompose
 	data["input"] = input

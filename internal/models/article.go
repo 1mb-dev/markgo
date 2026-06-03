@@ -10,19 +10,25 @@ import (
 
 // Article represents a blog article
 type Article struct {
-	Slug         string    `yaml:"slug" json:"slug"`
-	Title        string    `yaml:"title" json:"title"`
-	Description  string    `yaml:"description" json:"description"`
-	Date         time.Time `yaml:"date" json:"date"`
-	Tags         []string  `yaml:"tags" json:"tags"`
-	Categories   []string  `yaml:"categories" json:"categories"`
-	Draft        bool      `yaml:"draft" json:"draft"`
-	Featured     bool      `yaml:"featured" json:"featured"`
-	Author       string    `yaml:"author" json:"author"`
-	Type         string    `yaml:"type,omitempty" json:"type"`
-	LinkURL      string    `yaml:"link_url,omitempty" json:"link_url,omitempty"`
-	Asker        string    `yaml:"asker,omitempty" json:"asker,omitempty"`
-	AskerEmail   string    `yaml:"asker_email,omitempty" json:"asker_email,omitempty"`
+	Slug        string    `yaml:"slug" json:"slug"`
+	Title       string    `yaml:"title" json:"title"`
+	Description string    `yaml:"description" json:"description"`
+	Date        time.Time `yaml:"date" json:"date"`
+	Tags        []string  `yaml:"tags" json:"tags"`
+	Categories  []string  `yaml:"categories" json:"categories"`
+	Draft       bool      `yaml:"draft" json:"draft"`
+	Featured    bool      `yaml:"featured" json:"featured"`
+	Author      string    `yaml:"author" json:"author"`
+	Type        string    `yaml:"type,omitempty" json:"type"`
+	LinkURL     string    `yaml:"link_url,omitempty" json:"link_url,omitempty"`
+	Asker       string    `yaml:"asker,omitempty" json:"asker,omitempty"`
+	AskerEmail  string    `yaml:"asker_email,omitempty" json:"asker_email,omitempty"`
+	// Question holds an AMA's reader-submitted question. It is the AMA's
+	// title-analog: the card's hook and the detail page's header. The answer
+	// lives in the body (Content). New AMAs carry this in frontmatter; legacy
+	// AMAs (question + "---" + answer in the body) have it derived at load time
+	// by the normalizer in ProcessArticleContent. Plain text, not markdown.
+	Question     string    `yaml:"question,omitempty" json:"question,omitempty"`
 	Banner       string    `yaml:"banner,omitempty" json:"banner,omitempty"`
 	BannerAlt    string    `yaml:"banner_alt,omitempty" json:"banner_alt,omitempty"`
 	Content      string    `yaml:"-" json:"content"`
@@ -37,6 +43,11 @@ type Article struct {
 
 // mdSyntax matches common markdown formatting syntax for stripping.
 var mdSyntax = regexp.MustCompile(`[*_~` + "`" + `\[\]#>]+`)
+
+// mdLink matches markdown links [text](url); stripMarkdown keeps the text.
+// Hoisted to package scope because DisplayTitle (and thus stripMarkdown) is now
+// on the article-detail hot path via the SEO meta helpers.
+var mdLink = regexp.MustCompile(`\[([^\]]+)\]\([^)]+\)`)
 
 // BannerSrc returns the HTTP-servable URL for the banner image. Three branches:
 //   - Absolute URL (http/https): pass through.
@@ -75,7 +86,13 @@ func (a *Article) DisplayTitle() string {
 	if a.Title != "" {
 		return a.Title
 	}
-	content := stripMarkdown(a.Content)
+	// Titleless posts synthesize a title from their text. AMAs are titled by
+	// their question (the body is the answer); thoughts use the body opening.
+	source := a.Content
+	if a.Question != "" {
+		source = a.Question
+	}
+	content := stripMarkdown(source)
 	if len(content) > 60 {
 		if idx := strings.LastIndex(content[:60], " "); idx > 20 {
 			content = content[:idx]
@@ -90,7 +107,7 @@ func (a *Article) DisplayTitle() string {
 // stripMarkdown removes common markdown formatting from text.
 func stripMarkdown(s string) string {
 	// Remove markdown links [text](url) → text
-	s = regexp.MustCompile(`\[([^\]]+)\]\([^)]+\)`).ReplaceAllString(s, "$1")
+	s = mdLink.ReplaceAllString(s, "$1")
 	// Remove inline formatting: *, _, ~, `, [, ], #, >
 	s = mdSyntax.ReplaceAllString(s, "")
 	// Collapse whitespace

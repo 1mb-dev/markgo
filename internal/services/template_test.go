@@ -1059,24 +1059,26 @@ func TestTemplateFunctions_Permalink(t *testing.T) {
 	assert.Equal(t, "/about", permalink(&models.Article{Slug: "about"}))
 }
 
-// TestTemplateService_CardMeta pins the v3.19.0 unified card-navigation model:
-// every feed card type renders one VISIBLE permalink to its detail post, with no
-// whole-card overlay (issue #105). It also guards the strict-typed or/not/eq
-// usage in the card-meta define against the silent render-truncation failure mode.
+// TestTemplateService_CardMeta pins the card-navigation model: every feed card
+// type renders one VISIBLE permalink to its detail post, with no whole-card
+// overlay (issue #105). v3.20.0 (apt-representation): only AMA carries a visible
+// "Read the answer →" cue (its detail genuinely reveals the answer); thoughts are
+// shown whole, so their permalink is an honest share affordance with no arrow.
+// Also guards the strict-typed or/not/eq usage against silent render-truncation.
 func TestTemplateService_CardMeta(t *testing.T) {
 	cfg := &config.Config{}
 	svc, err := NewTemplateService("/nonexistent/path", cfg) // falls back to embedded templates
 	require.NoError(t, err)
 
 	cases := []struct {
-		typ          string
-		slug         string
-		wantHref     string
-		wantContains string // type-specific marker
-		wantArrow    bool   // visible arrow cue only on title-less cards
+		typ           string
+		slug          string
+		wantHref      string
+		wantContains  string // type-specific sr-only marker
+		wantAnswerCue bool   // visible "Read the answer →" cue — AMA only
 	}{
-		{"thought", "a-thought", "/writing/a-thought", `View thought`, true},
-		{"ama", "an-ama", "/writing/an-ama", `View question`, true},
+		{"thought", "a-thought", "/writing/a-thought", `View thought`, false},
+		{"ama", "an-ama", "/writing/an-ama", `Read the answer`, true},
 		{"link", "a-link", "/writing/a-link", `View post`, false},
 		{"article", "an-article", "/writing/an-article", `min read`, false},
 	}
@@ -1099,10 +1101,12 @@ func TestTemplateService_CardMeta(t *testing.T) {
 			assert.Contains(t, out, c.wantContains)
 			assert.Contains(t, out, `class="feed-tag"`, "tags render as real links, lifted out from under any overlay")
 			assert.NotContains(t, out, "feed-card--clickable", "no whole-card overlay in Model B")
-			if c.wantArrow {
-				assert.Contains(t, out, "feed-card-permalink-arrow", "title-less cards carry the arrow cue")
+			if c.wantAnswerCue {
+				assert.Contains(t, out, "feed-card-answer-cue", "AMA cards carry the 'Read the answer' cue")
+				assert.Contains(t, out, "feed-card-permalink-arrow", "the AMA cue includes the arrow")
 			} else {
-				assert.NotContains(t, out, "feed-card-permalink-arrow", "titled cards omit the arrow cue (title is the door)")
+				assert.NotContains(t, out, "feed-card-answer-cue", "only AMA carries the answer cue")
+				assert.NotContains(t, out, "feed-card-permalink-arrow", "non-AMA cards have no arrow (no false 'more' promise)")
 			}
 		})
 	}

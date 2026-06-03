@@ -132,9 +132,15 @@
     text-decoration: underline;
 }
 
-/* Decorative arrow cue on title-less cards (aria-hidden in markup) */
+/* Decorative arrow cue (aria-hidden in markup) */
 .feed-card-permalink-arrow {
     line-height: 1;
+}
+
+/* AMA "Read the answer →" call-to-action, appended to the timestamp permalink.
+   Only AMA cards carry it — the detail page genuinely reveals the answer. */
+.feed-card-answer-cue {
+    font-weight: 500;
 }
 
 /* Link Card */

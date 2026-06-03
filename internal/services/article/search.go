@@ -311,6 +311,15 @@ func (s *TextSearchService) BuildSearchIndex(articles []*models.Article) SearchI
 			}
 		}
 
+		// Index AMA question words. The question is the AMA's title-analog and
+		// lives in frontmatter, not the body, so it must be indexed explicitly
+		// or readers couldn't find an AMA by its question.
+		for _, word := range s.extractWords(strings.ToLower(article.Question)) {
+			if !s.stopWords[word] {
+				index.ContentIndex[word] = append(index.ContentIndex[word], article)
+			}
+		}
+
 		// Index tags
 		for _, tag := range article.Tags {
 			tagLower := strings.ToLower(tag)
@@ -442,6 +451,7 @@ func (s *TextSearchService) calculateRelevanceScore(
 	titleLower := strings.ToLower(article.Title)
 	contentLower := strings.ToLower(article.Content)
 	descriptionLower := strings.ToLower(article.Description)
+	questionLower := strings.ToLower(article.Question)
 
 	for _, term := range searchTerms {
 		// Title matches (highest weight)
@@ -454,6 +464,13 @@ func (s *TextSearchService) calculateRelevanceScore(
 		if strings.Contains(descriptionLower, term) {
 			score += 5.0
 			matchedFields = append(matchedFields, "description")
+		}
+
+		// AMA question matches (title-analog, high weight). Empty for
+		// non-AMA articles, so the Contains is a no-op there.
+		if strings.Contains(questionLower, term) {
+			score += 5.0
+			matchedFields = append(matchedFields, "question")
 		}
 
 		// Tag matches (medium weight)

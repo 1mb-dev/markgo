@@ -61,8 +61,20 @@
                 {{ end }}
             {{ end }}
 
+            {{ with .input }}{{ if eq .Type "ama" }}
+            <div class="compose-field compose-ama-question">
+                <span class="compose-label">Question</span>
+                <div class="compose-ama-question-text">
+                    <span class="ama-badge">Q</span>
+                    <p>{{ .Question }}</p>
+                </div>
+                {{ if .Asker }}<p class="compose-ama-asker">Asked by {{ .Asker }}</p>{{ end }}
+                <span class="compose-hint">The reader's question is fixed. Write your answer below.</span>
+            </div>
+            {{ end }}{{ end }}
+
             <div class="compose-field">
-                <label for="content" class="compose-label">Content <span class="compose-required">*</span></label>
+                <label for="content" class="compose-label">{{ with .input }}{{ if eq .Type "ama" }}Answer{{ else }}Content{{ end }}{{ else }}Content{{ end }} <span class="compose-required">*</span></label>
                 <textarea
                     id="content"
                     name="content"

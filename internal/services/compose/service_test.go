@@ -645,3 +645,73 @@ func TestUpdateArticle_BannerPreservedOnEdit(t *testing.T) {
 	assert.Equal(t, "Editorial hero", reloaded.BannerAlt)
 	assert.Equal(t, "Editorial Piece (edited)", reloaded.Title)
 }
+
+// TestCreatePost_AMAQuestionInFrontmatter verifies a new AMA stores its
+// question in frontmatter (not the body) so the answer never shares the
+// card's data path.
+func TestCreatePost_AMAQuestionInFrontmatter(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(dir, "Test Author")
+
+	slug, err := svc.CreatePost(&Input{
+		Question: "Which decision aged exceptionally well?",
+		Asker:    "Hemant",
+		Type:     "ama",
+		Draft:    true,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, slug, "ama-")
+
+	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
+	require.Len(t, files, 1)
+	content, err := os.ReadFile(files[0])
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.Contains(t, s, "question: Which decision aged exceptionally well?")
+	assert.Contains(t, s, "type: ama")
+	assert.Contains(t, s, "draft: true")
+	// Body is empty for an unanswered submission — the question lives only in
+	// frontmatter.
+	body := strings.SplitN(s, "---", 3)[2]
+	assert.Empty(t, strings.TrimSpace(body))
+}
+
+// TestLoadUpdateArticle_PreservesQuestion is the silent-drop guard: the AMA
+// question must survive a LoadArticle→UpdateArticle round-trip, including an
+// edit that doesn't carry the question back (the edit form renders it
+// read-only and does not resubmit it).
+func TestLoadUpdateArticle_PreservesQuestion(t *testing.T) {
+	dir := t.TempDir()
+	svc := NewService(dir, "Test Author")
+
+	// Submit (question in frontmatter, empty body).
+	slug, err := svc.CreatePost(&Input{
+		Question: "What is your take on plain files over a database?",
+		Asker:    "Bob",
+		Type:     "ama",
+		Draft:    true,
+	})
+	require.NoError(t, err)
+
+	loaded, err := svc.LoadArticle(slug)
+	require.NoError(t, err)
+	assert.Equal(t, "What is your take on plain files over a database?", loaded.Question)
+	assert.Empty(t, loaded.Content)
+
+	// Answer it: body becomes the answer, draft cleared. The question rides in
+	// frontmatter; the answer flow does not re-set it.
+	_, err = svc.UpdateArticle(slug, &Input{
+		Content: "Plain files win on backup, portability, and forkability.",
+		Type:    "ama",
+		Draft:   false,
+	})
+	require.NoError(t, err)
+
+	answered, err := svc.LoadArticle(slug)
+	require.NoError(t, err)
+	assert.Equal(t, "What is your take on plain files over a database?", answered.Question,
+		"question must survive an UpdateArticle that does not carry it (preserve-on-empty)")
+	assert.Equal(t, "Plain files win on backup, portability, and forkability.", answered.Content)
+	assert.False(t, answered.Draft)
+}
