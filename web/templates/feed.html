@@ -114,13 +114,7 @@
     <div class="feed-card-body">
         <div class="feed-card-ama-header">
             <span class="ama-badge">Q</span>
-            <div class="feed-card-ama-question">
-                {{ if .ProcessedContent }}
-                    {{ .ProcessedContent | safeHTML }}
-                {{ else }}
-                    {{ .Content | safeHTML }}
-                {{ end }}
-            </div>
+            <div class="feed-card-ama-question">{{ .Question }}</div>
         </div>
         {{ if .Asker }}
         <p class="feed-card-asker">Asked by {{ .Asker }}</p>
@@ -147,14 +141,15 @@
      dispatcher routes everything that is not thought/link/ama to the article card,
      so derive it by exclusion rather than eq .Type "article". */}}
 {{ $isArticle := not (or (or (eq .Type "thought") (eq .Type "link")) (eq .Type "ama")) }}
-{{/* $isTitleless: cards with no title link — the permalink is their primary door,
-     so it carries the visible arrow cue. Titled cards (article, link) omit it. */}}
-{{ $isTitleless := or (eq .Type "thought") (eq .Type "ama") }}
+{{/* Only AMA carries a visible "more" cue — its detail page reveals the answer.
+     Thoughts are shown whole, so the permalink is an honest share affordance with
+     no arrow (it would falsely promise content that isn't there). Titled cards
+     (article, link) link via their title; the timestamp is a secondary permalink. */}}
 <div class="feed-card-meta">
     <a href="{{ permalink . }}" class="feed-card-permalink">
-        <span class="sr-only">{{ if eq .Type "ama" }}View question{{ else if eq .Type "thought" }}View thought{{ else if eq .Type "link" }}View post{{ else }}View article{{ end }} posted </span>
+        <span class="sr-only">{{ if eq .Type "ama" }}Read the answer, posted {{ else if eq .Type "thought" }}View thought posted {{ else if eq .Type "link" }}View post posted {{ else }}View article posted {{ end }}</span>
         <time class="feed-card-time" datetime="{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}">{{ if $isArticle }}{{ .Date.Format "Jan 2, 2006" }}{{ else }}{{ relativeTime .Date }}{{ end }}</time>
-        {{ if $isTitleless }}<span class="feed-card-permalink-arrow" aria-hidden="true">→</span>{{ end }}
+        {{ if eq .Type "ama" }}<span class="feed-card-answer-cue" aria-hidden="true">· Read the answer <span class="feed-card-permalink-arrow">→</span></span>{{ end }}
     </a>
     {{ if $isArticle }}<span class="feed-card-reading-time">{{ .ReadingTime }} min read</span>{{ end }}
     {{ if .Tags }}

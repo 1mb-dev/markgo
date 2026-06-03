@@ -48,6 +48,31 @@
                 {{ end }}
             </div>
 
+            {{ else if eq .article.Type "ama" }}
+            <!-- AMA detail: question is the header, answer is the body -->
+            <header class="article-header article-header-ama">
+                <div class="article-meta">
+                    <time class="article-date" datetime="{{ .article.Date.Format "2006-01-02T15:04:05Z07:00" }}">
+                        {{ .article.Date.Format "Jan 2, 2006" }}
+                    </time>
+                </div>
+                <div class="ama-question-block">
+                    <span class="ama-badge">Q</span>
+                    <h1 class="article-title ama-question-title">{{ .article.Question }}</h1>
+                </div>
+                {{ if .article.Asker }}
+                <p class="ama-asker">Asked by {{ .article.Asker }}</p>
+                {{ end }}
+            </header>
+            <div class="content-separator"></div>
+            <div class="article-content ama-answer">
+                {{ if .article.ProcessedContent }}
+                    {{ .article.ProcessedContent | safeHTML }}
+                {{ else }}
+                    {{ .article.Content | safeHTML }}
+                {{ end }}
+            </div>
+
             {{ else }}
             <!-- Article detail -->
             {{ if .article.Banner }}

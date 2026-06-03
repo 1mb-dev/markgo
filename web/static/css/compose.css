@@ -344,6 +344,29 @@
     color: var(--color-text-muted);
 }
 
+/* AMA edit: the reader's question shown read-only above the answer textarea. */
+.compose-ama-question-text {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-2);
+    padding: var(--spacing-3);
+    background: var(--color-bg-tertiary);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.compose-ama-question-text p {
+    margin: 0;
+    color: var(--color-text-primary);
+}
+
+.compose-ama-asker {
+    margin: var(--spacing-1) 0 0;
+    font-size: var(--font-size-xs);
+    font-style: italic;
+    color: var(--color-text-muted);
+}
+
 .compose-banner-alt {
     margin-top: var(--spacing-1);
 }

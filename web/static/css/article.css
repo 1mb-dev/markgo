@@ -107,6 +107,29 @@
     opacity: 0.7;
 }
 
+/* AMA type — question is the header, answer is the body */
+.article-header-ama {
+    margin-bottom: var(--spacing-4);
+}
+
+.ama-question-block {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-3);
+}
+
+.ama-question-title {
+    /* inherits .article-title sizing; the badge sits beside it */
+    margin: 0;
+}
+
+.ama-asker {
+    font-size: var(--font-size-sm);
+    font-style: italic;
+    color: var(--color-text-muted);
+    margin: var(--spacing-3) 0 0;
+}
+
 /* Article Content */
 .article-content {
     line-height: 1.8;

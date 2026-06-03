@@ -81,7 +81,13 @@ func (a *Article) DisplayTitle() string {
 	if a.Title != "" {
 		return a.Title
 	}
-	content := stripMarkdown(a.Content)
+	// Titleless posts synthesize a title from their text. AMAs are titled by
+	// their question (the body is the answer); thoughts use the body opening.
+	source := a.Content
+	if a.Question != "" {
+		source = a.Question
+	}
+	content := stripMarkdown(source)
 	if len(content) > 60 {
 		if idx := strings.LastIndex(content[:60], " "); idx > 20 {
 			content = content[:idx]
