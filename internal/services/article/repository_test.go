@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/1mb-dev/markgo/internal/models"
+	slugutil "github.com/1mb-dev/markgo/internal/slug"
 )
 
 const validArticle = `---
@@ -654,7 +655,7 @@ func TestGenerateSlug(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := generateSlug(tt.title)
+			got := slugutil.Generate(tt.title)
 			assert.Equal(t, tt.want, got)
 		})
 	}

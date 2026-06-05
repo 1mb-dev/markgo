@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
+	slugutil "github.com/1mb-dev/markgo/internal/slug"
 )
 
 // Service handles creating new posts from compose form input.
@@ -27,9 +28,10 @@ func NewService(articlesPath, defaultAuthor string) *Service {
 	}
 }
 
-// typePage mirrors article.TypePage. The article package imports compose
-// (for ContainSlugPath), so we can't import the other direction; the
-// constant is duplicated here as a synchronization point.
+// typePage mirrors article.TypePage. Kept duplicated by choice to keep the
+// compose package decoupled from article — importing it for one constant
+// isn't worth a new package edge. (Slug primitives now live in internal/slug,
+// so the old article→compose edge is gone.)
 const typePage = "page"
 
 // Input represents the compose form or API submission.
@@ -78,7 +80,7 @@ func (s *Service) CreatePost(input *Input) (string, error) {
 		// Title field). Prefix reflects content type so `ls articles/`
 		// reveals intent at a glance.
 		if input.Title != "" {
-			slug = generateSlug(input.Title)
+			slug = slugutil.Generate(input.Title)
 		}
 		if slug == "" {
 			slug = fmt.Sprintf("%s-%d", slugPrefixFor(input.Type), now.UnixMilli())
@@ -438,7 +440,6 @@ func isDatePrefix(s string) bool {
 	return true
 }
 
-// generateSlug creates a URL-friendly slug from a title.
 // slugPrefixFor returns the fallback slug prefix for a content type — used
 // when a post has no title and we fall back to "<prefix>-<timestamp>".
 // Picking by type keeps `ls articles/` legible and grep-friendly.
@@ -491,23 +492,4 @@ func stringFieldOr(m map[string]any, key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-func generateSlug(title string) string {
-	slug := strings.ToLower(title)
-	slug = strings.ReplaceAll(slug, " ", "-")
-
-	var result strings.Builder
-	for _, r := range slug {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
-			result.WriteRune(r)
-		}
-	}
-
-	slug = result.String()
-	for strings.Contains(slug, "--") {
-		slug = strings.ReplaceAll(slug, "--", "-")
-	}
-	slug = strings.Trim(slug, "-")
-	return slug
 }

@@ -21,7 +21,7 @@ import (
 
 	"github.com/1mb-dev/markgo/internal/constants"
 	"github.com/1mb-dev/markgo/internal/models"
-	"github.com/1mb-dev/markgo/internal/services/compose"
+	slugutil "github.com/1mb-dev/markgo/internal/slug"
 )
 
 // isMarkdownFile checks if a file has a supported Markdown extension
@@ -402,7 +402,7 @@ func (r *FileSystemRepository) parseArticleFile(filePath string) (*models.Articl
 	// Generate slug if not provided
 	if article.Slug == "" {
 		if article.Title != "" {
-			article.Slug = generateSlug(article.Title)
+			article.Slug = slugutil.Generate(article.Title)
 		} else {
 			// Titleless posts (thoughts): use timestamp-based slug
 			article.Slug = fmt.Sprintf("thought-%d", article.Date.UnixMilli())
@@ -472,7 +472,7 @@ func (r *FileSystemRepository) validateBanner(article *models.Article) error {
 	}
 
 	// Relative path: containment-check against uploadPath/<slug>/.
-	slugDir, err := compose.ContainSlugPath(r.uploadPath, article.Slug)
+	slugDir, err := slugutil.ContainPath(r.uploadPath, article.Slug)
 	if err != nil {
 		r.logger.Error("Banner slug containment failed; article rejected",
 			"slug", article.Slug, "error", err)
@@ -508,32 +508,6 @@ func calculateReadingTime(wordCount int) int {
 		readingTime = 1
 	}
 	return readingTime
-}
-
-func generateSlug(title string) string {
-	// Simple slug generation - convert to lowercase, replace spaces with hyphens
-	slug := strings.ToLower(title)
-	slug = strings.ReplaceAll(slug, " ", "-")
-
-	// Remove non-alphanumeric characters except hyphens
-	result := strings.Builder{}
-	for _, r := range slug {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
-			result.WriteRune(r)
-		}
-	}
-
-	slug = result.String()
-
-	// Remove consecutive hyphens
-	for strings.Contains(slug, "--") {
-		slug = strings.ReplaceAll(slug, "--", "-")
-	}
-
-	// Remove leading and trailing hyphens
-	slug = strings.Trim(slug, "-")
-
-	return slug
 }
 
 // UpdateDraftStatus updates the draft status of an article by rewriting its file

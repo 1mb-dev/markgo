@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	slugutil "github.com/1mb-dev/markgo/internal/slug"
 )
 
 // UnlinkOwnedUpload removes an upload referenced by the server-absolute
@@ -22,7 +24,7 @@ import (
 //   - filename contains a path separator (defense against malformed input
 //     that would land outside the slug directory).
 //
-// Path-containment is enforced via ContainSlugPath; a containment failure
+// Path-containment is enforced via slugutil.ContainPath; a containment failure
 // is logged and skipped. os.ErrNotExist is silent (the file was already
 // gone). Any other os.Remove error is logged at warn level.
 //
@@ -40,7 +42,7 @@ func UnlinkOwnedUpload(prev, next, slug, uploadPath string, logger *slog.Logger)
 	if filename == "" || strings.ContainsRune(filename, '/') {
 		return
 	}
-	slugDir, err := ContainSlugPath(uploadPath, slug)
+	slugDir, err := slugutil.ContainPath(uploadPath, slug)
 	if err != nil {
 		logger.Warn("unlink owned upload: containment failed",
 			"slug", slug, "prev_banner", prev, "error", err)
