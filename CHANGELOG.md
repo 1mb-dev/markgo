@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.20.1] - 2026-06-05
+
+Internal hygiene. Slug generation and path-containment now live in one
+`internal/slug` package; the backwards `article → compose` import edge is gone.
+No user-facing change.
+
+### Changed
+
+- `generateSlug` (was duplicated verbatim in the article repository and the
+  compose service) and `ContainSlugPath` consolidated into `internal/slug`.
+- `release.yml` Go pin 1.26.0 → 1.26.4 (aligns with go.mod toolchain + ci.yml).
+
 ## [3.20.0] - 2026-06-03
 
 Each feed card represents its content type as what it is. The AMA card no

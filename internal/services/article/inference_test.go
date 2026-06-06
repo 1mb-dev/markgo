@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/1mb-dev/markgo/internal/models"
+	slugutil "github.com/1mb-dev/markgo/internal/slug"
 )
 
 func TestInferPostType(t *testing.T) {
@@ -109,11 +110,11 @@ func TestThoughtSlugGeneration(t *testing.T) {
 	fixedDate := time.Date(2025, 6, 15, 10, 30, 0, 0, time.UTC)
 
 	// Titled article gets title-based slug
-	slug := generateSlug("Getting Started with Go")
-	assert.Equal(t, "getting-started-with-go", slug)
+	gotSlug := slugutil.Generate("Getting Started with Go")
+	assert.Equal(t, "getting-started-with-go", gotSlug)
 
-	// Empty title generates empty slug from generateSlug
-	emptySlug := generateSlug("")
+	// Empty title generates empty slug
+	emptySlug := slugutil.Generate("")
 	assert.Equal(t, "", emptySlug)
 
 	// Titleless posts use timestamp-based slug (as done in repository.go)

@@ -296,7 +296,12 @@ func SanitizeForYAML(input string) string {
 	return input
 }
 
-// ValidateSlug validates a generated slug
+// ValidateSlug validates a slug at the CLI scaffolding boundary: non-empty,
+// ≤100 chars, [a-z0-9-] only, no leading/trailing or consecutive hyphens.
+//
+// Distinct from article.ValidateSlug (the compose/authoring contract): this
+// one is stricter on hyphens but checks neither reserved names nor path
+// traversal. Two contracts by design — do not merge.
 func ValidateSlug(slug string) error {
 	if slug == "" {
 		return errors.New("slug cannot be empty")

@@ -84,6 +84,10 @@ var reservedSlugs = map[string]struct{}{
 // from pre-validation eras) — those still work via the repository's
 // permissive check. New writes through the compose form must satisfy
 // this stricter contract.
+//
+// Distinct from commands/new.ValidateSlug, the CLI scaffolding contract:
+// that one forbids consecutive hyphens but checks neither reserved names
+// nor path traversal. Two contracts by design — do not merge.
 func ValidateSlug(slug string) error {
 	if strings.TrimSpace(slug) == "" {
 		return fmt.Errorf("slug cannot be empty")

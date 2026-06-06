@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	slugutil "github.com/1mb-dev/markgo/internal/slug"
 )
 
 func TestCreatePost_Thought(t *testing.T) {
@@ -368,7 +370,7 @@ func TestCreatePost_PageType_UsesExplicitSlug(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "my-evergreen", slug, "page slug should come from Input.Slug, not generateSlug(Title)")
+	assert.Equal(t, "my-evergreen", slug, "page slug should come from Input.Slug, not slugutil.Generate(Title)")
 
 	files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
 	require.Len(t, files, 1)
@@ -496,10 +498,10 @@ func TestGenerateSlug(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := generateSlug(tt.input)
+			got := slugutil.Generate(tt.input)
 			// Trim for comparison since our slug may differ slightly
 			assert.True(t, strings.HasPrefix(got, tt.expected) || got == tt.expected,
-				"generateSlug(%q) = %q, want prefix %q", tt.input, got, tt.expected)
+				"slugutil.Generate(%q) = %q, want prefix %q", tt.input, got, tt.expected)
 		})
 	}
 }
