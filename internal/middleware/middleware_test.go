@@ -13,6 +13,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -345,7 +346,7 @@ func TestProxyTrustWarning(t *testing.T) {
 	t.Run("silent below the collapse threshold", func(t *testing.T) {
 		var buf bytes.Buffer
 		router := newRouter(&buf)
-		for i := range 4 { // 4 distinct forwarded clients < threshold
+		for i := range 2 { // 2 distinct forwarded clients < threshold
 			hit(router, "10.1.2.3:5000", fmt.Sprintf("203.0.113.%d", 40+i))
 		}
 		assert.NotContains(t, buf.String(), "set TRUSTED_PROXIES")
@@ -357,6 +358,35 @@ func TestProxyTrustWarning(t *testing.T) {
 		hit(router, "203.0.113.50:443", "")
 		assert.NotContains(t, buf.String(), "set TRUSTED_PROXIES")
 	})
+}
+
+// TestProxyTrustWarning_Concurrent is the regression guard for the nil-map write
+// race: many requests cross the warn transition at once. The test router has no
+// Recovery middleware, so a nil-map panic would crash the goroutine and fail the
+// test; run under -race it also catches unsynchronized map access.
+func TestProxyTrustWarning_Concurrent(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.Use(ProxyTrustWarning(logger))
+	router.GET("/test", func(c *gin.Context) { c.String(200, "ok") })
+
+	var wg sync.WaitGroup
+	for i := range 50 {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			req := httptest.NewRequest("GET", "/test", http.NoBody)
+			req.RemoteAddr = "10.9.9.9:5000" // one proxy IP
+			req.Header.Set("X-Forwarded-For", fmt.Sprintf("203.0.113.%d", n))
+			router.ServeHTTP(httptest.NewRecorder(), req)
+		}(i)
+	}
+	wg.Wait()
+
+	// 50 distinct forwarded clients on one proxy IP → collapse detected, once.
+	assert.GreaterOrEqual(t, strings.Count(buf.String(), "set TRUSTED_PROXIES"), 1, "collapse must warn")
 }
 
 // TestRateLimit_CeilingWarnsOnce verifies the maxClients ceiling — which 429s

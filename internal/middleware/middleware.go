@@ -303,7 +303,7 @@ func RateLimit(requests int, window time.Duration) gin.HandlerFunc {
 // TRUSTED_PROXIES is empty; fires at most once.
 func ProxyTrustWarning(logger *slog.Logger) gin.HandlerFunc {
 	const (
-		collapseThreshold = 5   // distinct forwarded clients on one ClientIP ⇒ an ignored proxy
+		collapseThreshold = 3   // distinct forwarded clients on one ClientIP ⇒ an ignored proxy
 		maxTrackedKeys    = 128 // bound memory; the warning only needs to fire once
 	)
 	var (
@@ -325,6 +325,9 @@ func ProxyTrustWarning(logger *slog.Logger) gin.HandlerFunc {
 			return
 		}
 
+		// All access to observed is under mu; warned latches the one-shot warning.
+		// observed is never nil'd — the warned.Load() gate stops further growth, and
+		// the map is bounded to maxTrackedKeys, so there's no nil-map write race.
 		mu.Lock()
 		set := observed[key]
 		if set == nil {
@@ -342,10 +345,7 @@ func ProxyTrustWarning(logger *slog.Logger) gin.HandlerFunc {
 
 		if collapsed && warned.CompareAndSwap(false, true) {
 			logger.Warn("rate limiter keying on a proxy IP — set TRUSTED_PROXIES to the proxy CIDR(s)",
-				"client_ip", key, "distinct_forwarded_clients", collapseThreshold)
-			mu.Lock()
-			observed = nil // release tracking memory after the one-shot warning
-			mu.Unlock()
+				"client_ip", key, "distinct_forwarded_clients", len(set))
 		}
 		c.Next()
 	}
