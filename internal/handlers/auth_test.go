@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -50,6 +51,37 @@ func newTestAuthHandler() *AuthHandler {
 	base := &BaseHandler{config: cfg, logger: logger}
 	store := middleware.NewSessionStore()
 	return NewAuthHandler(base, "admin", "secret", store, false)
+}
+
+// TestHandleLogin_RateLimited mirrors the prod wiring (RateLimit before the
+// login handler) and asserts the burst-counter behavior: the first N invalid
+// attempts reach the handler (401), the (N+1)th is throttled (429) within a
+// coarse window. No time.Sleep — the limiter counts within the window. (#2)
+func TestHandleLogin_RateLimited(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newTestAuthHandler()
+
+	const limit = 3
+	router := gin.New()
+	loginGroup := router.Group("/login")
+	loginGroup.Use(middleware.RateLimit(limit, time.Minute))
+	loginGroup.POST("", h.HandleLogin)
+
+	post := func() int {
+		form := url.Values{"username": {"admin"}, "password": {"wrong"}}
+		req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Accept", "application/json") // get a 401, not the HTML 302
+		req.RemoteAddr = "203.0.113.7:5555"          // same client → one bucket
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	for i := range limit {
+		assert.Equal(t, http.StatusUnauthorized, post(), "attempt %d should reach the handler", i+1)
+	}
+	assert.Equal(t, http.StatusTooManyRequests, post(), "attempt beyond the limit is throttled")
 }
 
 func TestHandleLogin_JSON_Success(t *testing.T) {

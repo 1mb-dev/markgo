@@ -462,9 +462,12 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 	registerGET(router, "/feed.json", h.Syndication.JSONFeed)
 	registerGET(router, "/sitemap.xml", h.Syndication.Sitemap)
 
-	// Login/logout routes (public, CSRF on login POST)
+	// Login/logout routes (public, CSRF on login POST). The login-specific rate
+	// limit runs before CSRF so credential-stuffing floods are throttled early,
+	// before the stateful token check — a stricter bucket than the global limiter.
 	if h.Auth != nil {
 		loginGroup := router.Group("/login")
+		loginGroup.Use(middleware.RateLimit(cfg.RateLimit.Login.Requests, cfg.RateLimit.Login.Window))
 		loginGroup.Use(middleware.CSRF(secureCookie))
 		loginGroup.POST("", h.Auth.HandleLogin)
 		registerGET(router, "/logout", h.Auth.HandleLogout)
