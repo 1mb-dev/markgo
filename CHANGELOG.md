@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.22.4] - 2026-06-08
+
+### Changed
+
+- Tags and categories are normalized at load — lowercased, trimmed, and
+  de-duplicated — so a term written in mixed casing across articles (e.g. "Go"
+  in one post, "go" in another) no longer splits into two tag pages, tag-cloud
+  entries, and sitemap URLs. Note: tags now display in lowercase.
+- RSS, JSON Feed, and sitemap responses send `Cache-Control: public,
+  max-age=3600`, sparing the server from regenerating them on every crawler hit.
+
 ## [3.22.3] - 2026-06-08
 
 ### Fixed

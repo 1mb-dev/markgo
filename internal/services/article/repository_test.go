@@ -199,6 +199,27 @@ func TestLoadAll_ValidFiles(t *testing.T) {
 	assert.Equal(t, "draft-article", articles[2].Slug)
 }
 
+func TestLoadAll_NormalizesTaxonomyTerms(t *testing.T) {
+	repo := setupTestRepo(t, map[string]string{
+		"post.md": `---
+title: Post
+date: 2025-01-01
+tags: [Go, go, "GO", " Python ", ""]
+categories: [Eng, eng]
+---
+Body.`,
+	})
+
+	articles, err := repo.LoadAll(context.Background())
+	require.NoError(t, err)
+	require.Len(t, articles, 1)
+
+	// Lowercased, trimmed, de-duplicated, empties dropped — so "Go"/"go"/"GO"
+	// collapse to one canonical "go" across every surface.
+	assert.Equal(t, []string{"go", "python"}, articles[0].Tags)
+	assert.Equal(t, []string{"eng"}, articles[0].Categories)
+}
+
 func TestLoadAll_CorruptedFileSkipped(t *testing.T) {
 	repo := setupTestRepo(t, map[string]string{
 		"good.md": validArticle,

@@ -77,3 +77,33 @@ func TestHumansTxt(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "MarkGo unknown")
 	})
 }
+
+// TestSyndicationCacheControl verifies the feeds and sitemap set a shared
+// 1-hour Cache-Control so crawlers/CDNs don't force a full regeneration each hit.
+func TestSyndicationCacheControl(t *testing.T) {
+	cfg := createTestConfig()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	base := NewBaseHandler(cfg, logger, &MockTemplateService{}, &BuildInfo{Version: "test"}, &MockSEOService{})
+	handler := NewSyndicationHandler(base, &MockFeedService{})
+
+	cases := []struct {
+		name, path string
+		h          gin.HandlerFunc
+	}{
+		{"rss", "/feed.xml", handler.RSS},
+		{"json", "/feed.json", handler.JSONFeed},
+		{"sitemap", "/sitemap.xml", handler.Sitemap},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			router := gin.New()
+			router.GET(tc.path, tc.h)
+			req := httptest.NewRequest("GET", tc.path, http.NoBody)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, "public, max-age=3600", w.Header().Get("Cache-Control"))
+		})
+	}
+}

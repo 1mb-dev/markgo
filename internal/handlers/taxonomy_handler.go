@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -54,8 +55,9 @@ func (h *TaxonomyHandler) Categories(c *gin.Context) {
 func (h *TaxonomyHandler) ArticlesByTag(c *gin.Context) {
 	// gin already URL-decodes path params; do NOT decode again — a second
 	// QueryUnescape turns a literal '+' (e.g. the tag "c++") into a space, so the
-	// page never matches the tag the sitemap/canonical URL points at.
-	tag := c.Param("tag")
+	// page never matches the tag the sitemap/canonical URL points at. Lowercase to
+	// match the load-time normalization, so any-casing URL yields one canonical.
+	tag := strings.ToLower(c.Param("tag"))
 	if tag == "" {
 		h.handleError(c, apperrors.NewValidationError("tag", "", "tag is required", nil), "Invalid tag")
 		return
@@ -73,8 +75,9 @@ func (h *TaxonomyHandler) ArticlesByTag(c *gin.Context) {
 
 // ArticlesByCategory handles articles filtered by category.
 func (h *TaxonomyHandler) ArticlesByCategory(c *gin.Context) {
-	// gin already URL-decodes path params; see ArticlesByTag — no second decode.
-	category := c.Param("category")
+	// gin already URL-decodes path params; see ArticlesByTag — no second decode,
+	// lowercase to match load-time normalization.
+	category := strings.ToLower(c.Param("category"))
 	if category == "" {
 		h.handleError(c, apperrors.NewValidationError("category", "", "category is required", nil), "Invalid category")
 		return

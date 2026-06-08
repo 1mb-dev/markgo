@@ -394,6 +394,12 @@ func (r *FileSystemRepository) parseArticleFile(filePath string) (*models.Articl
 	article.WordCount = len(strings.Fields(article.Content))
 	article.ReadingTime = calculateReadingTime(article.WordCount)
 
+	// Normalize taxonomy terms once, at load: lowercase, trim, drop empty, and
+	// de-duplicate. Every surface (cards, /tags, sitemap, GetByTag) then sees a
+	// single canonical form, so "Go" and "go" can't split into two pages.
+	article.Tags = normalizeTerms(article.Tags)
+	article.Categories = normalizeTerms(article.Categories)
+
 	// Get file modification time
 	if fileInfo, err := os.Stat(filePath); err == nil {
 		article.LastModified = fileInfo.ModTime()
@@ -428,6 +434,29 @@ func (r *FileSystemRepository) parseArticleFile(filePath string) (*models.Articl
 	}
 
 	return &article, nil
+}
+
+// normalizeTerms lowercases, trims, drops empty, and de-duplicates a tag or
+// category list so the same term in different casings collapses to one canonical
+// form across every surface that lists or links it.
+func normalizeTerms(items []string) []string {
+	if len(items) == 0 {
+		return items
+	}
+	seen := make(map[string]struct{}, len(items))
+	out := make([]string, 0, len(items))
+	for _, it := range items {
+		it = strings.ToLower(strings.TrimSpace(it))
+		if it == "" {
+			continue
+		}
+		if _, ok := seen[it]; ok {
+			continue
+		}
+		seen[it] = struct{}{}
+		out = append(out, it)
+	}
+	return out
 }
 
 // validateBanner enforces banner-field rules. Returns an error to reject the
