@@ -415,6 +415,12 @@ func (h *ComposeHandler) HandleQuickPublish(c *gin.Context) {
 
 	slug, err := h.composeService.CreatePost(&input)
 	if err != nil {
+		// Input-validation failures (e.g. a reserved/malformed page slug) are the
+		// caller's fault → 400 with the reason, not a misleading 500.
+		if errors.Is(err, apperrors.ErrValidation) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		h.logger.Error("Quick publish failed", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create post"})
 		return
