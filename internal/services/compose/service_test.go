@@ -358,6 +358,42 @@ func TestCreatePost_PageType_RequiresSlug(t *testing.T) {
 	assert.Empty(t, files)
 }
 
+// TestCreatePost_RejectsInvalidSlug pins the v3.22.0 fix: page-slug validation
+// lives in CreatePost (the chokepoint), not just the form handler — so the
+// quick-publish JSON path (which never ran validatePageInput) can no longer slip
+// a reserved or malformed slug through. No file is written on rejection.
+func TestCreatePost_RejectsInvalidSlug(t *testing.T) {
+	tests := []struct {
+		name string
+		slug string
+	}{
+		{"reserved feed", "feed"},
+		{"reserved index", "index"},
+		{"uppercase and space", "About Page"},
+		{"consecutive hyphens", "bad--slug"},
+		{"path traversal", "../etc"},
+		{"empty", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			svc := NewService(dir, "Test Author")
+
+			_, err := svc.CreatePost(&Input{
+				Type:    "page",
+				Slug:    tt.slug,
+				Title:   "A Page",
+				Content: "Page body.",
+			})
+
+			require.Error(t, err, "invalid page slug must be rejected")
+			files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
+			assert.Empty(t, files, "no file should be written when the slug is rejected")
+		})
+	}
+}
+
 func TestCreatePost_PageType_UsesExplicitSlug(t *testing.T) {
 	dir := t.TempDir()
 	svc := NewService(dir, "Test Author")
