@@ -288,7 +288,9 @@ func TestRateLimit_ProxyKeying(t *testing.T) {
 
 	t.Run("untrusted proxy ignores forwarded header", func(t *testing.T) {
 		router := gin.New()
-		require.NoError(t, router.SetTrustedProxies(nil)) // matches TRUSTED_PROXIES unset
+		// Prod-unset posture: only loopback is trusted. proxy (192.0.2.1) is an
+		// off-host public IP outside the trusted set, so its XFF is ignored.
+		require.NoError(t, router.SetTrustedProxies(EffectiveTrustedProxies(nil)))
 		router.Use(RateLimit(1, time.Minute))
 		router.GET("/test", func(c *gin.Context) { c.String(200, "ok") })
 
@@ -299,18 +301,97 @@ func TestRateLimit_ProxyKeying(t *testing.T) {
 	})
 }
 
+// TestEffectiveTrustedProxies verifies the unset case auto-trusts loopback while
+// an operator-set list is used verbatim, and that the returned slice is a fresh
+// copy (mutating it must not corrupt the shared default).
+func TestEffectiveTrustedProxies(t *testing.T) {
+	t.Run("unset trusts loopback", func(t *testing.T) {
+		assert.Equal(t, []string{"127.0.0.0/8", "::1/128"}, EffectiveTrustedProxies(nil))
+		assert.Equal(t, []string{"127.0.0.0/8", "::1/128"}, EffectiveTrustedProxies([]string{}))
+	})
+
+	t.Run("operator list used verbatim", func(t *testing.T) {
+		operator := []string{"10.0.0.0/8", "192.168.1.5/32"}
+		assert.Equal(t, operator, EffectiveTrustedProxies(operator))
+	})
+
+	t.Run("returns a fresh slice", func(t *testing.T) {
+		got := EffectiveTrustedProxies(nil)
+		got[0] = "0.0.0.0/0" // must not poison the package default
+		assert.Equal(t, []string{"127.0.0.0/8", "::1/128"}, EffectiveTrustedProxies(nil))
+	})
+}
+
+// TestRateLimit_LoopbackAutoTrust is the #119 regression matrix: with the
+// prod-unset posture (EffectiveTrustedProxies(nil) → loopback trusted), a
+// same-host proxy on loopback keys the limiter on the real forwarded client,
+// while a forged X-Forwarded-For from an untrusted public peer is ignored.
+func TestRateLimit_LoopbackAutoTrust(t *testing.T) {
+	newRouter := func() *gin.Engine {
+		router := gin.New()
+		require.NoError(t, router.SetTrustedProxies(EffectiveTrustedProxies(nil)))
+		router.Use(RateLimit(1, time.Minute))
+		router.GET("/test", func(c *gin.Context) { c.String(200, "ok") })
+		return router
+	}
+	send := func(router *gin.Engine, remoteAddr, xff string) int {
+		req := httptest.NewRequest("GET", "/test", http.NoBody)
+		req.RemoteAddr = remoteAddr
+		if xff != "" {
+			req.Header.Set("X-Forwarded-For", xff)
+		}
+		return func() int {
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			return w.Code
+		}()
+	}
+
+	t.Run("loopback peer keys on forwarded client (two buckets)", func(t *testing.T) {
+		r := newRouter()
+		assert.Equal(t, 200, send(r, "127.0.0.1:5000", "203.0.113.10"), "clientA first")
+		assert.Equal(t, http.StatusTooManyRequests, send(r, "127.0.0.1:5001", "203.0.113.10"), "clientA over limit")
+		assert.Equal(t, 200, send(r, "127.0.0.1:5002", "203.0.113.20"), "clientB own bucket")
+	})
+
+	t.Run("public peer with forged XFF keys on the peer (one bucket)", func(t *testing.T) {
+		r := newRouter()
+		// 203.0.113.5 is not loopback → untrusted → XFF ignored. A remote
+		// attacker rotating XFF cannot escape its own per-IP bucket.
+		assert.Equal(t, 200, send(r, "203.0.113.5:5000", "1.2.3.4"), "peer first request")
+		assert.Equal(t, http.StatusTooManyRequests, send(r, "203.0.113.5:5001", "9.9.9.9"),
+			"same peer, different forged XFF, still one bucket")
+	})
+
+	t.Run("IPv6 loopback peer keys on forwarded client", func(t *testing.T) {
+		r := newRouter()
+		assert.Equal(t, 200, send(r, "[::1]:5000", "203.0.113.30"), "clientC first")
+		assert.Equal(t, http.StatusTooManyRequests, send(r, "[::1]:5001", "203.0.113.30"), "clientC over limit")
+		assert.Equal(t, 200, send(r, "[::1]:5002", "203.0.113.40"), "clientD own bucket")
+	})
+
+	t.Run("IPv4-mapped loopback peer is trusted (covered by 127.0.0.0/8)", func(t *testing.T) {
+		r := newRouter()
+		assert.Equal(t, 200, send(r, "[::ffff:127.0.0.1]:5000", "203.0.113.50"), "clientE first")
+		assert.Equal(t, http.StatusTooManyRequests, send(r, "[::ffff:127.0.0.1]:5001", "203.0.113.50"),
+			"clientE over limit → XFF honored, so the mapped peer was trusted")
+	})
+}
+
 // TestProxyTrustWarning verifies the one-shot advisory fires only when a
-// forwarded header arrives from a private/loopback peer (proxied-but-unset),
-// and stays silent for a direct public client.
+// forwarded header arrives from an untrusted off-host peer (proxied-but-unset),
+// and stays silent for a direct public client and for an auto-trusted loopback
+// proxy (which no longer collapses under #119).
 func TestProxyTrustWarning(t *testing.T) {
-	// Wire SetTrustedProxies(nil) like prod (ProxyTrustWarning is mounted only
-	// when TRUSTED_PROXIES is empty) — otherwise gin's trust-all default makes
-	// ClientIP() return the XFF client and the detector never sees a collapse,
-	// passing the test for the wrong reason.
+	// Wire the prod-unset posture (EffectiveTrustedProxies(nil) → loopback only;
+	// ProxyTrustWarning is mounted only when TRUSTED_PROXIES is empty) —
+	// otherwise gin's trust-all default makes ClientIP() return the XFF client
+	// and the detector never sees a collapse, passing the test for the wrong
+	// reason. Off-host peers (10.x, public) stay untrusted and still collapse.
 	newRouter := func(buf *bytes.Buffer) *gin.Engine {
 		logger := slog.New(slog.NewTextHandler(buf, nil))
 		router := gin.New()
-		require.NoError(t, router.SetTrustedProxies(nil))
+		require.NoError(t, router.SetTrustedProxies(EffectiveTrustedProxies(nil)))
 		router.Use(ProxyTrustWarning(logger))
 		router.GET("/test", func(c *gin.Context) { c.String(200, "ok") })
 		return router
@@ -358,6 +439,18 @@ func TestProxyTrustWarning(t *testing.T) {
 		hit(router, "203.0.113.50:443", "")
 		assert.NotContains(t, buf.String(), "set TRUSTED_PROXIES")
 	})
+
+	t.Run("silent for auto-trusted loopback proxy (no collapse under #119)", func(t *testing.T) {
+		var buf bytes.Buffer
+		router := newRouter(&buf)
+		// Same-host proxy on loopback: gin resolves ClientIP() to the forwarded
+		// client, so fwd == key and the detector never counts a collapse.
+		for i := range 6 {
+			hit(router, "127.0.0.1:5000", fmt.Sprintf("203.0.113.%d", 60+i))
+		}
+		assert.NotContains(t, buf.String(), "set TRUSTED_PROXIES",
+			"loopback is trusted, so there is no collapse to warn about")
+	})
 }
 
 // TestProxyTrustWarning_Concurrent is the regression guard for the nil-map write
@@ -368,7 +461,7 @@ func TestProxyTrustWarning_Concurrent(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
 	router := gin.New()
-	require.NoError(t, router.SetTrustedProxies(nil))
+	require.NoError(t, router.SetTrustedProxies(EffectiveTrustedProxies(nil)))
 	router.Use(ProxyTrustWarning(logger))
 	router.GET("/test", func(c *gin.Context) { c.String(200, "ok") })
 
