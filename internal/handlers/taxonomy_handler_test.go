@@ -58,6 +58,25 @@ func TestArticlesByTag_PlusInSlugResolves(t *testing.T) {
 	assert.Equal(t, "c++", capture.gotTag, "tag with '+' must resolve to c++, not 'c  '")
 }
 
+// TestArticlesByTag_LowercasesParam: tags are lowercased at load, so a request
+// to a capitalized URL (e.g. an old indexed /tags/Go) must resolve to the
+// lowercase canonical term, not a separate "Go".
+func TestArticlesByTag_LowercasesParam(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	capture := &tagCapture{}
+	h := newTaxonomyTestHandler(capture)
+
+	router := gin.New()
+	router.GET("/tags/:tag", h.ArticlesByTag)
+
+	req := httptest.NewRequest("GET", "/tags/Go", http.NoBody)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "go", capture.gotTag, "capitalized URL must resolve to the lowercase canonical term")
+}
+
 func TestArticlesByCategory_PlusInSlugResolves(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	capture := &tagCapture{}
