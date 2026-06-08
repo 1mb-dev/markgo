@@ -133,10 +133,13 @@ func (h *Helper) GenerateOpenGraphTags(article *models.Article, baseURL string) 
 	tags["og:image"] = h.resolveOGImage(article, baseURL)
 	tags["og:image:alt"] = fmt.Sprintf("Featured image for %s", article.DisplayTitle())
 
-	// Article-specific tags
-	tags["article:published_time"] = article.Date.Format("2006-01-02T15:04:05Z07:00")
-	if !article.LastModified.IsZero() {
-		tags["article:modified_time"] = article.LastModified.Format("2006-01-02T15:04:05Z07:00")
+	// Article-specific tags. Use the frontmatter date (deploy-stable) for both
+	// timestamps — file mtime is reset by image builds/checkouts. Omit when absent
+	// (pages carry no date:) rather than emitting the bogus zero time.
+	if !article.Date.IsZero() {
+		ts := article.Date.Format("2006-01-02T15:04:05Z07:00")
+		tags["article:published_time"] = ts
+		tags["article:modified_time"] = ts
 	}
 
 	// Author
@@ -263,8 +266,10 @@ func (h *Helper) GenerateMetaTags(article *models.Article) (map[string]string, e
 		tags["language"] = h.siteConfig.Language
 	}
 
-	// Publication date
-	tags["article:published_time"] = article.Date.Format("2006-01-02")
+	// Publication date (omitted for date-less pages, not emitted as zero time).
+	if !article.Date.IsZero() {
+		tags["article:published_time"] = article.Date.Format("2006-01-02")
+	}
 
 	// Robots meta tag
 	robotsValue := "index, follow"
@@ -412,12 +417,13 @@ func (h *Helper) GenerateArticleSchema(article *models.Article, baseURL string) 
 
 	schema["publisher"] = publisher
 
-	// Dates
-	schema["datePublished"] = article.Date.Format(time.RFC3339)
-	if !article.LastModified.IsZero() {
-		schema["dateModified"] = article.LastModified.Format(time.RFC3339)
-	} else {
-		schema["dateModified"] = article.Date.Format(time.RFC3339)
+	// Dates: the frontmatter date drives both (deploy-stable; file mtime churns on
+	// image builds/checkouts). Omitted for date-less pages so the schema never
+	// carries the bogus "0001-01-01T00:00:00Z".
+	if !article.Date.IsZero() {
+		ts := article.Date.Format(time.RFC3339)
+		schema["datePublished"] = ts
+		schema["dateModified"] = ts
 	}
 
 	// Main entity of page
