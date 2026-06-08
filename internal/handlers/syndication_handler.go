@@ -23,6 +23,11 @@ func NewSyndicationHandler(base *BaseHandler, feedService services.FeedServiceIn
 	}
 }
 
+// feedCacheControl caps regeneration cost: feeds/sitemap change at most when
+// content does, so a 1-hour shared cache is safe and spares the server from
+// re-rendering the whole corpus on every crawler hit.
+const feedCacheControl = "public, max-age=3600"
+
 // RSS handles RSS feed generation.
 func (h *SyndicationHandler) RSS(c *gin.Context) {
 	data, err := h.feedService.GenerateRSS()
@@ -32,6 +37,7 @@ func (h *SyndicationHandler) RSS(c *gin.Context) {
 	}
 
 	c.Header("Content-Type", "application/rss+xml; charset=utf-8")
+	c.Header("Cache-Control", feedCacheControl)
 	c.String(http.StatusOK, data)
 }
 
@@ -44,6 +50,7 @@ func (h *SyndicationHandler) JSONFeed(c *gin.Context) {
 	}
 
 	c.Header("Content-Type", "application/feed+json; charset=utf-8")
+	c.Header("Cache-Control", feedCacheControl)
 	c.String(http.StatusOK, data)
 }
 
@@ -56,6 +63,7 @@ func (h *SyndicationHandler) Sitemap(c *gin.Context) {
 	}
 
 	c.Header("Content-Type", "application/xml; charset=utf-8")
+	c.Header("Cache-Control", feedCacheControl)
 	c.String(http.StatusOK, data)
 }
 
