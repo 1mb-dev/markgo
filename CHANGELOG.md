@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.22.2] - 2026-06-08
+
+### Fixed
+
+- Sitemap `<lastmod>` no longer emits the bogus zero-time `0001-01-01T00:00:00Z`
+  for date-less pages — search engines rejected it as an invalid date. `lastmod`
+  now comes from the frontmatter date (deploy-stable) and is omitted when absent;
+  static index entries omit it too, rather than reporting a synthetic "now" on
+  every request.
+- Tag and category pages whose slug contains `+` (e.g. `c++`) now resolve — the
+  route parameter was being URL-decoded twice, turning `+` into a space.
+
+### Added
+
+- The sitemap now includes tag and category pages (`/tags/<tag>`,
+  `/categories/<category>`) that list at least two articles, each with a
+  `lastmod` of its most recent article. Single-article terms are omitted to avoid
+  thin pages; they remain reachable via the articles that link to them.
+
 ## [3.22.1] - 2026-06-08
 
 Follow-ups from the v3.22.0 review: sharper, more honest feedback at the input and
