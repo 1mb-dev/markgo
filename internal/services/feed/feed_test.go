@@ -329,3 +329,19 @@ func TestGenerateSitemap_TermPages(t *testing.T) {
 	require.True(t, idxAlpha >= 0 && idxGo >= 0)
 	assert.Less(t, idxAlpha, idxGo, "term pages are emitted in sorted order")
 }
+
+// TestGenerateSitemap_TermAccumulationIsClean verifies a tag listed twice on one
+// article doesn't inflate the ≥2 gate, and empty/whitespace tags emit no URL.
+func TestGenerateSitemap_TermAccumulationIsClean(t *testing.T) {
+	articles := []*models.Article{
+		{Slug: "a", Title: "A", Date: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), Tags: []string{"dup", "dup", "  ", ""}},
+	}
+	svc := NewService(&mockArticleService{articles: articles}, testConfig())
+
+	sitemap, err := svc.GenerateSitemap()
+	require.NoError(t, err)
+
+	assert.NotContains(t, sitemap, "/tags/dup", "a tag on one article (even if listed twice) stays gated out")
+	assert.NotContains(t, sitemap, "<loc>http://localhost:3000/tags/</loc>", "empty tag must not emit a URL")
+	assert.NotContains(t, sitemap, "/tags/%20", "whitespace tag must not emit a URL")
+}

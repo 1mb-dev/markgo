@@ -175,10 +175,10 @@ func (s *Service) GenerateSitemap() (string, error) {
 			ChangeFreq: "monthly",
 			Priority:   0.7,
 		})
-		for _, tag := range a.Tags {
+		for _, tag := range distinctNonEmpty(a.Tags) {
 			accumulateTerm(tags, tag, a.Date)
 		}
-		for _, cat := range a.Categories {
+		for _, cat := range distinctNonEmpty(a.Categories) {
 			accumulateTerm(cats, cat, a.Date)
 		}
 	}
@@ -212,6 +212,26 @@ func (s *Service) GenerateSitemap() (string, error) {
 type termStat struct {
 	count  int
 	latest time.Time
+}
+
+// distinctNonEmpty trims, drops empty, and de-duplicates a term list so each
+// article counts once per term (a duplicate tag must not inflate the gate) and a
+// stray empty tag never becomes a "/tags/" or "/tags/%20" sitemap URL.
+func distinctNonEmpty(items []string) []string {
+	seen := make(map[string]struct{}, len(items))
+	out := make([]string, 0, len(items))
+	for _, it := range items {
+		it = strings.TrimSpace(it)
+		if it == "" {
+			continue
+		}
+		if _, ok := seen[it]; ok {
+			continue
+		}
+		seen[it] = struct{}{}
+		out = append(out, it)
+	}
+	return out
 }
 
 func accumulateTerm(m map[string]*termStat, term string, date time.Time) {
