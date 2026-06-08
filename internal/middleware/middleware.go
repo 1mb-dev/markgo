@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -212,6 +211,7 @@ func RateLimit(requests int, window time.Duration) gin.HandlerFunc {
 
 	clients := make(map[string][]time.Time)
 	var mu sync.RWMutex
+	ceilingWarned := false // log the maxClients ceiling once (guarded by mu)
 
 	stop := make(chan struct{})
 	rateLimiterRegistryMu.Lock()
@@ -252,6 +252,13 @@ func RateLimit(requests int, window time.Duration) gin.HandlerFunc {
 
 		// Prevent memory exhaustion: reject if too many unique IPs
 		if len(clients) >= maxClients && clients[ip] == nil {
+			if !ceilingWarned {
+				ceilingWarned = true
+				// Otherwise this collapse is silent: every new IP gets a 429 with
+				// no signal as to why. Warn once so the operator can diagnose it.
+				slog.Warn("rate limiter client ceiling reached — rejecting new client IPs (distributed traffic or a flood)",
+					"max_clients", maxClients, "window", window.String())
+			}
 			c.Header("Retry-After", "3600")
 			abortWithError(c, http.StatusTooManyRequests, "Too many requests — please wait")
 			return
@@ -285,35 +292,73 @@ func RateLimit(requests int, window time.Duration) gin.HandlerFunc {
 	}
 }
 
-// ProxyTrustWarning logs one warning when markgo appears to be running behind a
-// reverse proxy with TRUSTED_PROXIES unset. The signal is precise: an inbound
-// X-Forwarded-For/X-Real-IP header (something upstream is forwarding) combined
-// with a private/loopback direct peer (the proxy itself). In that state gin
-// ignores the forwarded header, so ClientIP() — and therefore the rate
-// limiter — collapses to the proxy's IP, throttling all clients as one.
-// A direct-bind deployment (no proxy, no forwarded header) never trips this.
-// Mount only when TRUSTED_PROXIES is empty; the warning fires at most once.
+// ProxyTrustWarning warns once when markgo appears to be running behind a reverse
+// proxy with TRUSTED_PROXIES unset. It alarms on the observed failure itself:
+// when many distinct forwarded client IPs collapse onto a single ClientIP, a real
+// proxy is forwarding real clients while gin (trusting nothing) keys the rate
+// limiter on the proxy's own IP — throttling every visitor as one. Detecting the
+// collapse, rather than guessing from the peer-IP class, catches proxies on
+// public and private addresses alike, and a lone spoofed header can't trip it
+// (it would need to forge many distinct forwarded clients). Mount only when
+// TRUSTED_PROXIES is empty; fires at most once.
 func ProxyTrustWarning(logger *slog.Logger) gin.HandlerFunc {
-	var warned atomic.Bool
+	const (
+		collapseThreshold = 5   // distinct forwarded clients on one ClientIP ⇒ an ignored proxy
+		maxTrackedKeys    = 128 // bound memory; the warning only needs to fire once
+	)
+	var (
+		warned   atomic.Bool
+		mu       sync.Mutex
+		observed = make(map[string]map[string]struct{}) // ClientIP → set of forwarded client IPs
+	)
 	return func(c *gin.Context) {
-		if !warned.Load() && proxyHeaderPresent(c) {
-			if host, _, err := net.SplitHostPort(c.Request.RemoteAddr); err == nil {
-				if ip := net.ParseIP(host); ip != nil && (ip.IsPrivate() || ip.IsLoopback()) {
-					if warned.CompareAndSwap(false, true) {
-						logger.Warn("rate limiter keying on proxy IP — set TRUSTED_PROXIES to the proxy CIDR(s)",
-							"remote_addr", host)
-					}
-				}
+		if warned.Load() {
+			c.Next()
+			return
+		}
+		fwd := forwardedClientIP(c)
+		key := c.ClientIP()
+		// No forwarded header, or gin already resolved to the forwarded client
+		// (a trusted proxy) — nothing to detect.
+		if fwd == "" || fwd == key {
+			c.Next()
+			return
+		}
+
+		mu.Lock()
+		set := observed[key]
+		if set == nil {
+			if len(observed) >= maxTrackedKeys {
+				mu.Unlock()
+				c.Next()
+				return
 			}
+			set = make(map[string]struct{})
+			observed[key] = set
+		}
+		set[fwd] = struct{}{}
+		collapsed := len(set) >= collapseThreshold
+		mu.Unlock()
+
+		if collapsed && warned.CompareAndSwap(false, true) {
+			logger.Warn("rate limiter keying on a proxy IP — set TRUSTED_PROXIES to the proxy CIDR(s)",
+				"client_ip", key, "distinct_forwarded_clients", collapseThreshold)
+			mu.Lock()
+			observed = nil // release tracking memory after the one-shot warning
+			mu.Unlock()
 		}
 		c.Next()
 	}
 }
 
-// proxyHeaderPresent reports whether the request carries a client-IP forwarding
-// header, indicating an upstream proxy is in the path.
-func proxyHeaderPresent(c *gin.Context) bool {
-	return c.GetHeader("X-Forwarded-For") != "" || c.GetHeader("X-Real-IP") != ""
+// forwardedClientIP returns the leftmost (claimed original-client) address from
+// X-Forwarded-For, falling back to X-Real-IP; "" if neither is present.
+func forwardedClientIP(c *gin.Context) string {
+	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
+		first, _, _ := strings.Cut(xff, ",")
+		return strings.TrimSpace(first)
+	}
+	return strings.TrimSpace(c.GetHeader("X-Real-IP"))
 }
 
 // generateRequestID generates a simple request ID

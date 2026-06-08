@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -301,9 +302,14 @@ func TestRateLimit_ProxyKeying(t *testing.T) {
 // forwarded header arrives from a private/loopback peer (proxied-but-unset),
 // and stays silent for a direct public client.
 func TestProxyTrustWarning(t *testing.T) {
+	// Wire SetTrustedProxies(nil) like prod (ProxyTrustWarning is mounted only
+	// when TRUSTED_PROXIES is empty) — otherwise gin's trust-all default makes
+	// ClientIP() return the XFF client and the detector never sees a collapse,
+	// passing the test for the wrong reason.
 	newRouter := func(buf *bytes.Buffer) *gin.Engine {
 		logger := slog.New(slog.NewTextHandler(buf, nil))
 		router := gin.New()
+		require.NoError(t, router.SetTrustedProxies(nil))
 		router.Use(ProxyTrustWarning(logger))
 		router.GET("/test", func(c *gin.Context) { c.String(200, "ok") })
 		return router
@@ -317,20 +323,63 @@ func TestProxyTrustWarning(t *testing.T) {
 		router.ServeHTTP(httptest.NewRecorder(), req)
 	}
 
-	t.Run("warns once when proxied behind private peer", func(t *testing.T) {
+	t.Run("warns once when many clients collapse onto one proxy IP", func(t *testing.T) {
 		var buf bytes.Buffer
 		router := newRouter(&buf)
-		hit(router, "10.1.2.3:5000", "203.0.113.10")
-		hit(router, "10.1.2.3:5001", "203.0.113.11")
+		// 6 distinct forwarded clients behind one private proxy IP → collapse.
+		for i := range 6 {
+			hit(router, "10.1.2.3:5000", fmt.Sprintf("203.0.113.%d", 10+i))
+		}
 		assert.Equal(t, 1, strings.Count(buf.String(), "set TRUSTED_PROXIES"), "fires exactly once")
 	})
 
-	t.Run("silent for direct public client (no forwarded header)", func(t *testing.T) {
+	t.Run("warns for a public-IP proxy too (old heuristic missed this)", func(t *testing.T) {
+		var buf bytes.Buffer
+		router := newRouter(&buf)
+		for i := range 5 {
+			hit(router, "198.51.100.7:5000", fmt.Sprintf("203.0.113.%d", 20+i))
+		}
+		assert.Contains(t, buf.String(), "set TRUSTED_PROXIES", "a proxy on a public IP must still warn")
+	})
+
+	t.Run("silent below the collapse threshold", func(t *testing.T) {
+		var buf bytes.Buffer
+		router := newRouter(&buf)
+		for i := range 4 { // 4 distinct forwarded clients < threshold
+			hit(router, "10.1.2.3:5000", fmt.Sprintf("203.0.113.%d", 40+i))
+		}
+		assert.NotContains(t, buf.String(), "set TRUSTED_PROXIES")
+	})
+
+	t.Run("silent for direct client (no forwarded header)", func(t *testing.T) {
 		var buf bytes.Buffer
 		router := newRouter(&buf)
 		hit(router, "203.0.113.50:443", "")
 		assert.NotContains(t, buf.String(), "set TRUSTED_PROXIES")
 	})
+}
+
+// TestRateLimit_CeilingWarnsOnce verifies the maxClients ceiling — which 429s
+// every new client IP once the map is full — now logs once so the operator can
+// diagnose the otherwise-silent collapse.
+func TestRateLimit_CeilingWarnsOnce(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	defer slog.SetDefault(prev)
+
+	router := gin.New()
+	router.Use(RateLimit(100, time.Minute))
+	router.GET("/test", func(c *gin.Context) { c.String(200, "ok") })
+
+	// Fill the 10000-client ceiling; the 10001st distinct IP trips it.
+	for i := range 10001 {
+		req := httptest.NewRequest("GET", "/test", http.NoBody)
+		req.RemoteAddr = fmt.Sprintf("10.0.%d.%d:1", i>>8&0xff, i&0xff)
+		router.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	assert.Equal(t, 1, strings.Count(buf.String(), "client ceiling reached"), "warns exactly once")
 }
 
 // TestSecurity tests the security headers middleware
