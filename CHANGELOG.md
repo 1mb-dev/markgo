@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.21.1] - 2026-06-08
+
+Security. Fixes improper handling of user-supplied input in contact-form email
+headers. Operators whose contact form is backed by SMTP should update.
+
+### Fixed
+
+- **Contact-form email header injection.** A user-supplied contact field could
+  carry control characters into the outbound email's header block. Header values
+  are now rejected at the single point where the message is built, so a forged
+  header can never be emitted (and the email is not sent).
+
 ## [3.21.0] - 2026-06-08
 
 A title yields the same slug whether an article is created from the CLI or the

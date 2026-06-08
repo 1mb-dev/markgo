@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"log/slog"
 	"os"
 	"slices"
@@ -88,7 +89,8 @@ func TestEmailService_TestConnection_NoCredentials(t *testing.T) {
 
 func TestEmailService_BuildEmailMessage(t *testing.T) {
 	service := newTestEmailService(&config.EmailConfig{})
-	msg := service.buildEmailMessage("from@a.com", "to@b.com", "Subject", "<p>Body</p>")
+	msg, err := service.buildEmailMessage("from@a.com", "to@b.com", "Subject", "<p>Body</p>")
+	assert.NoError(t, err)
 
 	assert.Contains(t, msg, "From: from@a.com")
 	assert.Contains(t, msg, "To: to@b.com")
@@ -97,6 +99,37 @@ func TestEmailService_BuildEmailMessage(t *testing.T) {
 	assert.Contains(t, msg, "Content-Type: text/html; charset=UTF-8")
 	assert.Contains(t, msg, "<p>Body</p>")
 	assert.Contains(t, msg, "\r\n")
+}
+
+// TestEmailService_BuildEmailMessage_RejectsHeaderInjection pins the v3.21.1
+// fix: a CR/LF/NUL in any header value (notably an attacker-supplied contact
+// Subject) is rejected at the buildEmailMessage chokepoint, so the SMTP message
+// can never carry a forged header. Reject, don't strip — the email isn't sent.
+func TestEmailService_BuildEmailMessage_RejectsHeaderInjection(t *testing.T) {
+	service := newTestEmailService(&config.EmailConfig{})
+
+	const safe = "ok@a.com"
+	cases := []struct {
+		name, from, to, subject string
+	}{
+		{"CRLF in subject (Bcc injection)", safe, safe, "Hi\r\nBcc: victim@evil.com"},
+		{"bare LF in subject", safe, safe, "Hi\nBcc: victim@evil.com"},
+		{"bare CR in subject", safe, safe, "Hi\rX-Inject: 1"},
+		{"NUL in subject", safe, safe, "Hi\x00truncate"},
+		{"CRLF in To", safe, "ok@a.com\r\nCc: victim@evil.com", "Subject"},
+		{"CRLF in From", "ok@a.com\r\nReturn-Path: x", safe, "Subject"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			msg, err := service.buildEmailMessage(tc.from, tc.to, tc.subject, "<p>body</p>")
+			if !errors.Is(err, errUnsafeEmailHeader) {
+				t.Fatalf("want errUnsafeEmailHeader, got err=%v", err)
+			}
+			if msg != "" {
+				t.Errorf("want empty message on rejection, got:\n%s", msg)
+			}
+		})
+	}
 }
 
 func TestEmailService_GenerateContactEmailBody(t *testing.T) {
