@@ -486,6 +486,20 @@ func generateMinimalArticle(title, description, tagsStr, category, author string
 Start writing your content here...`)
 }
 
+// injectSlugFrontmatter inserts a `slug:` line into the generated article's
+// frontmatter so the served URL is the resolved slug rather than one the
+// repository re-derives from the title at load time (repository.go falls back
+// to slug.Generate(title) only when frontmatter carries no slug). The compose
+// path persists `slug:` the same way. The slug is charset-validated by
+// slug.Validate ([a-z0-9-] only), so %q cannot introduce YAML metacharacters.
+func injectSlugFrontmatter(content, slug string) string {
+	const open = "---\n"
+	if !strings.HasPrefix(content, open) {
+		return content
+	}
+	return open + fmt.Sprintf("slug: %q\n", slug) + content[len(open):]
+}
+
 // generateArticleWithTemplate is a helper function that creates the full article
 func generateArticleWithTemplate(title, description, tagsStr, category, author string, isDraft, isFeatured bool, contentTemplate string) string {
 	now := time.Now()

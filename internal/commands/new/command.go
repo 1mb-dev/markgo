@@ -8,12 +8,12 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
+	slugutil "github.com/1mb-dev/markgo/internal/slug"
 )
 
 const (
@@ -58,6 +58,7 @@ func Run(args []string) {
 	preview := fs.Bool("preview", false, "Preview the article without creating file")
 	list := fs.Bool("list", false, "List available templates")
 	datePrefix := fs.Bool("date-prefix", false, "Add date prefix to filename")
+	slugFlag := fs.String("slug", "", "Explicit URL slug (default: derived from title)")
 	interactive := fs.Bool("interactive", false, "Force interactive mode")
 	help := fs.Bool("help", false, "Show help message")
 
@@ -111,11 +112,13 @@ func Run(args []string) {
 		return
 	}
 
-	// Generate filename from title
-	slug := slugify(*title)
-	if err := ValidateSlug(slug); err != nil {
+	// Resolve the URL slug: explicit --slug, else derived from the title via
+	// the shared slug.Generate (the same primitive the runtime compose path
+	// uses, so a title yields the same slug regardless of creation path).
+	slug, err := resolveSlug(*slugFlag, *title)
+	if err != nil {
 		apperrors.HandleCLIError(
-			apperrors.NewCLIError("slug generation", fmt.Sprintf("Invalid slug generated from title '%s'", *title), err, 1),
+			apperrors.NewCLIError("slug generation", err.Error(), err, 1),
 			cleanup,
 		)
 		return
@@ -143,6 +146,10 @@ func Run(args []string) {
 	templates := GetAvailableTemplates()
 	selectedTemplate := templates[*template]
 	content := selectedTemplate.Generator(*title, *description, *tags, *category, *author, *draft, *featured)
+	// Persist the resolved slug into frontmatter so the served URL honors it
+	// (esp. an explicit --slug); without it the repository would re-derive the
+	// slug from the title and ignore --slug entirely.
+	content = injectSlugFrontmatter(content, slug)
 
 	// Preview mode - show content without writing file
 	if *preview {
@@ -376,6 +383,7 @@ func showHelp() {
 	fmt.Println("  --list        List available templates")
 	fmt.Println()
 	fmt.Println("FILE OPTIONS:")
+	fmt.Println("  --slug        Explicit URL slug (default: derived from title)")
 	fmt.Println("  --date-prefix Add date prefix to filename (YYYY-MM-DD-)")
 	fmt.Println("  --preview     Preview article without creating file")
 	fmt.Println()
@@ -390,6 +398,7 @@ func showHelp() {
 	fmt.Println("  markgo new --title \"Hello World\" --tags \"golang,tutorial\" --date-prefix")
 	fmt.Println("  markgo new --title \"My Post\" --template review --preview")
 	fmt.Println("  markgo new --title \"News Update\" --template news --draft=false --featured=true")
+	fmt.Println("  markgo new --title \"Go 1.26 Notes\" --slug \"go-126-notes\"")
 	fmt.Println()
 	fmt.Println("AVAILABLE TEMPLATES:")
 
@@ -404,48 +413,25 @@ func showHelp() {
 	}
 }
 
-func slugify(title string) string {
-	// Convert to lowercase
-	slug := strings.ToLower(title)
-
-	// Define common stop words to remove
-	stopWords := []string{"the", "a", "an", "in", "on", "at", "with", "for",
-		"to", "of", "is", "are", "and", "or", "but", "from",
-		"by", "as", "if", "when", "how", "what", "where", "this"}
-
-	// Split into words and remove stop words (but keep first word if meaningful)
-	words := strings.Fields(slug)
-	var meaningful []string
-
-	for i, word := range words {
-		// Always keep first word, or keep if not a stop word
-		if i == 0 || !isStopWord(word, stopWords) {
-			// Clean the word of non-alphanumeric characters
-			cleanWord := regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(word, "")
-			if cleanWord != "" {
-				meaningful = append(meaningful, cleanWord)
-				if len(meaningful) >= 5 { // Limit to 5 words max
-					break
-				}
-			}
+// resolveSlug returns the URL slug for a new article: the explicit --slug
+// value when provided, otherwise one derived from the title via the shared
+// slug.Generate. Generate is the same primitive the runtime compose path uses,
+// so a title yields the same slug regardless of creation path (CLI or web).
+// Both branches pass through slug.Validate; the error is recovery-oriented,
+// pointing at --slug when title derivation produces nothing valid.
+func resolveSlug(slugFlag, title string) (string, error) {
+	slug := slugFlag
+	fromFlag := slug != ""
+	if !fromFlag {
+		slug = slugutil.Generate(title)
+	}
+	if err := slugutil.Validate(slug); err != nil {
+		if fromFlag {
+			return "", fmt.Errorf("invalid --slug value %q: %w", slug, err)
 		}
+		return "", fmt.Errorf("title %q produced an invalid slug %q; pass --slug to set one explicitly: %w", title, slug, err)
 	}
-
-	// Join words with hyphens
-	if len(meaningful) == 0 {
-		return "untitled"
-	}
-
-	return strings.Join(meaningful, "-")
-}
-
-func isStopWord(word string, stopWords []string) bool {
-	for _, stopWord := range stopWords {
-		if word == stopWord {
-			return true
-		}
-	}
-	return false
+	return slug, nil
 }
 
 // listTemplates shows all available templates

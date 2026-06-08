@@ -9,6 +9,7 @@ import (
 	"github.com/1mb-dev/markgo/internal/services"
 	articlepkg "github.com/1mb-dev/markgo/internal/services/article"
 	"github.com/1mb-dev/markgo/internal/services/compose"
+	slugutil "github.com/1mb-dev/markgo/internal/slug"
 )
 
 // AMAHandler handles AMA question submission and moderation.
@@ -109,7 +110,7 @@ func (h *AMAHandler) ListPending(c *gin.Context) {
 // Answer publishes an AMA by writing the author's answer and removing draft status.
 func (h *AMAHandler) Answer(c *gin.Context) {
 	slug := c.Param("slug")
-	if !validSlug.MatchString(slug) {
+	if !slugutil.WellFormed(slug) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid slug"})
 		return
 	}
@@ -165,7 +166,7 @@ func (h *AMAHandler) Answer(c *gin.Context) {
 // Delete removes an AMA submission file.
 func (h *AMAHandler) Delete(c *gin.Context) {
 	slug := c.Param("slug")
-	if !validSlug.MatchString(slug) {
+	if !slugutil.WellFormed(slug) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid slug"})
 		return
 	}

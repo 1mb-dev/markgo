@@ -65,7 +65,7 @@ func (h *ComposeHandler) cleanupTempFile(path string) {
 // Extension-based blocklist rejects executables, scripts, and HTML-renderable types; all others are allowed.
 func (h *ComposeHandler) Upload(c *gin.Context) {
 	slug := c.Param("slug")
-	if !validSlug.MatchString(slug) {
+	if !slugutil.WellFormed(slug) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid slug"})
 		return
 	}

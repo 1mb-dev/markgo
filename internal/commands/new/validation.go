@@ -1,7 +1,6 @@
 package new
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -294,40 +293,6 @@ func SanitizeForYAML(input string) string {
 	input = strings.ReplaceAll(input, "\n", `\n`)
 	input = strings.ReplaceAll(input, "\r", `\r`)
 	return input
-}
-
-// ValidateSlug validates a slug at the CLI scaffolding boundary: non-empty,
-// ≤100 chars, [a-z0-9-] only, no leading/trailing or consecutive hyphens.
-//
-// Distinct from article.ValidateSlug (the compose/authoring contract): this
-// one is stricter on hyphens but checks neither reserved names nor path
-// traversal. Two contracts by design — do not merge.
-func ValidateSlug(slug string) error {
-	if slug == "" {
-		return errors.New("slug cannot be empty")
-	}
-
-	if len(slug) > 100 {
-		return errors.New("slug too long (max 100 characters)")
-	}
-
-	// Slug should only contain lowercase letters, numbers, and hyphens
-	validSlugPattern := regexp.MustCompile(`^[a-z0-9\-]+$`)
-	if !validSlugPattern.MatchString(slug) {
-		return fmt.Errorf("invalid slug format: %s (use only lowercase letters, numbers, and hyphens)", slug)
-	}
-
-	// Should not start or end with hyphen
-	if strings.HasPrefix(slug, "-") || strings.HasSuffix(slug, "-") {
-		return fmt.Errorf("slug cannot start or end with hyphen: %s", slug)
-	}
-
-	// Should not have consecutive hyphens
-	if strings.Contains(slug, "--") {
-		return fmt.Errorf("slug cannot have consecutive hyphens: %s", slug)
-	}
-
-	return nil
 }
 
 // ShowValidationErrors displays validation errors in a user-friendly format

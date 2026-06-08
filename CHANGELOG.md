@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.21.0] - 2026-06-08
+
+A title yields the same slug whether an article is created from the CLI or the
+web compose form. Slug generation and strict validation now have one home.
+
+### Added
+
+- `markgo new --slug <slug>` sets an explicit URL slug instead of deriving one
+  from the title.
+
+### Changed
+
+- **CLI slug generation now matches the runtime.** `markgo new` derived slugs
+  through a separate routine that stripped stop-words and capped length at five
+  words, so the same title produced a different URL depending on creation path.
+  It now uses the same `slug.Generate` the compose form uses. A title that
+  derives an empty slug (e.g. non-Latin) fails with a `--slug` pointer instead
+  of silently becoming `untitled`.
+- The two strict slug validators (CLI `new` and the compose new-page form) are
+  unified into one `slug.Validate`, and the three copies of the slug
+  character-class regex collapse to one in `internal/slug`. As a result the CLI
+  now also rejects reserved names (`feed`, `rss`, …) and the compose form now
+  also rejects consecutive hyphens. The permissive guard for already-stored
+  slugs is unchanged.
+- New CLI articles now persist their slug in frontmatter (`slug:`), the same as
+  the compose path, so the served URL honors `--slug` and stays stable if the
+  title is later edited (previously the URL was always re-derived from the
+  title at load).
+
 ## [3.20.1] - 2026-06-05
 
 Internal hygiene. Slug generation and path-containment now live in one

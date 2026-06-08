@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -16,10 +15,8 @@ import (
 	"github.com/1mb-dev/markgo/internal/services"
 	articlepkg "github.com/1mb-dev/markgo/internal/services/article"
 	"github.com/1mb-dev/markgo/internal/services/compose"
+	slugutil "github.com/1mb-dev/markgo/internal/slug"
 )
-
-// validSlug matches URL-safe slugs: lowercase alphanumeric with hyphens, no leading/trailing hyphens, max 200 chars.
-var validSlug = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,198}[a-z0-9])?$`)
 
 const (
 	templateCompose    = "compose"
@@ -59,14 +56,14 @@ func NewComposeHandler(
 // is not acceptable for a new type:page article, or empty string on
 // success. Pages need (a) a non-empty title because the canonical URL
 // surface (the /p index, browser tab, social previews) is title-driven,
-// and (b) a slug that satisfies the strict ValidateSlug contract
+// and (b) a slug that satisfies the strict slug.Validate contract
 // (charset, length, reserved set) and is unique within the article
 // store. The handler renders the message in the error banner.
 func (h *ComposeHandler) validatePageInput(input *compose.Input) string {
 	if strings.TrimSpace(input.Title) == "" {
 		return "Title is required for pages"
 	}
-	if err := articlepkg.ValidateSlug(input.Slug); err != nil {
+	if err := slugutil.Validate(input.Slug); err != nil {
 		return "Slug invalid: " + err.Error()
 	}
 	if existing, err := h.articleService.GetArticleBySlug(input.Slug); err == nil && existing != nil {
@@ -128,7 +125,7 @@ func (h *ComposeHandler) ShowComposeNewPage(c *gin.Context) {
 // ShowEdit renders the compose form pre-filled with an existing article.
 func (h *ComposeHandler) ShowEdit(c *gin.Context) {
 	slug := c.Param("slug")
-	if !validSlug.MatchString(slug) {
+	if !slugutil.WellFormed(slug) {
 		h.handleError(c, fmt.Errorf("invalid slug %q: %w", slug, apperrors.ErrArticleNotFound), "Article not found")
 		return
 	}
@@ -196,7 +193,7 @@ func refreshCSRFToken(c *gin.Context) string {
 // HandleEdit processes the edit form submission.
 func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 	slug := c.Param("slug")
-	if !validSlug.MatchString(slug) {
+	if !slugutil.WellFormed(slug) {
 		h.handleError(c, fmt.Errorf("invalid slug %q: %w", slug, apperrors.ErrArticleNotFound), "Article not found")
 		return
 	}
@@ -461,7 +458,7 @@ func (h *ComposeHandler) HandleQuickPublish(c *gin.Context) {
 // JSON endpoint for fetch-based publish from the drafts list.
 func (h *ComposeHandler) PublishDraft(c *gin.Context) {
 	slug := c.Param("slug")
-	if !validSlug.MatchString(slug) {
+	if !slugutil.WellFormed(slug) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid slug"})
 		return
 	}
