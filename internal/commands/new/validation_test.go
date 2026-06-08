@@ -178,35 +178,8 @@ func TestValidateArticleInput(t *testing.T) {
 	}
 }
 
-func TestValidateSlug(t *testing.T) {
-	tests := []struct {
-		name    string
-		slug    string
-		wantErr bool
-	}{
-		{"valid slug", "my-great-article", false},
-		{"numeric slug", "article-123", false},
-		{"empty slug", "", true},
-		{"too long", strings.Repeat("a", 101), true},
-		{"uppercase letters", "My-Article", true},
-		{"spaces", "my article", true},
-		{"starts with hyphen", "-my-article", true},
-		{"ends with hyphen", "my-article-", true},
-		{"consecutive hyphens", "my--article", true},
-		{"special characters", "my@article!", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateSlug(tt.slug)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
+// Slug validation moved to internal/slug (see slug.TestValidate, the union of
+// this command's and the compose form's former strict validators).
 
 func TestSanitizeInput(t *testing.T) {
 	tests := []struct {
