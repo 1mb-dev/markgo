@@ -1,10 +1,6 @@
 package article
 
 import (
-	"fmt"
-	"regexp"
-	"strings"
-
 	"github.com/1mb-dev/markgo/internal/models"
 )
 
@@ -52,57 +48,7 @@ func CanonicalURLFor(a *models.Article) string {
 	return "/writing/" + a.Slug
 }
 
-// SlugMaxLength caps slug length for operator-supplied slugs. Filesystem
-// safety + URL-readability ceiling.
-const SlugMaxLength = 100
-
-// slugCharClass enforces lowercase ASCII letters, digits, and hyphens
-// with no leading or trailing hyphen. Mirrors the codebase-wide
-// validSlug gate in compose handlers so a slug accepted at create-time
-// is also accepted at edit/publish-draft time.
-var slugCharClass = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
-
-// reservedSlugs blocks slugs that would confuse readers if served from
-// /p/<slug> by shadowing feed-like names. The set is deliberately minimal:
-// only names that collide with content-discovery conventions. Reserved
-// route prefixes (/about, /writing, /admin, etc.) live at different paths
-// and don't need explicit blocking here.
-var reservedSlugs = map[string]struct{}{
-	"index": {},
-	"feed":  {},
-	"rss":   {},
-	"atom":  {},
-}
-
-// ValidateSlug enforces the strict contract for operator-supplied slugs
-// at the compose/new-page authoring boundary. Rejects anything that
-// wouldn't be a clean URL component or would shadow a feed-like name.
-//
-// This is intentionally stricter than FileSystemRepository.validateSlug,
-// which guards already-stored slugs from path traversal at admin-only
-// surfaces. Historical articles may have looser slugs (e.g. uppercase
-// from pre-validation eras) — those still work via the repository's
-// permissive check. New writes through the compose form must satisfy
-// this stricter contract.
-//
-// Distinct from commands/new.ValidateSlug, the CLI scaffolding contract:
-// that one forbids consecutive hyphens but checks neither reserved names
-// nor path traversal. Two contracts by design — do not merge.
-func ValidateSlug(slug string) error {
-	if strings.TrimSpace(slug) == "" {
-		return fmt.Errorf("slug cannot be empty")
-	}
-	if strings.Contains(slug, "..") || strings.Contains(slug, "/") || strings.Contains(slug, "\\") {
-		return fmt.Errorf("slug contains path-traversal characters: %s", slug)
-	}
-	if len(slug) > SlugMaxLength {
-		return fmt.Errorf("slug exceeds %d characters: %d", SlugMaxLength, len(slug))
-	}
-	if !slugCharClass.MatchString(slug) {
-		return fmt.Errorf("slug must match %s: %s", slugCharClass.String(), slug)
-	}
-	if _, blocked := reservedSlugs[slug]; blocked {
-		return fmt.Errorf("slug is reserved: %s", slug)
-	}
-	return nil
-}
+// Strict slug validation for new operator-supplied slugs lives in
+// internal/slug (slug.Validate) — one contract shared by the CLI `new`
+// command and the compose new-page form. The permissive guard for
+// already-stored slugs remains FileSystemRepository.validateSlug.
