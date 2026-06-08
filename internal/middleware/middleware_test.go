@@ -453,10 +453,13 @@ func TestProxyTrustWarning(t *testing.T) {
 	})
 }
 
-// TestProxyTrustWarning_Concurrent is the regression guard for the nil-map write
-// race: many requests cross the warn transition at once. The test router has no
-// Recovery middleware, so a nil-map panic would crash the goroutine and fail the
-// test; run under -race it also catches unsynchronized map access.
+// TestProxyTrustWarning_Concurrent is the regression guard for the data races in
+// the detector: the nil-map write, and the collapse-count read (the warn path
+// must log a count snapshotted under the lock, not re-read len(set) from the
+// shared map). Many requests cross the warn transition at once. The test router
+// has no Recovery middleware, so a nil-map panic would crash the goroutine and
+// fail the test; under -race it catches unsynchronized map access (use -count to
+// raise the odds the interleaving surfaces — a single run can miss it).
 func TestProxyTrustWarning_Concurrent(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, nil))

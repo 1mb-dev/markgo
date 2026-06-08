@@ -348,9 +348,12 @@ func ProxyTrustWarning(logger *slog.Logger) gin.HandlerFunc {
 			return
 		}
 
-		// All access to observed is under mu; warned latches the one-shot warning.
-		// observed is never nil'd — the warned.Load() gate stops further growth, and
-		// the map is bounded to maxTrackedKeys, so there's no nil-map write race.
+		// All access to observed and its inner sets is under mu; warned latches
+		// the one-shot warning. observed is never nil'd — the warned.Load() gate
+		// stops further growth, and the map is bounded to maxTrackedKeys, so
+		// there's no nil-map write race. The collapse count is snapshotted under
+		// the lock (n) and logged after unlock — never re-read from the shared
+		// set, which a concurrent request could be writing.
 		mu.Lock()
 		set := observed[key]
 		if set == nil {
@@ -363,12 +366,13 @@ func ProxyTrustWarning(logger *slog.Logger) gin.HandlerFunc {
 			observed[key] = set
 		}
 		set[fwd] = struct{}{}
-		collapsed := len(set) >= collapseThreshold
+		n := len(set)
+		collapsed := n >= collapseThreshold
 		mu.Unlock()
 
 		if collapsed && warned.CompareAndSwap(false, true) {
 			logger.Warn("rate limiter keying on a proxy IP — set TRUSTED_PROXIES to the proxy CIDR(s)",
-				"client_ip", key, "distinct_forwarded_clients", len(set))
+				"client_ip", key, "distinct_forwarded_clients", n)
 		}
 		c.Next()
 	}
