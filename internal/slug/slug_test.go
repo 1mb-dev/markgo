@@ -3,6 +3,7 @@ package slug
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
@@ -96,5 +97,115 @@ func TestContainPath_BaseWithTrailingSeparator(t *testing.T) {
 	}
 	if got == "" {
 		t.Error("expected non-empty path")
+	}
+}
+
+// TestValidate is the union of every case previously pinned in
+// commands/new.TestValidateSlug and article.TestValidateSlug — the two strict
+// create-time validators this package now replaces. A green run proves the
+// merged contract is no looser than either predecessor on any input.
+func TestValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		slug    string
+		wantErr bool
+	}{
+		// valid
+		{"simple", "my-great-article", false},
+		{"with digits", "article-123", false},
+		{"digits only", "123", false},
+		{"single char", "a", false},
+		{"reserved-adjacent ok", "feed-2026", false},
+		{"at length limit", strings.Repeat("a", MaxLength), false},
+
+		// empty / whitespace
+		{"empty", "", true},
+		{"whitespace only", "   ", true},
+
+		// path traversal
+		{"dots", "..", true},
+		{"embedded traversal", "foo/../bar", true},
+		{"forward slash", "foo/bar", true},
+		{"backslash", "foo\\bar", true},
+
+		// charset
+		{"uppercase", "My-Article", true},
+		{"underscore", "my_page", true},
+		{"space", "my article", true},
+		{"unicode", "café", true},
+		{"dot", "my.page", true},
+		{"special chars", "my@article!", true},
+
+		// length
+		{"too long", strings.Repeat("a", MaxLength+1), true},
+
+		// hyphen placement
+		{"leading hyphen", "-my-article", true},
+		{"trailing hyphen", "my-article-", true},
+		{"only hyphen", "-", true},
+		{"only hyphens", "---", true},
+		{"consecutive hyphens", "my--article", true},
+
+		// reserved
+		{"reserved index", "index", true},
+		{"reserved feed", "feed", true},
+		{"reserved rss", "rss", true},
+		{"reserved atom", "atom", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := Validate(tt.slug)
+			if tt.wantErr {
+				assert.Error(t, err, "expected error for %q", tt.slug)
+			} else {
+				assert.NoError(t, err, "unexpected error for %q", tt.slug)
+			}
+		})
+	}
+}
+
+// TestWellFormed pins the permissive route-param/stored-slug guard: charset and
+// length only. Unlike Validate it accepts reserved names and consecutive
+// hyphens (existing slugs must stay lookup-able), but still rejects anything
+// that is not a clean URL component.
+func TestWellFormed(t *testing.T) {
+	tests := []struct {
+		name string
+		slug string
+		want bool
+	}{
+		{"simple", "my-post", true},
+		{"single char", "a", true},
+		{"digits", "123", true},
+		{"reserved name accepted", "feed", true},
+		{"consecutive hyphens accepted", "my--post", true},
+		{"at well-formed ceiling", strings.Repeat("a", wellFormedMaxLength), true},
+		{"beyond create cap but within ceiling", strings.Repeat("a", MaxLength+1), true},
+
+		{"empty", "", false},
+		{"over ceiling", strings.Repeat("a", wellFormedMaxLength+1), false},
+		{"uppercase", "Foo", false},
+		{"space", "my post", false},
+		{"slash", "foo/bar", false},
+		{"traversal", "..", false},
+		{"leading hyphen", "-x", false},
+		{"trailing hyphen", "x-", false},
+		{"unicode", "café", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, WellFormed(tt.slug), "WellFormed(%q)", tt.slug)
+		})
+	}
+}
+
+// TestValidateImpliesWellFormed pins the contract relationship the two guards
+// depend on: anything strict enough to be created is always accepted by the
+// permissive lookup guard ("accepted at create ⟹ accepted at edit").
+func TestValidateImpliesWellFormed(t *testing.T) {
+	for _, s := range []string{"a", "my-post", "article-123", "feed-2026", strings.Repeat("a", MaxLength)} {
+		if Validate(s) == nil && !WellFormed(s) {
+			t.Errorf("Validate accepts %q but WellFormed rejects it", s)
+		}
 	}
 }

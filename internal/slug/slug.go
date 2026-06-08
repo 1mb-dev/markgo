@@ -11,10 +11,35 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
 )
+
+// MaxLength caps operator-supplied slugs at creation time — a filesystem-safety
+// and URL-readability ceiling.
+const MaxLength = 100
+
+// wellFormedMaxLength is the generous ceiling applied when guarding untrusted
+// or already-stored slugs (route params, edit/lookup). It exceeds MaxLength so a
+// legacy slug created before the create-time cap still validates for lookup.
+const wellFormedMaxLength = 200
+
+// charClass matches a structurally valid slug: lowercase ASCII letters and
+// digits, with hyphens permitted only between them (no leading/trailing hyphen).
+// Length is enforced separately by the caller, not encoded here.
+var charClass = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+
+// reserved blocks slugs that would shadow feed-like names if served from
+// /p/<slug>. Deliberately minimal — only content-discovery collisions; route
+// prefixes (/about, /writing, /admin) live at different paths.
+var reserved = map[string]struct{}{
+	"index": {},
+	"feed":  {},
+	"rss":   {},
+	"atom":  {},
+}
 
 // Generate converts a title into a URL slug: lowercased, spaces to hyphens,
 // characters outside [a-z0-9-] dropped, consecutive hyphens collapsed, and
@@ -58,4 +83,40 @@ func ContainPath(basePath, slug string) (string, error) {
 		return "", fmt.Errorf("slug %q: %w", slug, apperrors.ErrPathEscape)
 	}
 	return absJoined, nil
+}
+
+// WellFormed reports whether slug is a structurally valid, URL-safe slug within
+// the well-formed ceiling. It is the permissive contract: it guards untrusted
+// route-param input and already-stored slugs (which may predate the stricter
+// create-time rules), so it checks charset and length only — not reserved names
+// or consecutive hyphens. Any slug accepted by Validate is also WellFormed.
+func WellFormed(slug string) bool {
+	return len(slug) <= wellFormedMaxLength && charClass.MatchString(slug)
+}
+
+// Validate enforces the strict contract for a NEW operator-supplied slug — the
+// CLI `new` command and the compose new-page form. Stricter than WellFormed:
+// charset, no path traversal, ≤MaxLength, no consecutive hyphens, and not a
+// reserved feed-like name. Errors are recovery-oriented so callers can surface
+// them directly. Already-stored slugs are guarded by WellFormed, not this.
+func Validate(slug string) error {
+	if strings.TrimSpace(slug) == "" {
+		return fmt.Errorf("slug cannot be empty")
+	}
+	if strings.Contains(slug, "..") || strings.ContainsAny(slug, `/\`) {
+		return fmt.Errorf("slug contains path-traversal characters: %q", slug)
+	}
+	if len(slug) > MaxLength {
+		return fmt.Errorf("slug exceeds %d characters: %d", MaxLength, len(slug))
+	}
+	if !charClass.MatchString(slug) {
+		return fmt.Errorf("slug must be lowercase letters, digits, and interior hyphens: %q", slug)
+	}
+	if strings.Contains(slug, "--") {
+		return fmt.Errorf("slug cannot contain consecutive hyphens: %q", slug)
+	}
+	if _, blocked := reserved[slug]; blocked {
+		return fmt.Errorf("slug is reserved: %q", slug)
+	}
+	return nil
 }
