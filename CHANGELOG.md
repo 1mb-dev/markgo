@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.22.5] - 2026-06-08
+
 ### Fixed
 
 - Rate-limit keying no longer collapses behind a same-host reverse proxy when
@@ -19,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from a public client is still ignored. Off-host proxies are unchanged: set
   `TRUSTED_PROXIES` to the proxy CIDR(s); the runtime proxy-trust warning remains
   their backstop. (#119)
+- Data race in the proxy-trust detector's one-shot warning — the collapse count
+  is now snapshotted under the lock instead of re-read from the shared map.
 
 ### Changed
 
