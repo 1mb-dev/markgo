@@ -248,9 +248,10 @@ func Load() (*Config, error) {
 
 	// Parse + validate trusted proxies up front so a malformed CIDR fails the
 	// whole load (a silently-dropped entry would re-open XFF spoofing).
-	trustedProxies, err := parseTrustedProxies(getEnv("TRUSTED_PROXIES", ""))
+	trustedProxiesRaw := getEnv("TRUSTED_PROXIES", "")
+	trustedProxies, err := parseTrustedProxies(trustedProxiesRaw)
 	if err != nil {
-		return nil, apperrors.NewConfigError("trusted_proxies", getEnv("TRUSTED_PROXIES", ""),
+		return nil, apperrors.NewConfigError("trusted_proxies", trustedProxiesRaw,
 			"Invalid TRUSTED_PROXIES (expect comma-separated CIDRs and/or bare IPs)", err)
 	}
 
