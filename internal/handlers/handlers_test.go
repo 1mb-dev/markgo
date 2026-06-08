@@ -482,6 +482,13 @@ func TestHealthEndpoint(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 	assert.Equal(t, "healthy", response["status"])
+	assert.Contains(t, response, "uptime")
+	assert.Contains(t, response, "services")
+
+	// version + environment must not leak from this unauthenticated endpoint —
+	// they fingerprint the deployment. (v3.22.0 #5)
+	assert.NotContains(t, response, "version")
+	assert.NotContains(t, response, "environment")
 }
 
 // unhealthyArticleService is a MockArticleService variant that reports
