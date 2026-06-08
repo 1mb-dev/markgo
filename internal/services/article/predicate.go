@@ -47,8 +47,3 @@ func CanonicalURLFor(a *models.Article) string {
 	}
 	return "/writing/" + a.Slug
 }
-
-// Strict slug validation for new operator-supplied slugs lives in
-// internal/slug (slug.Validate) — one contract shared by the CLI `new`
-// command and the compose new-page form. The permissive guard for
-// already-stored slugs remains FileSystemRepository.validateSlug.

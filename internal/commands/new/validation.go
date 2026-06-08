@@ -295,10 +295,6 @@ func SanitizeForYAML(input string) string {
 	return input
 }
 
-// Slug validation lives in internal/slug (slug.Validate) — one strict contract
-// shared by this command and the compose new-page form. The CLI resolves and
-// validates the slug in resolveSlug (command.go).
-
 // ShowValidationErrors displays validation errors in a user-friendly format
 func ShowValidationErrors(errs []ValidationError) {
 	fmt.Println("❌ Validation failed:")

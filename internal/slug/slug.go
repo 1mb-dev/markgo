@@ -21,9 +21,11 @@ import (
 // and URL-readability ceiling.
 const MaxLength = 100
 
-// wellFormedMaxLength is the generous ceiling applied when guarding untrusted
-// or already-stored slugs (route params, edit/lookup). It exceeds MaxLength so a
-// legacy slug created before the create-time cap still validates for lookup.
+// wellFormedMaxLength is the ceiling for guarding untrusted or already-stored
+// slugs (route params, edit/lookup). It preserves the prior compose validSlug
+// route-guard ceiling (whose `{0,198}` quantifier capped at 200) and exceeds
+// MaxLength so a legacy slug created before the stricter create-time cap still
+// validates for lookup.
 const wellFormedMaxLength = 200
 
 // charClass matches a structurally valid slug: lowercase ASCII letters and
@@ -100,14 +102,16 @@ func WellFormed(slug string) bool {
 // reserved feed-like name. Errors are recovery-oriented so callers can surface
 // them directly. Already-stored slugs are guarded by WellFormed, not this.
 func Validate(slug string) error {
+	// Cheapest, most-bounding check first so an oversized value is rejected
+	// before any full-string scan (mirrors WellFormed's length-first order).
+	if len(slug) > MaxLength {
+		return fmt.Errorf("slug exceeds %d characters: %d", MaxLength, len(slug))
+	}
 	if strings.TrimSpace(slug) == "" {
 		return fmt.Errorf("slug cannot be empty")
 	}
 	if strings.Contains(slug, "..") || strings.ContainsAny(slug, `/\`) {
 		return fmt.Errorf("slug contains path-traversal characters: %q", slug)
-	}
-	if len(slug) > MaxLength {
-		return fmt.Errorf("slug exceeds %d characters: %d", MaxLength, len(slug))
 	}
 	if !charClass.MatchString(slug) {
 		return fmt.Errorf("slug must be lowercase letters, digits, and interior hyphens: %q", slug)
