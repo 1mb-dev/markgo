@@ -3,7 +3,6 @@ package handlers
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -11,11 +10,6 @@ import (
 	"github.com/1mb-dev/markgo/internal/models"
 	"github.com/1mb-dev/markgo/internal/services"
 )
-
-// maxContactBodySize caps the contact submission body before binding. The
-// largest valid field (message) is 2000 chars, so 64KB is generous headroom
-// while bounding the JSON an unauthenticated caller can force us to parse.
-const maxContactBodySize = 64 << 10 // 64KB
 
 // ContactHandler handles contact form display and submission.
 type ContactHandler struct {
@@ -33,7 +27,7 @@ func NewContactHandler(base *BaseHandler, emailService services.EmailServiceInte
 
 // Submit handles contact form submissions.
 func (h *ContactHandler) Submit(c *gin.Context) {
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxContactBodySize)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxPublicFormBody)
 
 	var form struct {
 		Name    string `json:"name" binding:"required,min=2,max=50"`
@@ -43,7 +37,7 @@ func (h *ContactHandler) Submit(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&form); err != nil {
-		if strings.Contains(err.Error(), "http: request body too large") {
+		if isBodyTooLarge(err) {
 			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Request too large"})
 			return
 		}

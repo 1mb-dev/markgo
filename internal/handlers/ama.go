@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -12,11 +11,6 @@ import (
 	"github.com/1mb-dev/markgo/internal/services/compose"
 	slugutil "github.com/1mb-dev/markgo/internal/slug"
 )
-
-// maxAMABodySize caps the AMA submission body before binding. The largest valid
-// field (question) is 500 chars, so 64KB is generous headroom while bounding the
-// JSON an unauthenticated caller can force us to parse.
-const maxAMABodySize = 64 << 10 // 64KB
 
 // AMAHandler handles AMA question submission and moderation.
 type AMAHandler struct {
@@ -36,12 +30,12 @@ func NewAMAHandler(base *BaseHandler, composeService *compose.Service, articleSe
 
 // Submit handles AMA question submissions from unauthenticated readers.
 func (h *AMAHandler) Submit(c *gin.Context) {
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxAMABodySize)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxPublicFormBody)
 
 	var form models.AMASubmission
 	if err := c.ShouldBindJSON(&form); err != nil {
-		if strings.Contains(err.Error(), "http: request body too large") {
-			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Submission too large"})
+		if isBodyTooLarge(err) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Request too large"})
 			return
 		}
 		c.JSON(http.StatusBadRequest, gin.H{

@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -102,6 +104,61 @@ func TestHandleLogin_OversizedBody_Returns413(t *testing.T) {
 	h.HandleLogin(c)
 
 	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+}
+
+// multipartLogin builds a multipart/form-data body (what the popover's FormData
+// fetch sends) and returns the body + content-type header.
+func multipartLogin(t *testing.T, username, password string) (*bytes.Buffer, string) {
+	t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	require.NoError(t, mw.WriteField("username", username))
+	require.NoError(t, mw.WriteField("password", password))
+	require.NoError(t, mw.Close())
+	return &buf, mw.FormDataContentType()
+}
+
+// TestHandleLogin_Multipart_OversizedBody_Returns413 guards the real login path:
+// the popover submits multipart/form-data, for which Go's ParseForm is a no-op —
+// so an earlier urlencoded-only cap silently missed it and returned a misleading
+// 401. The cap must surface 413 for multipart too.
+func TestHandleLogin_Multipart_OversizedBody_Returns413(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newTestAuthHandler()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	body, contentType := multipartLogin(t, "admin", strings.Repeat("a", 70000))
+	c.Request = httptest.NewRequest(http.MethodPost, "/login", body)
+	c.Request.Header.Set("Content-Type", contentType)
+	c.Request.Header.Set("Accept", "application/json")
+
+	h.HandleLogin(c)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+}
+
+// TestHandleLogin_Multipart_Success confirms a normal multipart login (the real
+// popover path) still authenticates — the cap/parse change didn't break it.
+func TestHandleLogin_Multipart_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newTestAuthHandler()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	body, contentType := multipartLogin(t, "admin", "secret")
+	c.Request = httptest.NewRequest(http.MethodPost, "/login", body)
+	c.Request.Header.Set("Content-Type", contentType)
+	c.Request.Header.Set("Accept", "application/json")
+
+	h.HandleLogin(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, true, resp["success"])
 }
 
 func TestHandleLogin_JSON_Success(t *testing.T) {
