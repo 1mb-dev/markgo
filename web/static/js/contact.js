@@ -82,12 +82,29 @@ export function init() {
         const message = (formData.get('message') || '').trim();
         const captchaValue = (formData.get('captcha_answer') || '').trim();
 
-        // Inline validation — show errors on specific fields
+        // Inline validation — required + min-length. The form is novalidate, so
+        // the browser skips the inputs' minlength attrs; mirror them here (read
+        // from the attr itself, the single source the server's bounds match) so a
+        // short field gets a field-level message instead of a generic server 400.
         let hasError = false;
-        if (!name) { showFieldError('name', 'Name is required'); hasError = true; }
-        if (!email) { showFieldError('email', 'Email is required'); hasError = true; }
-        if (!subject) { showFieldError('subject', 'Subject is required'); hasError = true; }
-        if (!message) { showFieldError('message', 'Message is required'); hasError = true; }
+        const fields = [
+            { id: 'name', value: name, label: 'Name' },
+            { id: 'email', value: email, label: 'Email' },
+            { id: 'subject', value: subject, label: 'Subject' },
+            { id: 'message', value: message, label: 'Message' },
+        ];
+        for (const f of fields) {
+            if (!f.value) {
+                showFieldError(f.id, `${f.label} is required`);
+                hasError = true;
+                continue;
+            }
+            const min = document.getElementById(f.id)?.minLength ?? -1;
+            if (min > 0 && f.value.length < min) {
+                showFieldError(f.id, `${f.label} must be at least ${min} characters`);
+                hasError = true;
+            }
+        }
         if (!captchaValue) { showFieldError('captcha', 'Please solve the math problem'); hasError = true; }
 
         if (hasError) {
