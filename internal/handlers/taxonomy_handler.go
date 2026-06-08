@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -53,18 +52,14 @@ func (h *TaxonomyHandler) Categories(c *gin.Context) {
 
 // ArticlesByTag handles articles filtered by tag.
 func (h *TaxonomyHandler) ArticlesByTag(c *gin.Context) {
+	// gin already URL-decodes path params; do NOT decode again — a second
+	// QueryUnescape turns a literal '+' (e.g. the tag "c++") into a space, so the
+	// page never matches the tag the sitemap/canonical URL points at.
 	tag := c.Param("tag")
 	if tag == "" {
 		h.handleError(c, apperrors.NewValidationError("tag", "", "tag is required", nil), "Invalid tag")
 		return
 	}
-
-	decodedTag, err := url.QueryUnescape(tag)
-	if err != nil {
-		h.handleError(c, fmt.Errorf("invalid tag format: %v", err), "Invalid tag")
-		return
-	}
-	tag = decodedTag
 
 	data, err := h.getTagArticles(tag)
 	if err != nil {
@@ -78,18 +73,12 @@ func (h *TaxonomyHandler) ArticlesByTag(c *gin.Context) {
 
 // ArticlesByCategory handles articles filtered by category.
 func (h *TaxonomyHandler) ArticlesByCategory(c *gin.Context) {
+	// gin already URL-decodes path params; see ArticlesByTag — no second decode.
 	category := c.Param("category")
 	if category == "" {
 		h.handleError(c, apperrors.NewValidationError("category", "", "category is required", nil), "Invalid category")
 		return
 	}
-
-	decodedCategory, err := url.QueryUnescape(category)
-	if err != nil {
-		h.handleError(c, fmt.Errorf("invalid category format: %v", err), "Invalid category")
-		return
-	}
-	category = decodedCategory
 
 	data, err := h.getCategoryArticles(category)
 	if err != nil {
