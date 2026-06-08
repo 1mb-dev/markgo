@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.22.3] - 2026-06-08
+
+### Fixed
+
+- Schema.org `dateModified` and `og:article:modified_time` now come from the
+  frontmatter date instead of the file mtime — mtime is reset by image builds and
+  checkouts, churning the dates on every deploy and getting the freshness signal
+  discounted. Completes the v3.22.2 sitemap change for the page-level metadata.
+- Date-less pages no longer emit `0001-01-01T00:00:00Z` in their structured data
+  (`datePublished`/`dateModified`) or Open Graph (`article:published_time`,
+  `article:modified_time`) — the date fields are omitted when absent.
+
 ## [3.22.2] - 2026-06-08
 
 ### Fixed
