@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Rate-limit keying no longer collapses behind a same-host reverse proxy when
+  `TRUSTED_PROXIES` is unset. Loopback (`127.0.0.0/8`, `::1`) is now auto-trusted
+  in that case, so a proxy on the same host (e.g. Caddy → 127.0.0.1) keys the
+  limiter on the real client with no configuration — previously every visitor
+  collapsed onto the loopback peer, turning the per-client limits global (login
+  5/15min became a single bucket, allowing operator lockout from `/admin`). A
+  loopback peer is unspoofable from the network, so a forged `X-Forwarded-For`
+  from a public client is still ignored. Off-host proxies are unchanged: set
+  `TRUSTED_PROXIES` to the proxy CIDR(s); the runtime proxy-trust warning remains
+  their backstop. (#119)
+
+### Changed
+
+- The startup "Rate limiting configuration" log now reports the client-IP keying
+  posture (`trusted_proxies` and `trusted_proxies_source`), surfacing the
+  proxy-trust mode at boot instead of only when the runtime detector trips.
+
 ## [3.22.4] - 2026-06-08
 
 ### Changed

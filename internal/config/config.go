@@ -40,9 +40,11 @@ type Config struct {
 	// TrustedProxies is the set of normalized CIDRs (bare IPs widened to /32 or
 	// /128) from which X-Forwarded-For / X-Real-IP may be trusted. Parsed and
 	// validated from TRUSTED_PROXIES at load (fail-loud on malformed). nil when
-	// unset: the server then calls gin's SetTrustedProxies(nil) so ClientIP()
-	// returns the direct peer (RemoteAddr) — the safe direct-bind posture, and
-	// the rate limiter keys on the real client rather than a spoofable header.
+	// unset: the server then trusts the loopback defaults (see
+	// middleware.EffectiveTrustedProxies) so a same-host reverse proxy keys the
+	// rate limiter on the real client, while a forged header from a public peer
+	// is still ignored. Operator-set CIDRs are used verbatim (this field stays
+	// nil when unset — the loopback default is applied at wiring, not here).
 	TrustedProxies []string `json:"trusted_proxies"`
 
 	Server    ServerConfig    `json:"server"`
@@ -477,8 +479,8 @@ func splitString(s, delimiter string) []string {
 // IPs are widened to a single-host CIDR (/32 for IPv4, /128 for IPv6); entries
 // already in CIDR form are validated with net.ParseCIDR. Any malformed entry is
 // a hard error — silently dropping one would re-open X-Forwarded-For spoofing.
-// Empty input returns (nil, nil): the caller passes nil to SetTrustedProxies,
-// which makes ClientIP() return the direct peer.
+// Empty input returns (nil, nil); the server then applies the loopback defaults
+// at wiring time (see middleware.EffectiveTrustedProxies).
 func parseTrustedProxies(raw string) ([]string, error) {
 	entries := splitString(raw, ",")
 	if len(entries) == 0 {

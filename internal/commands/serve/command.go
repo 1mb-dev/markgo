@@ -227,12 +227,17 @@ func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *service
 	router := gin.New()
 
 	// Set trusted proxies before any request is served. gin trusts ALL proxies
-	// by default (spoofable X-Forwarded-For); passing the parsed CIDRs — or nil
-	// when TRUSTED_PROXIES is unset — makes ClientIP() honor forwarded headers
-	// only from trusted peers, else return the direct peer. The rate limiter
-	// keys on ClientIP(), so this is the difference between throttling real
-	// clients and throttling everyone as the proxy's single IP.
-	if err = router.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+	// by default (spoofable X-Forwarded-For); passing the operator's parsed CIDRs
+	// — or the loopback defaults when TRUSTED_PROXIES is unset — makes ClientIP()
+	// honor forwarded headers only from trusted peers, else return the direct
+	// peer. The rate limiter keys on ClientIP(), so this is the difference
+	// between throttling real clients and throttling everyone as the proxy's
+	// single IP. Loopback is auto-trusted when unset because a loopback peer is
+	// unspoofable from the network, fixing the common same-host reverse-proxy
+	// topology without operator action (#119); off-host proxies still require
+	// TRUSTED_PROXIES, and the ProxyTrustWarning detector below catches them.
+	trustedProxies := middleware.EffectiveTrustedProxies(cfg.TrustedProxies)
+	if err = router.SetTrustedProxies(trustedProxies); err != nil {
 		return nil, nil, nil, fmt.Errorf("set trusted proxies: %w", err)
 	}
 
@@ -246,14 +251,24 @@ func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *service
 		return nil, nil, nil, fmt.Errorf("template setup: %w", err)
 	}
 
-	// Log rate limiting configuration
+	// Log rate limiting configuration, including the client-IP keying posture so
+	// the proxy-trust mode is visible at boot (t=0) rather than only after the
+	// runtime ProxyTrustWarning trips. "loopback-default" means TRUSTED_PROXIES
+	// is unset: same-host proxies key correctly, but an off-host proxy operator
+	// must set TRUSTED_PROXIES to their proxy CIDR(s).
+	trustSource := "explicit"
+	if len(cfg.TrustedProxies) == 0 {
+		trustSource = "loopback-default"
+	}
 	logger.Info("Rate limiting configuration",
 		"environment", cfg.Environment,
 		"general_requests", cfg.RateLimit.General.Requests,
 		"general_window", cfg.RateLimit.General.Window,
 		"general_rate_per_sec", float64(cfg.RateLimit.General.Requests)/(cfg.RateLimit.General.Window.Minutes()*60),
 		"contact_requests", cfg.RateLimit.Contact.Requests,
-		"contact_window", cfg.RateLimit.Contact.Window)
+		"contact_window", cfg.RateLimit.Contact.Window,
+		"trusted_proxies", strings.Join(trustedProxies, ","),
+		"trusted_proxies_source", trustSource)
 
 	// Global middleware
 	router.Use(
@@ -268,8 +283,10 @@ func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *service
 		middleware.DiscardBodyOnHEAD(),
 	)
 
-	// Advise (once) if we appear to be proxied but TRUSTED_PROXIES is unset —
-	// in that state every client collapses to the proxy IP under rate limiting.
+	// Advise (once) if we appear to be behind an OFF-HOST proxy but
+	// TRUSTED_PROXIES is unset. Loopback is auto-trusted (so a same-host proxy
+	// keys correctly and never trips this), but an off-host proxy stays
+	// untrusted and collapses every client onto its IP under rate limiting.
 	if len(cfg.TrustedProxies) == 0 {
 		router.Use(middleware.ProxyTrustWarning(logger))
 	}

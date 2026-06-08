@@ -205,6 +205,28 @@ func ShutdownRateLimiters() {
 	rateLimiterRegistryWG.Wait()
 }
 
+// defaultLoopbackProxies is the trusted-proxy set applied when the operator
+// leaves TRUSTED_PROXIES unset. A loopback peer is unspoofable from the network
+// (a remote client cannot make its TCP peer address 127.0.0.1/::1), so trusting
+// it lets ClientIP() honor the forwarded client behind a same-host reverse proxy
+// — the dominant single-binary topology — while a forged X-Forwarded-For from a
+// public peer is still ignored. 127.0.0.0/8 also covers IPv4-mapped ::ffff:127.*
+// (gin's IPNet.Contains calls To4()); ::1/128 covers pure IPv6 loopback.
+var defaultLoopbackProxies = []string{"127.0.0.0/8", "::1/128"}
+
+// EffectiveTrustedProxies returns the proxies gin should trust: the operator's
+// configured CIDRs when set, otherwise the loopback defaults. The operator's
+// explicit list wins verbatim (an off-host proxy operator opts into precise
+// control, and must list every hop incl. a same-host one — see .env.example);
+// only the unset case auto-trusts loopback. Returns a fresh slice so callers
+// can't mutate the shared default.
+func EffectiveTrustedProxies(operator []string) []string {
+	if len(operator) > 0 {
+		return operator
+	}
+	return append([]string(nil), defaultLoopbackProxies...)
+}
+
 // RateLimit provides sliding window rate limiting with bounded memory
 func RateLimit(requests int, window time.Duration) gin.HandlerFunc {
 	const maxClients = 10000 // Prevent memory exhaustion attacks
@@ -232,11 +254,12 @@ func RateLimit(requests int, window time.Duration) gin.HandlerFunc {
 			return
 		}
 
-		// Key on ClientIP(): the server calls SetTrustedProxies at startup
-		// (parsed TRUSTED_PROXIES, or nil when unset), so gin honors
-		// X-Forwarded-For only from trusted peers — otherwise ClientIP()
-		// returns the direct peer (RemoteAddr, port stripped). Either way the
-		// key is the real client, not a spoofable header.
+		// Key on ClientIP(): the server calls SetTrustedProxies at startup with
+		// the parsed TRUSTED_PROXIES, or the loopback defaults when unset (see
+		// EffectiveTrustedProxies), so gin honors X-Forwarded-For only from
+		// trusted peers — otherwise ClientIP() returns the direct peer
+		// (RemoteAddr, port stripped). Either way the key is the real client,
+		// not a spoofable header.
 		ip := c.ClientIP()
 		if ip == "" {
 			// ClientIP() returns "" when RemoteAddr isn't a parseable host:port
@@ -325,9 +348,12 @@ func ProxyTrustWarning(logger *slog.Logger) gin.HandlerFunc {
 			return
 		}
 
-		// All access to observed is under mu; warned latches the one-shot warning.
-		// observed is never nil'd — the warned.Load() gate stops further growth, and
-		// the map is bounded to maxTrackedKeys, so there's no nil-map write race.
+		// All access to observed and its inner sets is under mu; warned latches
+		// the one-shot warning. observed is never nil'd — the warned.Load() gate
+		// stops further growth, and the map is bounded to maxTrackedKeys, so
+		// there's no nil-map write race. The collapse count is snapshotted under
+		// the lock (n) and logged after unlock — never re-read from the shared
+		// set, which a concurrent request could be writing.
 		mu.Lock()
 		set := observed[key]
 		if set == nil {
@@ -340,12 +366,13 @@ func ProxyTrustWarning(logger *slog.Logger) gin.HandlerFunc {
 			observed[key] = set
 		}
 		set[fwd] = struct{}{}
-		collapsed := len(set) >= collapseThreshold
+		n := len(set)
+		collapsed := n >= collapseThreshold
 		mu.Unlock()
 
 		if collapsed && warned.CompareAndSwap(false, true) {
 			logger.Warn("rate limiter keying on a proxy IP — set TRUSTED_PROXIES to the proxy CIDR(s)",
-				"client_ip", key, "distinct_forwarded_clients", len(set))
+				"client_ip", key, "distinct_forwarded_clients", n)
 		}
 		c.Next()
 	}
