@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.22.1] - 2026-06-08
+
+Follow-ups from the v3.22.0 review: sharper, more honest feedback at the input and
+rate-limiting boundaries. No configuration changes.
+
+### Changed
+
+- The proxy-trust advisory now detects the actual failure — many forwarded client
+  IPs collapsing onto a single ClientIP — instead of inferring from the peer
+  address. It now also catches a reverse proxy on a public IP (e.g. a cloud load
+  balancer) with `TRUSTED_PROXIES` unset, which the previous heuristic missed.
+
+### Fixed
+
+- The rate limiter logs once when its client-tracking ceiling is reached, instead
+  of silently rejecting every new client IP with no signal.
+- A quick-publish request with an invalid or reserved page slug now returns 400
+  with the reason, instead of a misleading 500.
+- Quick-publish oversized-body detection now uses the same codec-agnostic check as
+  the other endpoints, closing a latent path where a large body could be
+  misreported as a 400.
+- The contact form validates field minimum lengths inline (matching the AMA form
+  and the server's rules), so a too-short name/subject/message shows a field-level
+  message instead of a generic failure.
+
 ## [3.22.0] - 2026-06-08
 
 Hardens the public input surface: everything an unauthenticated request can
