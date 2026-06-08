@@ -238,6 +238,12 @@ func RateLimit(requests int, window time.Duration) gin.HandlerFunc {
 		// returns the direct peer (RemoteAddr, port stripped). Either way the
 		// key is the real client, not a spoofable header.
 		ip := c.ClientIP()
+		if ip == "" {
+			// ClientIP() returns "" when RemoteAddr isn't a parseable host:port
+			// (e.g. a unix-socket transport). Fall back to the raw RemoteAddr so
+			// distinct connections don't collapse into one shared bucket.
+			ip = c.Request.RemoteAddr
+		}
 
 		now := time.Now()
 
