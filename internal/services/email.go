@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -122,8 +123,14 @@ func (e *EmailService) SendNotification(to, subject, body string) error {
 }
 
 func (e *EmailService) sendEmail(to, subject, body string) error {
-	// Create message
-	msg := e.buildEmailMessage(e.config.From, to, subject, body)
+	// Build message — rejects header injection before anything is sent.
+	msg, err := e.buildEmailMessage(e.config.From, to, subject, body)
+	if err != nil {
+		e.logger.Warn("Rejected outbound email with unsafe header value (possible injection)",
+			"to", to,
+			"error", err)
+		return err
+	}
 
 	// Connect to SMTP server
 	addr := fmt.Sprintf("%s:%d", e.config.Host, e.config.Port)
@@ -135,7 +142,7 @@ func (e *EmailService) sendEmail(to, subject, body string) error {
 		"subject", subject)
 
 	// Send email
-	err := smtp.SendMail(addr, e.auth, e.config.From, []string{to}, []byte(msg))
+	err = smtp.SendMail(addr, e.auth, e.config.From, []string{to}, []byte(msg))
 	if err != nil {
 		e.logger.Error("Failed to send email",
 			"error", err,
@@ -147,7 +154,32 @@ func (e *EmailService) sendEmail(to, subject, body string) error {
 	return nil
 }
 
-func (e *EmailService) buildEmailMessage(from, to, subject, body string) string {
+// errUnsafeEmailHeader is returned when a value bound for an email header
+// contains CR, LF, or NUL — the bytes that enable SMTP header injection (an
+// attacker-supplied "\r\nBcc: victim@x" in a contact-form field would forge
+// headers and turn the operator's mail server into a relay).
+var errUnsafeEmailHeader = errors.New("email header value contains CR, LF, or NUL")
+
+// unsafeEmailHeaderValue reports whether v cannot be safely placed in an email
+// header: CR/LF would split the header block (injection); NUL can truncate in
+// downstream C-based parsers.
+func unsafeEmailHeaderValue(v string) bool {
+	return strings.ContainsAny(v, "\r\n\x00")
+}
+
+func (e *EmailService) buildEmailMessage(from, to, subject, body string) (string, error) {
+	// Header-injection guard at the single chokepoint every outbound header
+	// passes through, so no current or future caller can smuggle CR/LF into a
+	// header value. Reject (don't silently strip) — a control char here is an
+	// injection attempt, not a typo.
+	for _, h := range []struct{ name, value string }{
+		{"From", from}, {"To", to}, {"Subject", subject},
+	} {
+		if unsafeEmailHeaderValue(h.value) {
+			return "", fmt.Errorf("%s header: %w", h.name, errUnsafeEmailHeader)
+		}
+	}
+
 	var msg bytes.Buffer
 
 	// Headers
@@ -162,7 +194,7 @@ func (e *EmailService) buildEmailMessage(from, to, subject, body string) string 
 	// Body
 	msg.WriteString(body)
 
-	return msg.String()
+	return msg.String(), nil
 }
 
 func (e *EmailService) generateContactEmailBody(msg *models.ContactMessage) (string, error) {
@@ -330,42 +362,42 @@ func (e *EmailService) generateTestEmailBody() string {
 
 // ValidateConfig validates the email configuration
 func (e *EmailService) ValidateConfig() []string {
-	var errors []string
+	var errs []string
 
 	if e.config.Host == "" {
-		errors = append(errors, "SMTP host is required")
+		errs = append(errs, "SMTP host is required")
 	}
 
 	if e.config.Port == 0 {
-		errors = append(errors, "SMTP port is required")
+		errs = append(errs, "SMTP port is required")
 	}
 
 	if e.config.Username == "" {
-		errors = append(errors, "SMTP username is required")
+		errs = append(errs, "SMTP username is required")
 	}
 
 	if e.config.Password == "" {
-		errors = append(errors, "SMTP password is required")
+		errs = append(errs, "SMTP password is required")
 	}
 
 	if e.config.From == "" {
-		errors = append(errors, "From email address is required")
+		errs = append(errs, "From email address is required")
 	}
 
 	if e.config.To == "" {
-		errors = append(errors, "To email address is required")
+		errs = append(errs, "To email address is required")
 	}
 
 	// Validate email format
 	if e.config.From != "" && !e.isValidEmail(e.config.From) {
-		errors = append(errors, "From email address is invalid")
+		errs = append(errs, "From email address is invalid")
 	}
 
 	if e.config.To != "" && !e.isValidEmail(e.config.To) {
-		errors = append(errors, "To email address is invalid")
+		errs = append(errs, "To email address is invalid")
 	}
 
-	return errors
+	return errs
 }
 
 func (e *EmailService) isValidEmail(email string) bool {
