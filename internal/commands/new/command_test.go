@@ -106,6 +106,13 @@ func TestGeneratedArticleSlugHonorsResolvedSlug(t *testing.T) {
 			content := tmpl.Generator(tc.title, "", "general", "uncategorized", "vmx", false, false)
 			content = injectSlugFrontmatter(content, tc.resolved)
 
+			// The literal slug: line must be present — proves the value was
+			// persisted, not that the repository would re-derive the same one
+			// from the title (which would mask a dropped injection).
+			if want := "slug: \"" + tc.resolved + "\""; !strings.Contains(content, want) {
+				t.Errorf("frontmatter missing %q:\n%s", want, content)
+			}
+
 			parts := strings.SplitN(content, "---", 3) // mirrors repository.go load
 			if len(parts) < 3 {
 				t.Fatalf("generated content missing frontmatter:\n%s", content)
@@ -117,8 +124,23 @@ func TestGeneratedArticleSlugHonorsResolvedSlug(t *testing.T) {
 			if fm.Slug != tc.want {
 				t.Errorf("served slug = %q, want %q (--slug ignored at serve time?)", fm.Slug, tc.want)
 			}
-			if tc.resolved != slugutil.Generate(tc.title) && fm.Slug == slugutil.Generate(tc.title) {
-				t.Errorf("explicit slug %q collapsed to title-derived %q", tc.resolved, fm.Slug)
+		})
+	}
+}
+
+// TestAllTemplatesCarryInjectedSlug guards injectSlugFrontmatter's fail-open
+// edge: it silently no-ops on content lacking a "---\n" head. Pin that every
+// registered template produces a recognizable frontmatter head and accepts the
+// slug, so --slug can never be silently dropped for some template.
+func TestAllTemplatesCarryInjectedSlug(t *testing.T) {
+	for name, tmpl := range GetAvailableTemplates() {
+		t.Run(name, func(t *testing.T) {
+			raw := tmpl.Generator("Sample Title", "", "general", "uncategorized", "vmx", false, false)
+			if !strings.HasPrefix(raw, "---\n") {
+				t.Fatalf("template %q frontmatter does not start with ---\\n; injectSlugFrontmatter would no-op:\n%.80s", name, raw)
+			}
+			if got := injectSlugFrontmatter(raw, "pinned-slug"); !strings.Contains(got, `slug: "pinned-slug"`) {
+				t.Errorf("template %q: slug not injected", name)
 			}
 		})
 	}
