@@ -84,6 +84,26 @@ func TestHandleLogin_RateLimited(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, post(), "attempt beyond the limit is throttled")
 }
 
+func TestHandleLogin_OversizedBody_Returns413(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newTestAuthHandler()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	form := url.Values{
+		"username": {"admin"},
+		"password": {strings.Repeat("a", 70000)}, // body exceeds the 64KB cap
+	}
+	c.Request = httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
+	c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	c.Request.Header.Set("Accept", "application/json")
+
+	h.HandleLogin(c)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+}
+
 func TestHandleLogin_JSON_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := newTestAuthHandler()
