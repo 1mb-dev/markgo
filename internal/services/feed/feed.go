@@ -3,6 +3,8 @@ package feed
 import (
 	"encoding/json"
 	"encoding/xml"
+	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -146,34 +148,52 @@ func (s *Service) GenerateSitemap() (string, error) {
 	allArticles := s.articleService.GetAllArticles()
 	pages := s.articleService.GetPages()
 
+	// Static index/nav entries carry no <lastmod>: it is optional, and a synthetic
+	// "now" on every generation is a churning value search engines distrust — and
+	// discount across the whole sitemap. The content entries below carry real,
+	// stable dates.
 	urls := []models.SitemapURL{
-		{Loc: s.config.BaseURL, LastMod: time.Now(), ChangeFreq: "weekly", Priority: 1.0},
-		{Loc: s.config.BaseURL + "/writing", LastMod: time.Now(), ChangeFreq: "daily", Priority: 0.8},
-		{Loc: s.config.BaseURL + "/tags", LastMod: time.Now(), ChangeFreq: "weekly", Priority: 0.6},
-		{Loc: s.config.BaseURL + "/categories", LastMod: time.Now(), ChangeFreq: "weekly", Priority: 0.6},
-		{Loc: s.config.BaseURL + "/about", LastMod: time.Now(), ChangeFreq: "yearly", Priority: 0.5},
-		{Loc: s.config.BaseURL + "/p", LastMod: time.Now(), ChangeFreq: "monthly", Priority: 0.5},
+		{Loc: s.config.BaseURL, ChangeFreq: "weekly", Priority: 1.0},
+		{Loc: s.config.BaseURL + "/writing", ChangeFreq: "daily", Priority: 0.8},
+		{Loc: s.config.BaseURL + "/tags", ChangeFreq: "weekly", Priority: 0.6},
+		{Loc: s.config.BaseURL + "/categories", ChangeFreq: "weekly", Priority: 0.6},
+		{Loc: s.config.BaseURL + "/about", ChangeFreq: "yearly", Priority: 0.5},
+		{Loc: s.config.BaseURL + "/p", ChangeFreq: "monthly", Priority: 0.5},
 	}
 
+	// Accumulate taxonomy terms from the same published articles we emit, so the
+	// sitemap's term pages always correspond to its content.
+	tags := map[string]*termStat{}
+	cats := map[string]*termStat{}
 	for _, a := range allArticles {
-		if !a.Draft {
-			urls = append(urls, models.SitemapURL{
-				Loc:        s.config.BaseURL + articlepkg.CanonicalURLFor(a),
-				LastMod:    a.Date,
-				ChangeFreq: "monthly",
-				Priority:   0.7,
-			})
+		if a.Draft {
+			continue
+		}
+		urls = append(urls, models.SitemapURL{
+			Loc:        s.config.BaseURL + articlepkg.CanonicalURLFor(a),
+			LastMod:    sitemapLastMod(a),
+			ChangeFreq: "monthly",
+			Priority:   0.7,
+		})
+		for _, tag := range a.Tags {
+			accumulateTerm(tags, tag, a.Date)
+		}
+		for _, cat := range a.Categories {
+			accumulateTerm(cats, cat, a.Date)
 		}
 	}
 
 	for _, p := range pages {
 		urls = append(urls, models.SitemapURL{
 			Loc:        s.config.BaseURL + articlepkg.CanonicalURLFor(p),
-			LastMod:    p.Date,
+			LastMod:    sitemapLastMod(p),
 			ChangeFreq: "yearly",
 			Priority:   0.5,
 		})
 	}
+
+	urls = append(urls, termURLs(s.config.BaseURL+"/tags/", tags)...)
+	urls = append(urls, termURLs(s.config.BaseURL+"/categories/", cats)...)
 
 	sitemap := models.Sitemap{
 		Xmlns: "http://www.sitemaps.org/schemas/sitemap/0.9",
@@ -185,6 +205,71 @@ func (s *Service) GenerateSitemap() (string, error) {
 		return "", err
 	}
 	return `<?xml version="1.0" encoding="UTF-8"?>` + "\n" + string(out), nil
+}
+
+// termStat tracks, for one taxonomy term, how many articles carry it and the
+// newest publish date among them.
+type termStat struct {
+	count  int
+	latest time.Time
+}
+
+func accumulateTerm(m map[string]*termStat, term string, date time.Time) {
+	st := m[term]
+	if st == nil {
+		st = &termStat{}
+		m[term] = st
+	}
+	st.count++
+	if date.After(st.latest) {
+		st.latest = date
+	}
+}
+
+// formatSitemapTime renders a W3C datetime, or "" to omit <lastmod>. lastmod is
+// optional, and a zero time.Time would render the bogus "0001-01-01T00:00:00Z"
+// that search engines reject. We key on the frontmatter Date (deploy-stable) —
+// file mtime is reset by image builds and checkouts, which would churn every
+// date and get the whole sitemap's lastmod signal discounted.
+func formatSitemapTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
+}
+
+// sitemapLastMod is the formatted <lastmod> for an article/page entry, from its
+// frontmatter date (omitted for date-less entries such as pages).
+func sitemapLastMod(a *models.Article) string {
+	return formatSitemapTime(a.Date)
+}
+
+// termURLs builds sorted sitemap entries for taxonomy term pages carried by at
+// least two articles — a single-article term page is thin, near-duplicate
+// content that dilutes crawl quality (those terms stay reachable via the
+// article's own links). Terms are path-escaped to match the canonical handler
+// URL; lastmod is the newest article date for the term (omitted if unknown).
+func termURLs(prefix string, terms map[string]*termStat) []models.SitemapURL {
+	const minArticles = 2
+
+	names := make([]string, 0, len(terms))
+	for name, st := range terms {
+		if st.count >= minArticles {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+
+	out := make([]models.SitemapURL, 0, len(names))
+	for _, name := range names {
+		out = append(out, models.SitemapURL{
+			Loc:        prefix + url.PathEscape(name),
+			LastMod:    formatSitemapTime(terms[name].latest),
+			ChangeFreq: "weekly",
+			Priority:   0.4,
+		})
+	}
+	return out
 }
 
 func (s *Service) publishedArticles(limit int) []*models.Article {

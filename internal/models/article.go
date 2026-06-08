@@ -206,12 +206,15 @@ type FeedItem struct {
 	Author      Author    `json:"author"`
 }
 
-// SitemapURL represents a URL in the sitemap
+// SitemapURL represents a URL in the sitemap. LastMod is a pre-formatted W3C
+// datetime string (not time.Time) so an unknown date can be omitted via
+// omitempty — <lastmod> is optional, and emitting a zero time.Time would yield
+// the bogus "0001-01-01T00:00:00Z" that search engines reject.
 type SitemapURL struct {
-	Loc        string    `xml:"loc"`
-	LastMod    time.Time `xml:"lastmod"`
-	ChangeFreq string    `xml:"changefreq"`
-	Priority   float32   `xml:"priority"`
+	Loc        string  `xml:"loc"`
+	LastMod    string  `xml:"lastmod,omitempty"`
+	ChangeFreq string  `xml:"changefreq"`
+	Priority   float32 `xml:"priority"`
 }
 
 // Sitemap represents the XML sitemap structure
