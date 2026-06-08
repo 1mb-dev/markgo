@@ -659,6 +659,24 @@ func TestQuickPublish(t *testing.T) {
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 		assert.Contains(t, resp["error"], "Invalid request body")
 	})
+
+	t.Run("oversized body returns 413", func(t *testing.T) {
+		handler := createQuickPublishHandler(t)
+
+		// Body exceeds maxPreviewBodySize (1MB) — a real MaxBytesReader overflow,
+		// so the handler must detect it via isBodyTooLarge (errors.As), not a
+		// stdlib message string.
+		body := `{"content":"` + strings.Repeat("a", (1<<20)+1) + `"}`
+		req := httptest.NewRequest("POST", "/compose/quick", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router := gin.New()
+		router.POST("/compose/quick", handler.HandleQuickPublish)
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+	})
 }
 
 // ---------------------------------------------------------------------------

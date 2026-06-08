@@ -400,7 +400,7 @@ func (h *ComposeHandler) HandleQuickPublish(c *gin.Context) {
 
 	var input compose.Input
 	if err := c.ShouldBindJSON(&input); err != nil {
-		if strings.Contains(err.Error(), "http: request body too large") {
+		if isBodyTooLarge(err) {
 			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Content too large"})
 			return
 		}
