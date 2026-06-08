@@ -146,6 +146,10 @@ func Run(args []string) {
 	templates := GetAvailableTemplates()
 	selectedTemplate := templates[*template]
 	content := selectedTemplate.Generator(*title, *description, *tags, *category, *author, *draft, *featured)
+	// Persist the resolved slug into frontmatter so the served URL honors it
+	// (esp. an explicit --slug); without it the repository would re-derive the
+	// slug from the title and ignore --slug entirely.
+	content = injectSlugFrontmatter(content, slug)
 
 	// Preview mode - show content without writing file
 	if *preview {

@@ -31,6 +31,10 @@ web compose form. Slug generation and strict validation now have one home.
   now also rejects reserved names (`feed`, `rss`, …) and the compose form now
   also rejects consecutive hyphens. The permissive guard for already-stored
   slugs is unchanged.
+- New CLI articles now persist their slug in frontmatter (`slug:`), the same as
+  the compose path, so the served URL honors `--slug` and stays stable if the
+  title is later edited (previously the URL was always re-derived from the
+  title at load).
 
 ## [3.20.1] - 2026-06-05
 
