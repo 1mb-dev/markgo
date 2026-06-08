@@ -75,9 +75,9 @@ func (s *Service) CreatePost(input *Input) (string, error) {
 		// quick-publish JSON). slugutil.Validate subsumes the empty check and
 		// rejects reserved/invalid slugs no matter which handler called us.
 		if err := slugutil.Validate(input.Slug); err != nil {
-			// Wrap ErrValidation so callers can map this to 400 (bad input),
-			// not 500 (server fault). The slug detail is preserved in the message.
-			return "", fmt.Errorf("%w: invalid page slug %q: %v", apperrors.ErrValidation, input.Slug, err)
+			// Wrap ErrValidation so callers can map this to 400 (bad input), not 500
+			// (server fault); keep the slug error in the chain too (multi-%w).
+			return "", fmt.Errorf("%w: invalid page slug %q: %w", apperrors.ErrValidation, input.Slug, err)
 		}
 		slug = input.Slug
 	default:
