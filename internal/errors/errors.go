@@ -19,6 +19,9 @@ var (
 	ErrConfigValidation   = errors.New("configuration validation failed")
 	ErrMissingConfig      = errors.New("missing required configuration")
 	ErrPathEscape         = errors.New("path escapes containment base")
+	// ErrValidation marks a user-input validation failure (vs an infrastructure
+	// error). Handlers map errors.Is(err, ErrValidation) to HTTP 400 instead of 500.
+	ErrValidation = errors.New("validation failed")
 )
 
 // ConfigError represents a configuration-related error

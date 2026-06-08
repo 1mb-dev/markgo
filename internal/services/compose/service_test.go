@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apperrors "github.com/1mb-dev/markgo/internal/errors"
 	slugutil "github.com/1mb-dev/markgo/internal/slug"
 )
 
@@ -388,6 +389,7 @@ func TestCreatePost_RejectsInvalidSlug(t *testing.T) {
 			})
 
 			require.Error(t, err, "invalid page slug must be rejected")
+			assert.ErrorIs(t, err, apperrors.ErrValidation, "must wrap ErrValidation so handlers map it to 400")
 			files, _ := filepath.Glob(filepath.Join(dir, "*.md"))
 			assert.Empty(t, files, "no file should be written when the slug is rejected")
 		})

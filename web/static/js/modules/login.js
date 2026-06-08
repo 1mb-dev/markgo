@@ -42,6 +42,8 @@ export function init() {
             credentials: 'same-origin',
         })
             .then((res) => {
+                // 403/429 are handled by status BEFORE the body is read, so these
+                // responses need not match the {success,error} JSON shape.
                 if (res.status === 403) throw new Error('Session expired. Please refresh the page and try again.');
                 if (res.status === 429) throw new Error('Too many attempts. Please wait and try again.');
                 return res.json().then(
