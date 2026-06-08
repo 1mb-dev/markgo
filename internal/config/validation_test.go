@@ -41,6 +41,7 @@ func TestConfigValidationTableDriven(t *testing.T) {
 				General: RateLimit{Requests: 100, Window: 15 * time.Minute},
 				Contact: RateLimit{Requests: 5, Window: 1 * time.Hour},
 				Upload:  RateLimit{Requests: 20, Window: 5 * time.Minute},
+				Login:   RateLimit{Requests: 5, Window: 15 * time.Minute},
 			},
 			Blog: BlogConfig{
 				Title:        "Test Blog",
@@ -117,6 +118,8 @@ func TestConfigValidationTableDriven(t *testing.T) {
 		{"rate limit contact window zero", func(c *Config) { c.RateLimit.Contact.Window = 0 }, "rate_limit"},
 		{"rate limit upload requests zero", func(c *Config) { c.RateLimit.Upload.Requests = 0 }, "rate_limit"},
 		{"rate limit upload window zero", func(c *Config) { c.RateLimit.Upload.Window = 0 }, "rate_limit"},
+		{"rate limit login requests zero", func(c *Config) { c.RateLimit.Login.Requests = 0 }, "rate_limit"},
+		{"rate limit login window zero", func(c *Config) { c.RateLimit.Login.Window = 0 }, "rate_limit"},
 
 		// Blog config validation (config.go:871-906)
 		{"blog title empty", func(c *Config) { c.Blog.Title = "" }, "blog"},

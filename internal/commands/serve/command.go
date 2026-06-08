@@ -226,6 +226,16 @@ func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *service
 	configureGinMode(cfg, logger)
 	router := gin.New()
 
+	// Set trusted proxies before any request is served. gin trusts ALL proxies
+	// by default (spoofable X-Forwarded-For); passing the parsed CIDRs — or nil
+	// when TRUSTED_PROXIES is unset — makes ClientIP() honor forwarded headers
+	// only from trusted peers, else return the direct peer. The rate limiter
+	// keys on ClientIP(), so this is the difference between throttling real
+	// clients and throttling everyone as the proxy's single IP.
+	if err = router.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		return nil, nil, nil, fmt.Errorf("set trusted proxies: %w", err)
+	}
+
 	// Initialize template service
 	templateService, err := services.NewTemplateService(cfg.TemplatesPath, cfg)
 	if err != nil {
@@ -257,6 +267,12 @@ func setupServer(cfg *config.Config, logger *slog.Logger) (*gin.Engine, *service
 		middleware.ErrorHandler(logger),
 		middleware.DiscardBodyOnHEAD(),
 	)
+
+	// Advise (once) if we appear to be proxied but TRUSTED_PROXIES is unset —
+	// in that state every client collapses to the proxy IP under rate limiting.
+	if len(cfg.TrustedProxies) == 0 {
+		router.Use(middleware.ProxyTrustWarning(logger))
+	}
 
 	if cfg.Environment == envDevelopment {
 		router.Use(middleware.RequestTracker())
