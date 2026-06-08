@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"io/fs"
@@ -249,6 +250,86 @@ func TestRateLimit(t *testing.T) {
 		w3 := httptest.NewRecorder()
 		router.ServeHTTP(w3, req3)
 		assert.Equal(t, http.StatusTooManyRequests, w3.Code)
+	})
+}
+
+// TestRateLimit_ProxyKeying verifies the limiter keys on the real client once
+// SetTrustedProxies is wired like production: with the proxy trusted, two XFF
+// clients behind one proxy get separate buckets; with no proxy trusted, the
+// forwarded header is ignored and they collapse onto the direct peer. The test
+// router MUST call SetTrustedProxies exactly as the server does — otherwise the
+// assertion would pass for the wrong reason (gin trusts all proxies by default).
+func TestRateLimit_ProxyKeying(t *testing.T) {
+	const proxy = "192.0.2.1" // RFC 5737 TEST-NET-1 — the trusted reverse proxy
+	const clientA = "203.0.113.10"
+	const clientB = "203.0.113.20"
+
+	send := func(router *gin.Engine, remotePort, xff string) int {
+		req := httptest.NewRequest("GET", "/test", http.NoBody)
+		req.RemoteAddr = proxy + ":" + remotePort
+		req.Header.Set("X-Forwarded-For", xff)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	t.Run("trusted proxy keys on forwarded client", func(t *testing.T) {
+		router := gin.New()
+		require.NoError(t, router.SetTrustedProxies([]string{proxy + "/32"}))
+		router.Use(RateLimit(1, time.Minute))
+		router.GET("/test", func(c *gin.Context) { c.String(200, "ok") })
+
+		assert.Equal(t, 200, send(router, "1111", clientA), "clientA first request")
+		assert.Equal(t, http.StatusTooManyRequests, send(router, "2222", clientA), "clientA over limit")
+		assert.Equal(t, 200, send(router, "3333", clientB), "clientB has its own bucket")
+	})
+
+	t.Run("untrusted proxy ignores forwarded header", func(t *testing.T) {
+		router := gin.New()
+		require.NoError(t, router.SetTrustedProxies(nil)) // matches TRUSTED_PROXIES unset
+		router.Use(RateLimit(1, time.Minute))
+		router.GET("/test", func(c *gin.Context) { c.String(200, "ok") })
+
+		// Distinct forwarded clients, but XFF is ignored → both key on the proxy IP.
+		assert.Equal(t, 200, send(router, "1111", clientA), "first request keyed on proxy IP")
+		assert.Equal(t, http.StatusTooManyRequests, send(router, "2222", clientB),
+			"second request collapses onto the same proxy IP bucket")
+	})
+}
+
+// TestProxyTrustWarning verifies the one-shot advisory fires only when a
+// forwarded header arrives from a private/loopback peer (proxied-but-unset),
+// and stays silent for a direct public client.
+func TestProxyTrustWarning(t *testing.T) {
+	newRouter := func(buf *bytes.Buffer) *gin.Engine {
+		logger := slog.New(slog.NewTextHandler(buf, nil))
+		router := gin.New()
+		router.Use(ProxyTrustWarning(logger))
+		router.GET("/test", func(c *gin.Context) { c.String(200, "ok") })
+		return router
+	}
+	hit := func(router *gin.Engine, remoteAddr, xff string) {
+		req := httptest.NewRequest("GET", "/test", http.NoBody)
+		req.RemoteAddr = remoteAddr
+		if xff != "" {
+			req.Header.Set("X-Forwarded-For", xff)
+		}
+		router.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	t.Run("warns once when proxied behind private peer", func(t *testing.T) {
+		var buf bytes.Buffer
+		router := newRouter(&buf)
+		hit(router, "10.1.2.3:5000", "203.0.113.10")
+		hit(router, "10.1.2.3:5001", "203.0.113.11")
+		assert.Equal(t, 1, strings.Count(buf.String(), "set TRUSTED_PROXIES"), "fires exactly once")
+	})
+
+	t.Run("silent for direct public client (no forwarded header)", func(t *testing.T) {
+		var buf bytes.Buffer
+		router := newRouter(&buf)
+		hit(router, "203.0.113.50:443", "")
+		assert.NotContains(t, buf.String(), "set TRUSTED_PROXIES")
 	})
 }
 

@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.22.0] - 2026-06-08
+
+Hardens the public input surface: everything an unauthenticated request can
+reach is now bounded in size, rate-limited on the real client IP, and validated
+where it enters the system. **Operators behind a reverse proxy must set
+`TRUSTED_PROXIES`** for rate limiting to key on the real client rather than the
+proxy's IP.
+
+### Added
+
+- **`TRUSTED_PROXIES`** — comma-separated reverse-proxy CIDRs/IPs. Set this
+  behind a proxy so `X-Forwarded-For` is honored only from trusted hops; bare
+  IPs are accepted and a malformed entry fails startup. Unset keeps the
+  direct-bind posture (keys on the connecting IP). List every proxy in the
+  chain; for Cloudflare→Caddy, trust the full chain or the limiter collapses to
+  the CDN edge.
+- **`RATE_LIMIT_LOGIN`** — dedicated login throttle (default 5 / 15 min),
+  configurable so a mistyped password doesn't hard-lock the operator.
+
+### Changed
+
+- Rate limiting now keys on the real client IP. gin trusts all proxies by
+  default, which left the limiter both spoofable via `X-Forwarded-For` and prone
+  to collapsing every visitor onto one proxy IP; proxy trust is now explicit
+  (see `TRUSTED_PROXIES`). Direct-bind deployments are unaffected.
+
+### Security
+
+- **Login is rate-limited** (previously bounded only by the global limiter), and
+  the login POST body is size-capped.
+- **Contact and AMA submissions are size-capped** (64KB → 413) and contact
+  fields are length-validated (name, subject, message → 400), instead of parsing
+  unbounded input from unauthenticated callers.
+- **Page slugs are validated when the post is created**, not only in the form
+  handler — closing a gap where the quick-publish API could create a page with a
+  reserved or malformed slug.
+- **`/health` no longer exposes version or environment** to unauthenticated
+  callers; the version remains on the authenticated `/admin/metrics`.
+
 ## [3.21.1] - 2026-06-08
 
 Security. Fixes improper handling of user-supplied input in contact-form email

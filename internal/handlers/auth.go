@@ -41,10 +41,35 @@ func NewAuthHandler(
 // Returns JSON when Accept: application/json is set (popover fetch),
 // otherwise falls back to HTML redirect (graceful degradation).
 func (h *AuthHandler) HandleLogin(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxPublicFormBody)
+	wantJSON := strings.Contains(c.GetHeader("Accept"), "application/json")
+
+	// Read the bounded body up front so an oversized login fails loudly instead
+	// of silently yielding empty credentials and a misleading "invalid password".
+	// The popover posts multipart/form-data (FormData); the JS-off form posts
+	// urlencoded — ParseForm reads only the latter, so branch on content type.
+	var perr error
+	if strings.HasPrefix(c.ContentType(), "multipart/") {
+		perr = c.Request.ParseMultipartForm(maxPublicFormBody)
+	} else {
+		perr = c.Request.ParseForm()
+	}
+	if perr != nil {
+		if wantJSON {
+			code, msg := http.StatusBadRequest, "Invalid request."
+			if isBodyTooLarge(perr) {
+				code, msg = http.StatusRequestEntityTooLarge, "Request too large."
+			}
+			c.JSON(code, gin.H{"success": false, "error": msg})
+			return
+		}
+		c.Redirect(http.StatusFound, defaultRedirect)
+		return
+	}
+
 	username := c.PostForm("username")
 	password := c.PostForm("password")
 	next := sanitizeNext(c.DefaultPostForm("next", defaultRedirect))
-	wantJSON := strings.Contains(c.GetHeader("Accept"), "application/json")
 
 	usernameMatch := subtle.ConstantTimeCompare([]byte(username), []byte(h.username)) == 1
 	passwordMatch := subtle.ConstantTimeCompare([]byte(password), []byte(h.password)) == 1

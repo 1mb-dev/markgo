@@ -4,7 +4,9 @@
 package config
 
 import (
+	"fmt"
 	"log/slog"
+	"net"
 	"net/mail"
 	"net/url"
 	"os"
@@ -28,25 +30,34 @@ const (
 
 // Config represents the main application configuration.
 type Config struct {
-	Environment   string          `json:"environment"`
-	Port          int             `json:"port"`
-	ArticlesPath  string          `json:"articles_path"`
-	StaticPath    string          `json:"static_path"`
-	TemplatesPath string          `json:"templates_path"`
-	BaseURL       string          `json:"base_url"`
-	Server        ServerConfig    `json:"server"`
-	Cache         CacheConfig     `json:"cache"`
-	Email         EmailConfig     `json:"email"`
-	RateLimit     RateLimitConfig `json:"rate_limit"`
-	CORS          CORSConfig      `json:"cors"`
-	Admin         AdminConfig     `json:"admin"`
-	Blog          BlogConfig      `json:"blog"`
-	About         AboutConfig     `json:"about"`
-	Logging       LoggingConfig   `json:"logging"`
-	SEO           SEOConfig       `json:"seo"`
-	Upload        UploadConfig    `json:"upload"`
-	AMA           AMAConfig       `json:"ama"`
-	Security      SecurityConfig  `json:"security"`
+	Environment   string `json:"environment"`
+	Port          int    `json:"port"`
+	ArticlesPath  string `json:"articles_path"`
+	StaticPath    string `json:"static_path"`
+	TemplatesPath string `json:"templates_path"`
+	BaseURL       string `json:"base_url"`
+
+	// TrustedProxies is the set of normalized CIDRs (bare IPs widened to /32 or
+	// /128) from which X-Forwarded-For / X-Real-IP may be trusted. Parsed and
+	// validated from TRUSTED_PROXIES at load (fail-loud on malformed). nil when
+	// unset: the server then calls gin's SetTrustedProxies(nil) so ClientIP()
+	// returns the direct peer (RemoteAddr) — the safe direct-bind posture, and
+	// the rate limiter keys on the real client rather than a spoofable header.
+	TrustedProxies []string `json:"trusted_proxies"`
+
+	Server    ServerConfig    `json:"server"`
+	Cache     CacheConfig     `json:"cache"`
+	Email     EmailConfig     `json:"email"`
+	RateLimit RateLimitConfig `json:"rate_limit"`
+	CORS      CORSConfig      `json:"cors"`
+	Admin     AdminConfig     `json:"admin"`
+	Blog      BlogConfig      `json:"blog"`
+	About     AboutConfig     `json:"about"`
+	Logging   LoggingConfig   `json:"logging"`
+	SEO       SEOConfig       `json:"seo"`
+	Upload    UploadConfig    `json:"upload"`
+	AMA       AMAConfig       `json:"ama"`
+	Security  SecurityConfig  `json:"security"`
 
 	// OrphanSweepDisabled skips the post-boot orphan-upload sweep when true.
 	// Default false: the sweep runs once per startup, removing files in
@@ -107,6 +118,7 @@ type RateLimitConfig struct {
 	General RateLimit `json:"general"`
 	Contact RateLimit `json:"contact"`
 	Upload  RateLimit `json:"upload"`
+	Login   RateLimit `json:"login"`
 }
 
 // RateLimit defines rate limiting parameters.
@@ -211,6 +223,7 @@ func Load() (*Config, error) {
 	var generalRequestsDefault int
 	var contactRequestsDefault int
 	var uploadRequestsDefault int
+	var loginRequestsDefault int
 
 	switch environment {
 	case ProductionEnvironment:
@@ -218,25 +231,38 @@ func Load() (*Config, error) {
 		generalRequestsDefault = 100 // 100 requests per 15 min = ~0.11 req/sec
 		contactRequestsDefault = 5   // 5 contact submissions per hour
 		uploadRequestsDefault = 20   // 20 uploads per 5 min
+		loginRequestsDefault = 5     // 5 login attempts per 15 min — fat-finger tolerant, brute-force hostile
 	case TestEnvironment:
 		// Higher limits for automated testing
 		generalRequestsDefault = 5000 // 5000 requests per 15 min = ~5.5 req/sec
 		contactRequestsDefault = 50   // 50 contact submissions per hour for test suites
 		uploadRequestsDefault = 500   // 500 uploads per 5 min for test suites
+		loginRequestsDefault = 500    // 500 login attempts per 15 min so suites driving /login don't self-throttle
 	default: // development
 		// Permissive limits for development and manual testing
 		generalRequestsDefault = 3000 // 3000 requests per 15 min = ~3.3 req/sec
 		contactRequestsDefault = 20   // 20 contact submissions per hour
 		uploadRequestsDefault = 100   // 100 uploads per 5 min
+		loginRequestsDefault = 50     // 50 login attempts per 15 min — generous for local iteration
+	}
+
+	// Parse + validate trusted proxies up front so a malformed CIDR fails the
+	// whole load (a silently-dropped entry would re-open XFF spoofing).
+	trustedProxiesRaw := getEnv("TRUSTED_PROXIES", "")
+	trustedProxies, err := parseTrustedProxies(trustedProxiesRaw)
+	if err != nil {
+		return nil, apperrors.NewConfigError("trusted_proxies", trustedProxiesRaw,
+			"Invalid TRUSTED_PROXIES (expect comma-separated CIDRs and/or bare IPs)", err)
 	}
 
 	cfg := &Config{
-		Environment:   environment,
-		Port:          getEnvInt("PORT", 3000),
-		ArticlesPath:  getEnv("ARTICLES_PATH", "./articles"),
-		StaticPath:    getEnv("STATIC_PATH", ""),
-		TemplatesPath: getEnv("TEMPLATES_PATH", ""),
-		BaseURL:       getEnv("BASE_URL", "http://localhost:3000"),
+		Environment:    environment,
+		Port:           getEnvInt("PORT", 3000),
+		ArticlesPath:   getEnv("ARTICLES_PATH", "./articles"),
+		TrustedProxies: trustedProxies,
+		StaticPath:     getEnv("STATIC_PATH", ""),
+		TemplatesPath:  getEnv("TEMPLATES_PATH", ""),
+		BaseURL:        getEnv("BASE_URL", "http://localhost:3000"),
 
 		Server: ServerConfig{
 			ReadTimeout:     getEnvDuration("SERVER_READ_TIMEOUT", 15*time.Second),
@@ -273,6 +299,10 @@ func Load() (*Config, error) {
 			Upload: RateLimit{
 				Requests: getEnvInt("RATE_LIMIT_UPLOAD_REQUESTS", uploadRequestsDefault),
 				Window:   getEnvDuration("RATE_LIMIT_UPLOAD_WINDOW", 5*time.Minute),
+			},
+			Login: RateLimit{
+				Requests: getEnvInt("RATE_LIMIT_LOGIN_REQUESTS", loginRequestsDefault),
+				Window:   getEnvDuration("RATE_LIMIT_LOGIN_WINDOW", 15*time.Minute),
 			},
 		},
 
@@ -440,6 +470,41 @@ func splitString(s, delimiter string) []string {
 		}
 	}
 	return result
+}
+
+// parseTrustedProxies parses a comma-separated TRUSTED_PROXIES value into a
+// normalized list of CIDR strings suitable for gin's SetTrustedProxies. Bare
+// IPs are widened to a single-host CIDR (/32 for IPv4, /128 for IPv6); entries
+// already in CIDR form are validated with net.ParseCIDR. Any malformed entry is
+// a hard error — silently dropping one would re-open X-Forwarded-For spoofing.
+// Empty input returns (nil, nil): the caller passes nil to SetTrustedProxies,
+// which makes ClientIP() return the direct peer.
+func parseTrustedProxies(raw string) ([]string, error) {
+	entries := splitString(raw, ",")
+	if len(entries) == 0 {
+		return nil, nil
+	}
+
+	cidrs := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if strings.Contains(entry, "/") {
+			if _, _, err := net.ParseCIDR(entry); err != nil {
+				return nil, fmt.Errorf("invalid CIDR %q: %w", entry, err)
+			}
+			cidrs = append(cidrs, entry)
+			continue
+		}
+		ip := net.ParseIP(entry)
+		if ip == nil {
+			return nil, fmt.Errorf("invalid IP %q", entry)
+		}
+		if ip.To4() != nil {
+			cidrs = append(cidrs, entry+"/32")
+		} else {
+			cidrs = append(cidrs, entry+"/128")
+		}
+	}
+	return cidrs, nil
 }
 
 // Validate validates all configuration settings
@@ -615,6 +680,9 @@ func (r *RateLimitConfig) Validate() error {
 		return err
 	}
 	if err := r.Upload.Validate("upload"); err != nil {
+		return err
+	}
+	if err := r.Login.Validate("login"); err != nil {
 		return err
 	}
 	return nil

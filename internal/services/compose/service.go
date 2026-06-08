@@ -70,8 +70,12 @@ func (s *Service) CreatePost(input *Input) (string, error) {
 	var slug string
 	switch input.Type {
 	case typePage:
-		if strings.TrimSpace(input.Slug) == "" {
-			return "", fmt.Errorf("page requires an explicit slug")
+		// Pages use the operator-supplied slug verbatim, so validate it here —
+		// the shared chokepoint every page path passes through (form submit,
+		// quick-publish JSON). slugutil.Validate subsumes the empty check and
+		// rejects reserved/invalid slugs no matter which handler called us.
+		if err := slugutil.Validate(input.Slug); err != nil {
+			return "", fmt.Errorf("invalid page slug %q: %w", input.Slug, err)
 		}
 		slug = input.Slug
 	default:

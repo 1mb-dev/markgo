@@ -30,8 +30,14 @@ func NewAMAHandler(base *BaseHandler, composeService *compose.Service, articleSe
 
 // Submit handles AMA question submissions from unauthenticated readers.
 func (h *AMAHandler) Submit(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxPublicFormBody)
+
 	var form models.AMASubmission
 	if err := c.ShouldBindJSON(&form); err != nil {
+		if isBodyTooLarge(err) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Request too large"})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid submission",
 			"details": err.Error(),

@@ -27,14 +27,20 @@ func NewContactHandler(base *BaseHandler, emailService services.EmailServiceInte
 
 // Submit handles contact form submissions.
 func (h *ContactHandler) Submit(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxPublicFormBody)
+
 	var form struct {
-		Name    string `json:"name" binding:"required"`
+		Name    string `json:"name" binding:"required,min=2,max=50"`
 		Email   string `json:"email" binding:"required,email"`
-		Subject string `json:"subject" binding:"required"`
-		Message string `json:"message" binding:"required"`
+		Subject string `json:"subject" binding:"required,min=5,max=100"`
+		Message string `json:"message" binding:"required,min=10,max=2000"`
 	}
 
 	if err := c.ShouldBindJSON(&form); err != nil {
+		if isBodyTooLarge(err) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Request too large"})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid form data",
 			"details": err.Error(),

@@ -55,6 +55,8 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, 1*time.Hour, cfg.RateLimit.Contact.Window)
 	assert.Equal(t, 100, cfg.RateLimit.Upload.Requests) // Development default
 	assert.Equal(t, 5*time.Minute, cfg.RateLimit.Upload.Window)
+	assert.Equal(t, 50, cfg.RateLimit.Login.Requests) // Development default
+	assert.Equal(t, 15*time.Minute, cfg.RateLimit.Login.Window)
 
 	// Test CORS defaults
 	assert.Contains(t, cfg.CORS.AllowedOrigins, "http://localhost:3000")
@@ -348,6 +350,7 @@ func clearEnvVars() {
 		"CACHE_TTL", "CACHE_MAX_SIZE", "CACHE_CLEANUP_INTERVAL",
 		"EMAIL_HOST", "EMAIL_PORT", "EMAIL_USERNAME", "EMAIL_PASSWORD", "EMAIL_FROM", "EMAIL_TO", "EMAIL_USE_SSL",
 		"RATE_LIMIT_GENERAL_REQUESTS", "RATE_LIMIT_GENERAL_WINDOW", "RATE_LIMIT_CONTACT_REQUESTS", "RATE_LIMIT_CONTACT_WINDOW", "RATE_LIMIT_UPLOAD_REQUESTS", "RATE_LIMIT_UPLOAD_WINDOW",
+		"RATE_LIMIT_LOGIN_REQUESTS", "RATE_LIMIT_LOGIN_WINDOW", "TRUSTED_PROXIES",
 		"CORS_ALLOWED_ORIGINS", "CORS_ALLOWED_METHODS", "CORS_ALLOWED_HEADERS",
 		"ADMIN_USERNAME", "ADMIN_PASSWORD",
 		"BLOG_TITLE", "BLOG_DESCRIPTION", "BLOG_AUTHOR", "BLOG_AUTHOR_EMAIL", "BLOG_LANGUAGE", "BLOG_THEME", "BLOG_POSTS_PER_PAGE",
@@ -367,6 +370,7 @@ func TestEnvironmentAwareRateLimiting(t *testing.T) {
 		expectedGeneralRequests int
 		expectedContactRequests int
 		expectedUploadRequests  int
+		expectedLoginRequests   int
 	}{
 		{
 			name:                    "production environment",
@@ -374,6 +378,7 @@ func TestEnvironmentAwareRateLimiting(t *testing.T) {
 			expectedGeneralRequests: 100,
 			expectedContactRequests: 5,
 			expectedUploadRequests:  20,
+			expectedLoginRequests:   5,
 		},
 		{
 			name:                    "development environment",
@@ -381,6 +386,7 @@ func TestEnvironmentAwareRateLimiting(t *testing.T) {
 			expectedGeneralRequests: 3000,
 			expectedContactRequests: 20,
 			expectedUploadRequests:  100,
+			expectedLoginRequests:   50,
 		},
 		{
 			name:                    "test environment",
@@ -388,6 +394,7 @@ func TestEnvironmentAwareRateLimiting(t *testing.T) {
 			expectedGeneralRequests: 5000,
 			expectedContactRequests: 50,
 			expectedUploadRequests:  500,
+			expectedLoginRequests:   500,
 		},
 	}
 
@@ -406,9 +413,11 @@ func TestEnvironmentAwareRateLimiting(t *testing.T) {
 			assert.Equal(t, tt.expectedGeneralRequests, cfg.RateLimit.General.Requests)
 			assert.Equal(t, tt.expectedContactRequests, cfg.RateLimit.Contact.Requests)
 			assert.Equal(t, tt.expectedUploadRequests, cfg.RateLimit.Upload.Requests)
+			assert.Equal(t, tt.expectedLoginRequests, cfg.RateLimit.Login.Requests)
 			assert.Equal(t, 15*time.Minute, cfg.RateLimit.General.Window)
 			assert.Equal(t, 1*time.Hour, cfg.RateLimit.Contact.Window)
 			assert.Equal(t, 5*time.Minute, cfg.RateLimit.Upload.Window)
+			assert.Equal(t, 15*time.Minute, cfg.RateLimit.Login.Window)
 		})
 	}
 }
@@ -493,4 +502,68 @@ func TestUploadConfigFromEnv(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "/tmp/custom-uploads", cfg.Upload.Path)
 	assert.Equal(t, int64(20971520), cfg.Upload.MaxSize)
+}
+
+func TestParseTrustedProxies(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		want    []string
+		wantErr bool
+	}{
+		{name: "empty returns nil", raw: "", want: nil},
+		{name: "whitespace only returns nil", raw: "  ,  ", want: nil},
+		{name: "single CIDR", raw: "10.0.0.0/8", want: []string{"10.0.0.0/8"}},
+		{name: "bare IPv4 widened to /32", raw: "192.168.1.5", want: []string{"192.168.1.5/32"}},
+		{name: "bare IPv6 widened to /128", raw: "2001:db8::1", want: []string{"2001:db8::1/128"}},
+		{name: "IPv6 CIDR preserved", raw: "2001:db8::/32", want: []string{"2001:db8::/32"}},
+		{
+			name: "mixed list, trimmed",
+			raw:  "10.0.0.0/8, 172.16.0.0/12 , 192.168.0.1",
+			want: []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.1/32"},
+		},
+		{name: "malformed CIDR errors", raw: "10.0.0.0/99", wantErr: true},
+		{name: "malformed IP errors", raw: "not-an-ip", wantErr: true},
+		{name: "one bad entry fails the whole list", raw: "10.0.0.0/8,garbage", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseTrustedProxies(tt.raw)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestLoad_TrustedProxies(t *testing.T) {
+	t.Run("valid value normalized onto config", func(t *testing.T) {
+		clearEnvVars()
+		_ = os.Setenv("TRUSTED_PROXIES", "10.0.0.0/8, 192.168.1.5")
+		defer func() { _ = os.Unsetenv("TRUSTED_PROXIES") }()
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.Equal(t, []string{"10.0.0.0/8", "192.168.1.5/32"}, cfg.TrustedProxies)
+	})
+
+	t.Run("unset leaves nil", func(t *testing.T) {
+		clearEnvVars()
+		cfg, err := Load()
+		require.NoError(t, err)
+		assert.Nil(t, cfg.TrustedProxies)
+	})
+
+	t.Run("malformed entry fails load", func(t *testing.T) {
+		clearEnvVars()
+		_ = os.Setenv("TRUSTED_PROXIES", "10.0.0.0/8,garbage")
+		defer func() { _ = os.Unsetenv("TRUSTED_PROXIES") }()
+
+		_, err := Load()
+		require.Error(t, err)
+	})
 }

@@ -134,6 +134,50 @@ func TestAMASubmit(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+
+	t.Run("oversized body returns 413", func(t *testing.T) {
+		handler, dir := createTestAMAHandler(t)
+
+		router := gin.New()
+		router.POST("/ama/submit", handler.Submit)
+
+		// Body exceeds the 64KB cap — MaxBytesReader trips during bind.
+		body, _ := json.Marshal(map[string]string{
+			"name":     "Alice",
+			"question": strings.Repeat("a", 70000),
+		})
+		req := httptest.NewRequest("POST", "/ama/submit", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+		entries, _ := readDir(dir)
+		assert.Empty(t, entries, "no file on rejected body")
+	})
+
+	t.Run("oversized question returns 400", func(t *testing.T) {
+		handler, dir := createTestAMAHandler(t)
+
+		router := gin.New()
+		router.POST("/ama/submit", handler.Submit)
+
+		// Body under the 64KB cap but question exceeds max=500 → field validation.
+		body, _ := json.Marshal(map[string]string{
+			"name":     "Alice",
+			"question": strings.Repeat("a", 501),
+		})
+		req := httptest.NewRequest("POST", "/ama/submit", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		entries, _ := readDir(dir)
+		assert.Empty(t, entries, "no file on rejected field")
+	})
 }
 
 func TestAMASubmit_QuestionInFrontmatter(t *testing.T) {

@@ -3,6 +3,7 @@
 package handlers
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -19,6 +20,20 @@ import (
 const templateArticle = "article"
 const templateAMA = "ama"
 const unknownValue = "unknown"
+
+// maxPublicFormBody caps request bodies on the public, unauthenticated POST
+// endpoints (contact, AMA, login). The largest valid field is ~2KB, so 64KB is
+// generous headroom while bounding what an anonymous caller can force us to read.
+const maxPublicFormBody = 64 << 10 // 64KB
+
+// isBodyTooLarge reports whether err is the http.MaxBytesReader overflow. Use
+// this rather than matching the stdlib message string — alternate JSON codecs
+// (jsoniter/sonic via build tags) can reformat the message, and errors.As
+// survives any such change.
+func isBodyTooLarge(err error) bool {
+	var maxErr *http.MaxBytesError
+	return errors.As(err, &maxErr)
+}
 
 // BaseHandler provides common functionality for all handlers
 type BaseHandler struct {

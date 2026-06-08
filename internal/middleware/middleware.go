@@ -9,9 +9,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -230,16 +232,17 @@ func RateLimit(requests int, window time.Duration) gin.HandlerFunc {
 			return
 		}
 
-		// Use RemoteAddr for security (ClientIP can be spoofed via X-Forwarded-For)
-		ip := c.Request.RemoteAddr
-		// Strip port from RemoteAddr (format is "IP:port")
-		if idx := len(ip) - 1; idx >= 0 {
-			for i := idx; i >= 0; i-- {
-				if ip[i] == ':' {
-					ip = ip[:i]
-					break
-				}
-			}
+		// Key on ClientIP(): the server calls SetTrustedProxies at startup
+		// (parsed TRUSTED_PROXIES, or nil when unset), so gin honors
+		// X-Forwarded-For only from trusted peers — otherwise ClientIP()
+		// returns the direct peer (RemoteAddr, port stripped). Either way the
+		// key is the real client, not a spoofable header.
+		ip := c.ClientIP()
+		if ip == "" {
+			// ClientIP() returns "" when RemoteAddr isn't a parseable host:port
+			// (e.g. a unix-socket transport). Fall back to the raw RemoteAddr so
+			// distinct connections don't collapse into one shared bucket.
+			ip = c.Request.RemoteAddr
 		}
 
 		now := time.Now()
@@ -280,6 +283,37 @@ func RateLimit(requests int, window time.Duration) gin.HandlerFunc {
 		clients[ip] = append(clients[ip], now)
 		c.Next()
 	}
+}
+
+// ProxyTrustWarning logs one warning when markgo appears to be running behind a
+// reverse proxy with TRUSTED_PROXIES unset. The signal is precise: an inbound
+// X-Forwarded-For/X-Real-IP header (something upstream is forwarding) combined
+// with a private/loopback direct peer (the proxy itself). In that state gin
+// ignores the forwarded header, so ClientIP() — and therefore the rate
+// limiter — collapses to the proxy's IP, throttling all clients as one.
+// A direct-bind deployment (no proxy, no forwarded header) never trips this.
+// Mount only when TRUSTED_PROXIES is empty; the warning fires at most once.
+func ProxyTrustWarning(logger *slog.Logger) gin.HandlerFunc {
+	var warned atomic.Bool
+	return func(c *gin.Context) {
+		if !warned.Load() && proxyHeaderPresent(c) {
+			if host, _, err := net.SplitHostPort(c.Request.RemoteAddr); err == nil {
+				if ip := net.ParseIP(host); ip != nil && (ip.IsPrivate() || ip.IsLoopback()) {
+					if warned.CompareAndSwap(false, true) {
+						logger.Warn("rate limiter keying on proxy IP — set TRUSTED_PROXIES to the proxy CIDR(s)",
+							"remote_addr", host)
+					}
+				}
+			}
+		}
+		c.Next()
+	}
+}
+
+// proxyHeaderPresent reports whether the request carries a client-IP forwarding
+// header, indicating an upstream proxy is in the path.
+func proxyHeaderPresent(c *gin.Context) bool {
+	return c.GetHeader("X-Forwarded-For") != "" || c.GetHeader("X-Real-IP") != ""
 }
 
 // generateRequestID generates a simple request ID

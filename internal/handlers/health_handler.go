@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/1mb-dev/markgo/internal/constants"
 	"github.com/1mb-dev/markgo/internal/services"
 )
 
@@ -102,12 +101,13 @@ func (h *HealthHandler) Health(c *gin.Context) {
 		code = http.StatusServiceUnavailable
 	}
 
+	// version + environment are deliberately omitted from this unauthenticated
+	// endpoint — they fingerprint the deployment for an attacker. Version stays
+	// at the auth'd /admin/metrics.
 	health := map[string]any{
-		"status":      status,
-		"timestamp":   time.Now().Unix(),
-		"uptime":      uptime.String(),
-		"version":     constants.AppVersion,
-		"environment": h.config.Environment,
+		"status":    status,
+		"timestamp": time.Now().Unix(),
+		"uptime":    uptime.String(),
 		"services": map[string]any{
 			"articles": articlesStatus,
 			"cache":    "healthy",

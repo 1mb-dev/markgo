@@ -1,13 +1,16 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -50,6 +53,112 @@ func newTestAuthHandler() *AuthHandler {
 	base := &BaseHandler{config: cfg, logger: logger}
 	store := middleware.NewSessionStore()
 	return NewAuthHandler(base, "admin", "secret", store, false)
+}
+
+// TestHandleLogin_RateLimited mirrors the prod wiring (RateLimit before the
+// login handler) and asserts the burst-counter behavior: the first N invalid
+// attempts reach the handler (401), the (N+1)th is throttled (429) within a
+// coarse window. No time.Sleep — the limiter counts within the window. (#2)
+func TestHandleLogin_RateLimited(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newTestAuthHandler()
+
+	const limit = 3
+	router := gin.New()
+	loginGroup := router.Group("/login")
+	loginGroup.Use(middleware.RateLimit(limit, time.Minute))
+	loginGroup.POST("", h.HandleLogin)
+
+	post := func() int {
+		form := url.Values{"username": {"admin"}, "password": {"wrong"}}
+		req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Accept", "application/json") // get a 401, not the HTML 302
+		req.RemoteAddr = "203.0.113.7:5555"          // same client → one bucket
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	for i := range limit {
+		assert.Equal(t, http.StatusUnauthorized, post(), "attempt %d should reach the handler", i+1)
+	}
+	assert.Equal(t, http.StatusTooManyRequests, post(), "attempt beyond the limit is throttled")
+}
+
+func TestHandleLogin_OversizedBody_Returns413(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newTestAuthHandler()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	form := url.Values{
+		"username": {"admin"},
+		"password": {strings.Repeat("a", 70000)}, // body exceeds the 64KB cap
+	}
+	c.Request = httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
+	c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	c.Request.Header.Set("Accept", "application/json")
+
+	h.HandleLogin(c)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+}
+
+// multipartLogin builds a multipart/form-data body (what the popover's FormData
+// fetch sends) and returns the body + content-type header.
+func multipartLogin(t *testing.T, username, password string) (*bytes.Buffer, string) {
+	t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	require.NoError(t, mw.WriteField("username", username))
+	require.NoError(t, mw.WriteField("password", password))
+	require.NoError(t, mw.Close())
+	return &buf, mw.FormDataContentType()
+}
+
+// TestHandleLogin_Multipart_OversizedBody_Returns413 guards the real login path:
+// the popover submits multipart/form-data, for which Go's ParseForm is a no-op —
+// so an earlier urlencoded-only cap silently missed it and returned a misleading
+// 401. The cap must surface 413 for multipart too.
+func TestHandleLogin_Multipart_OversizedBody_Returns413(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newTestAuthHandler()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	body, contentType := multipartLogin(t, "admin", strings.Repeat("a", 70000))
+	c.Request = httptest.NewRequest(http.MethodPost, "/login", body)
+	c.Request.Header.Set("Content-Type", contentType)
+	c.Request.Header.Set("Accept", "application/json")
+
+	h.HandleLogin(c)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+}
+
+// TestHandleLogin_Multipart_Success confirms a normal multipart login (the real
+// popover path) still authenticates — the cap/parse change didn't break it.
+func TestHandleLogin_Multipart_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newTestAuthHandler()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	body, contentType := multipartLogin(t, "admin", "secret")
+	c.Request = httptest.NewRequest(http.MethodPost, "/login", body)
+	c.Request.Header.Set("Content-Type", contentType)
+	c.Request.Header.Set("Accept", "application/json")
+
+	h.HandleLogin(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, true, resp["success"])
 }
 
 func TestHandleLogin_JSON_Success(t *testing.T) {
