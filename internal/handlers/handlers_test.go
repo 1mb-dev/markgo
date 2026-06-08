@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -272,8 +273,8 @@ func TestContact(t *testing.T) {
 		formData := map[string]string{
 			"name":    "John Doe",
 			"email":   "not-an-email",
-			"subject": "Test",
-			"message": "Test",
+			"subject": "Test Subject",
+			"message": "Test message content",
 		}
 
 		body, _ := json.Marshal(formData)
@@ -317,8 +318,8 @@ func TestContact(t *testing.T) {
 		formData := map[string]string{
 			"name":    "John Doe",
 			"email":   "john@example.com",
-			"subject": "Test",
-			"message": "Test",
+			"subject": "Test Subject",
+			"message": "Test message content",
 		}
 
 		body, _ := json.Marshal(formData)
@@ -346,8 +347,8 @@ func TestContact(t *testing.T) {
 		formData := map[string]string{
 			"name":    "John Doe",
 			"email":   "john@example.com",
-			"subject": "Test",
-			"message": "Test",
+			"subject": "Test Subject",
+			"message": "Test message content",
 		}
 
 		body, _ := json.Marshal(formData)
@@ -360,6 +361,78 @@ func TestContact(t *testing.T) {
 		// When email fails, error is logged and handled
 		// The test verifies the handler doesn't crash
 		assert.NotEqual(t, 0, w.Code, "Handler should return a status code")
+	})
+
+	t.Run("oversized body returns 413", func(t *testing.T) {
+		mockEmail := &MockEmailService{}
+		handler := createTestContactHandler(mockEmail)
+
+		router := gin.New()
+		router.POST("/contact", handler.Submit)
+
+		// Body exceeds the 64KB cap — MaxBytesReader trips during bind.
+		body, _ := json.Marshal(map[string]string{
+			"name":    "John Doe",
+			"email":   "john@example.com",
+			"subject": "Test Subject",
+			"message": strings.Repeat("a", 70000),
+		})
+		req := httptest.NewRequest("POST", "/contact", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+		assert.Nil(t, mockEmail.LastMessageSent, "no email on rejected body")
+	})
+
+	t.Run("oversized field returns 400", func(t *testing.T) {
+		mockEmail := &MockEmailService{}
+		handler := createTestContactHandler(mockEmail)
+
+		router := gin.New()
+		router.POST("/contact", handler.Submit)
+
+		// Body is under the 64KB cap but message exceeds max=2000 → field validation.
+		body, _ := json.Marshal(map[string]string{
+			"name":    "John Doe",
+			"email":   "john@example.com",
+			"subject": "Test Subject",
+			"message": strings.Repeat("a", 2001),
+		})
+		req := httptest.NewRequest("POST", "/contact", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Nil(t, mockEmail.LastMessageSent, "no email on rejected field")
+	})
+
+	t.Run("at-limit message accepted", func(t *testing.T) {
+		mockEmail := &MockEmailService{}
+		handler := createTestContactHandler(mockEmail)
+
+		router := gin.New()
+		router.POST("/contact", handler.Submit)
+
+		// Message at exactly max=2000 — the largest valid submission is accepted.
+		body, _ := json.Marshal(map[string]string{
+			"name":    "John Doe",
+			"email":   "john@example.com",
+			"subject": "Test Subject",
+			"message": strings.Repeat("a", 2000),
+		})
+		req := httptest.NewRequest("POST", "/contact", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.NotNil(t, mockEmail.LastMessageSent, "valid at-limit message is delivered")
 	})
 }
 
