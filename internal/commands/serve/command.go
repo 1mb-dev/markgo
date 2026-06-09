@@ -383,7 +383,11 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 		logger.Info("Using embedded static assets", "checked_path", cfg.StaticPath)
 	}
 
-	router.StaticFS("/static", &gin.OnlyFilesFS{FileSystem: staticFS})
+	// CSS/JS revalidate via a build-version ETag (staticRevalidate); fonts/img
+	// keep the upstream cache headers. The group only prepends the middleware —
+	// the OnlyFilesFS + overlay below are unchanged.
+	staticGroup := router.Group("/static", staticRevalidate(swCacheVersion(constants.AppVersion)))
+	staticGroup.StaticFS("/", &gin.OnlyFilesFS{FileSystem: staticFS})
 
 	// sw.js: substituted-version embedded body cached at startup; operator
 	// overlay at <STATIC_PATH>/sw.js serves raw bytes (operator owns their
