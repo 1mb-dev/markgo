@@ -1,11 +1,13 @@
 package serve
 
 import (
+	"io/fs"
+	"log/slog"
 	"net/http"
 	"testing"
 	"testing/fstest"
 
-	"log/slog"
+	"github.com/1mb-dev/markgo/web"
 )
 
 // embeddedStatic mirrors the embedded tree's relevant slice: the default Inter
@@ -87,5 +89,20 @@ func TestVerifyFontPreloadResolves(t *testing.T) {
 				t.Errorf("warnings = %d, want %d (warns: %v)", got, tt.wantWarns, capture.warnings())
 			}
 		})
+	}
+}
+
+// TestVerifyFontPreloadResolves_RealEmbeddedDefault pins the flagship invariant:
+// the shipped default FONT_PRELOAD_URL resolves against the *real* embedded
+// static FS, so a stock deployment never emits a spurious startup warning.
+func TestVerifyFontPreloadResolves_RealEmbeddedDefault(t *testing.T) {
+	staticSub, err := fs.Sub(web.Assets, "static")
+	if err != nil {
+		t.Fatalf("fs.Sub(web.Assets, static): %v", err)
+	}
+	capture := &captureHandler{}
+	verifyFontPreloadResolves(http.FS(staticSub), "/static/fonts/inter/inter-latin.woff2", slog.New(capture))
+	if got := capture.warnings(); len(got) != 0 {
+		t.Errorf("default URL must resolve in embedded assets; got warnings: %v", got)
 	}
 }
