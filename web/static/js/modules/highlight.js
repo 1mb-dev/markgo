@@ -3,6 +3,7 @@
  */
 
 import { copyToClipboard } from './clipboard.js';
+import { loadHighlighter, hasCodeBlocks } from './highlighter-loader.js';
 
 function createCopyIcon() {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -60,8 +61,12 @@ function addCopyButton(preElement) {
     preElement.appendChild(button);
 }
 
-export function init() {
-    if (typeof hljs === 'undefined') return;
+export async function init() {
+    // Text pages (thoughts, links, feed) never pay for the 122 KB highlighter.
+    if (!hasCodeBlocks()) return;
+
+    const hljs = await loadHighlighter();
+    if (!hljs) return;
 
     hljs.configure({
         languages: ['javascript', 'typescript', 'go', 'html', 'css', 'bash', 'json', 'yaml', 'markdown'],

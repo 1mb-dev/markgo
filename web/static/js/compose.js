@@ -15,6 +15,7 @@
 import { showToast } from './modules/toast.js';
 import { authenticatedFetch } from './modules/auth-fetch.js';
 import { key } from './modules/blog-storage.js';
+import { loadHighlighter } from './modules/highlighter-loader.js';
 
 const FULL_DRAFT_KEY = key('compose-full-draft');
 const SAVE_DELAY = 2000;
@@ -97,12 +98,14 @@ export function init() {
                 if (!res.ok) throw new Error('Preview failed');
                 return res.text();
             })
-            .then((html) => {
+            .then(async (html) => {
                 setPreviewHTML(html);
-                if (typeof hljs !== 'undefined') {
-                    previewContent.querySelectorAll('pre code').forEach((block) => {
-                        hljs.highlightElement(block);
-                    });
+                const codeBlocks = previewContent.querySelectorAll('pre code');
+                if (codeBlocks.length > 0) {
+                    const hljs = await loadHighlighter();
+                    if (hljs) {
+                        codeBlocks.forEach((block) => hljs.highlightElement(block));
+                    }
                 }
             })
             .catch((err) => {

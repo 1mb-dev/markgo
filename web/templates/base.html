@@ -467,7 +467,8 @@
     </footer>
 
     <!-- Scripts -->
-    <script src="/static/js/highlight.min.js" defer></script>
+    <!-- highlight.min.js is loaded on demand (only on pages with code blocks) by
+         modules/highlighter-loader.js — see that module. Not shipped on text pages. -->
     <script type="module" src="/static/js/app.js"></script>
 
     <!-- Additional scripts -->
