@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.24.0] - 2026-06-09
+
+### Fixed
+
+- Stale pages after a deploy. A blanket `Cache-Control: public, max-age=3600`
+  applied to every response, so a returning visitor could see an hour-old page
+  (a new or edited post invisible until the cache expired) and an hour-old
+  stylesheet after an upgrade. HTML now revalidates — `no-cache` plus a weak
+  ETag — so new content appears immediately and an unchanged repeat load costs a
+  small `304` instead of re-sending the page. CSS and JS carry a build-version
+  ETag and revalidate too, so a release is picked up on the next request rather
+  than waiting out the cache. Fonts and images keep the one-hour cache (they
+  don't change on a deploy).
+
 ## [3.23.0] - 2026-06-09
 
 ### Added

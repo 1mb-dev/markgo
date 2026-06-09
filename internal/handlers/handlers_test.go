@@ -100,6 +100,11 @@ func (m *MockTemplateService) Render(w io.Writer, templateName string, data any)
 	return nil
 }
 func (m *MockTemplateService) RenderToString(templateName string, data any) (string, error) {
+	// Capture data like Render does — renderHTML routes successful HTML through
+	// RenderToString (for ETag), so LastData-asserting tests depend on this.
+	if d, ok := data.(map[string]any); ok {
+		m.LastData = d
+	}
 	return "", nil
 }
 func (m *MockTemplateService) HasTemplate(templateName string) bool { return true }

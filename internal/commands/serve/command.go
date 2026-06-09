@@ -361,6 +361,30 @@ func registerGET(r gin.IRoutes, path string, handlerFuncs ...gin.HandlerFunc) {
 	r.HEAD(path, handlerFuncs...)
 }
 
+// mountStatic wires /static: the per-file STATIC_PATH overlay (operator files
+// take precedence, missing paths fall through to embedded), wrapped in
+// OnlyFilesFS to suppress directory listings. For embedded-only deployments it
+// also installs staticRevalidate so CSS/JS revalidate on a build-version ETag;
+// overlay deployments are skipped — an operator can change an overlay file
+// without a version bump, which the version ETag would then 304 stale forever.
+func mountStatic(router *gin.Engine, staticSub fs.FS, cfg *config.Config, logger *slog.Logger) {
+	embeddedFS := http.FS(staticSub)
+	staticFS := embeddedFS
+	overlayActive := dirExists(cfg.StaticPath)
+	if overlayActive {
+		staticFS = newOverlayFS(http.Dir(cfg.StaticPath), embeddedFS, logger)
+		logger.Info("Static overlay enabled", "local_path", cfg.StaticPath)
+	} else {
+		logger.Info("Using embedded static assets", "checked_path", cfg.StaticPath)
+	}
+
+	staticGroup := router.Group("/static")
+	if !overlayActive {
+		staticGroup.Use(staticRevalidate(swCacheVersion(constants.AppVersion)))
+	}
+	staticGroup.StaticFS("/", &gin.OnlyFilesFS{FileSystem: staticFS})
+}
+
 func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middleware.SessionStore, secureCookie bool, cfg *config.Config, logger *slog.Logger) { //nolint:funlen // route wiring is inherently long
 	// Static files — overlay STATIC_PATH onto embedded assets per file. When
 	// STATIC_PATH is set and exists, local files take precedence and missing
@@ -373,17 +397,7 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 		logger.Error("Failed to load embedded static assets — cannot start server", "error", subErr)
 		os.Exit(1)
 	}
-	embeddedFS := http.FS(staticSub)
-
-	staticFS := embeddedFS
-	if dirExists(cfg.StaticPath) {
-		staticFS = newOverlayFS(http.Dir(cfg.StaticPath), embeddedFS, logger)
-		logger.Info("Static overlay enabled", "local_path", cfg.StaticPath)
-	} else {
-		logger.Info("Using embedded static assets", "checked_path", cfg.StaticPath)
-	}
-
-	router.StaticFS("/static", &gin.OnlyFilesFS{FileSystem: staticFS})
+	mountStatic(router, staticSub, cfg, logger)
 
 	// sw.js: substituted-version embedded body cached at startup; operator
 	// overlay at <STATIC_PATH>/sw.js serves raw bytes (operator owns their

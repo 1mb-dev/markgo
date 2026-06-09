@@ -12,6 +12,7 @@ import (
 
 	"github.com/1mb-dev/markgo/internal/config"
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
+	"github.com/1mb-dev/markgo/internal/etag"
 	"github.com/1mb-dev/markgo/internal/middleware"
 	"github.com/1mb-dev/markgo/internal/models"
 	"github.com/1mb-dev/markgo/internal/services"
@@ -173,17 +174,47 @@ func (h *BaseHandler) renderHTML(c *gin.Context, status int, template string, da
 		h.injectAuthState(c, mapData)
 	}
 
+	// Successful HTML revalidates instead of caching for a fixed window: buffer
+	// the render so we can emit a weak ETag and answer If-None-Match with 304.
+	// no-cache means a new/edited post is never stale, and an unchanged repeat
+	// load costs a 304 (no body) instead of re-sending the page. Error pages
+	// (non-200) keep the streaming path — not worth caching/revalidating.
+	//
+	// Skip when the response is already no-store (authed admin/compose pages via
+	// NoCache middleware): revalidation is moot for don't-store, and overwriting
+	// Cache-Control here would strip no-store from sensitive pages.
+	if status == http.StatusOK && !strings.Contains(c.Writer.Header().Get("Cache-Control"), "no-store") {
+		html, err := h.templateService.RenderToString(template, data)
+		if err != nil {
+			h.renderFallback(c, template, err)
+			return
+		}
+		tag := etag.Weak([]byte(html))
+		c.Header("ETag", tag)
+		c.Header("Cache-Control", "no-cache")
+		if etag.Matches(c.GetHeader("If-None-Match"), tag) {
+			c.Status(http.StatusNotModified)
+			return
+		}
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+		return
+	}
+
 	c.Status(status)
 	if err := h.templateService.Render(c.Writer, template, data); err != nil {
-		h.logger.Error("Template rendering failed", "template", template, "error", err)
-		// Don't call handleError here — it would call renderHTML again, creating
-		// an infinite loop. Render a styled fallback if headers haven't been flushed.
-		if !c.Writer.Written() {
-			c.Data(http.StatusInternalServerError, "text/html; charset=utf-8",
-				[]byte(apperrors.FallbackErrorHTML))
-		}
-		c.Abort()
+		h.renderFallback(c, template, err)
 	}
+}
+
+// renderFallback emits the styled fallback page when a template render fails,
+// without re-entering renderHTML (which would loop via handleError).
+func (h *BaseHandler) renderFallback(c *gin.Context, template string, err error) {
+	h.logger.Error("Template rendering failed", "template", template, "error", err)
+	if !c.Writer.Written() {
+		c.Data(http.StatusInternalServerError, "text/html; charset=utf-8",
+			[]byte(apperrors.FallbackErrorHTML))
+	}
+	c.Abort()
 }
 
 // handleError provides standardized error handling across handlers
