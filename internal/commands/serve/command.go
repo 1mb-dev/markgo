@@ -378,11 +378,38 @@ func mountStatic(router *gin.Engine, staticSub fs.FS, cfg *config.Config, logger
 		logger.Info("Using embedded static assets", "checked_path", cfg.StaticPath)
 	}
 
+	verifyFontPreloadResolves(staticFS, cfg.FontPreloadURL, logger)
+
 	staticGroup := router.Group("/static")
 	if !overlayActive {
 		staticGroup.Use(staticRevalidate(swCacheVersion(constants.AppVersion)))
 	}
 	staticGroup.StaticFS("/", &gin.OnlyFilesFS{FileSystem: staticFS})
+}
+
+// verifyFontPreloadResolves warns once at startup when FONT_PRELOAD_URL names a
+// /static asset that the static FS — the exact overlay-first/embedded-fallback
+// FS the browser fetches from — can't open. The preload is a high-priority
+// <link rel=preload> in <head>; a URL that 404s wastes the hint and, on a
+// font-swap overlay deployment, leaves the real font unpreloaded (#124).
+//
+// It checks resolution, not operator intent: an Inter-keeping overlay that only
+// tweaks unicode-range still carries the default URL, whose embedded file
+// resolves, so it stays silent (no false positive). Only /static URLs are
+// checked — an external/CDN preload URL is the operator's to verify. Empty
+// disables the preload entirely, so there is nothing to check.
+func verifyFontPreloadResolves(staticFS http.FileSystem, preloadURL string, logger *slog.Logger) {
+	const prefix = "/static/"
+	if preloadURL == "" || !strings.HasPrefix(preloadURL, prefix) {
+		return
+	}
+	f, err := staticFS.Open("/" + strings.TrimPrefix(preloadURL, prefix))
+	if err != nil {
+		logger.Warn("FONT_PRELOAD_URL does not resolve in static assets; the preload will 404 — point it at your body font (matching fonts.css) or set it empty to disable",
+			"font_preload_url", preloadURL, "error", err)
+		return
+	}
+	_ = f.Close()
 }
 
 func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middleware.SessionStore, secureCookie bool, cfg *config.Config, logger *slog.Logger) { //nolint:funlen // route wiring is inherently long
