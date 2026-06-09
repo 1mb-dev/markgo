@@ -74,10 +74,25 @@ func TestVerifyFontPreloadResolves(t *testing.T) {
 			wantWarns: 0,
 		},
 		{
-			name:      "non-/static path — operator-owned, silent",
+			name:      "non-/static absolute path — proxy-served, operator-owned, silent",
 			staticFS:  embeddedStatic,
 			url:       "/assets/font.woff2",
 			wantWarns: 0,
+		},
+		{
+			// Relative URL resolves against the page path → 404s off the
+			// homepage; silently reintroduces #124. Skips the /static check.
+			name:      "relative URL (no leading slash) — warns",
+			staticFS:  embeddedStatic,
+			url:       "static/fonts/inter/inter-latin.woff2",
+			wantWarns: 1,
+		},
+		{
+			// Open succeeds on a dir, but gin.OnlyFilesFS 404s it at serve.
+			name:      "resolves to a directory — warns",
+			staticFS:  embeddedStatic,
+			url:       "/static/fonts/inter",
+			wantWarns: 1,
 		},
 	}
 
