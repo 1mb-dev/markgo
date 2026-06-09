@@ -266,6 +266,14 @@ func Load() (*Config, error) {
 			"Invalid TRUSTED_PROXIES (expect comma-separated CIDRs and/or bare IPs)", err)
 	}
 
+	// FONT_PRELOAD_URL honors an explicit empty value (the documented way to
+	// disable the preload), so it uses LookupEnv — getEnv would treat "" as
+	// unset and fall back to the Inter default, making "disable" unreachable.
+	fontPreloadURL := "/static/fonts/inter/inter-latin.woff2"
+	if v, ok := os.LookupEnv("FONT_PRELOAD_URL"); ok {
+		fontPreloadURL = v
+	}
+
 	cfg := &Config{
 		Environment:    environment,
 		Port:           getEnvInt("PORT", 3000),
@@ -274,7 +282,7 @@ func Load() (*Config, error) {
 		StaticPath:     getEnv("STATIC_PATH", ""),
 		TemplatesPath:  getEnv("TEMPLATES_PATH", ""),
 		BaseURL:        getEnv("BASE_URL", "http://localhost:3000"),
-		FontPreloadURL: getEnv("FONT_PRELOAD_URL", "/static/fonts/inter/inter-latin.woff2"),
+		FontPreloadURL: fontPreloadURL,
 
 		Server: ServerConfig{
 			ReadTimeout:     getEnvDuration("SERVER_READ_TIMEOUT", 15*time.Second),

@@ -97,6 +97,21 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, "Or drop a line directly.", cfg.About.EmailIntro)
 }
 
+// TestLoad_FontPreloadEmptyDisables pins the documented contract: an explicit
+// empty FONT_PRELOAD_URL disables the preload. getEnv treats "" as unset, so
+// Load must use LookupEnv here — else "disable" is unreachable (a stock build
+// would keep preloading Inter). Goes through Load(), not the struct, to cover
+// the env→config path the other tests bypass.
+func TestLoad_FontPreloadEmptyDisables(t *testing.T) {
+	clearEnvVars()
+	defer clearEnvVars()
+
+	t.Setenv("FONT_PRELOAD_URL", "")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "", cfg.FontPreloadURL, "explicit empty FONT_PRELOAD_URL must disable, not fall back to default")
+}
+
 func TestLoadWithEnvironmentVariables(t *testing.T) {
 	// Clear environment variables first
 	clearEnvVars()
