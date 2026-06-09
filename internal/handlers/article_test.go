@@ -407,6 +407,105 @@ func TestPage_BreadcrumbsExcludeWriting(t *testing.T) {
 	}
 }
 
+// TestArticle_PrevNextNeighbors locks the post-footer pager data: prev = newer,
+// next = older (matching the feed's "← Newer / Older →"), nil at the ends, drafts
+// excluded from the sequence, and hasNeighbors gating the <nav> so it never renders
+// empty. Pages are excluded from this graph by GetAllArticles' DedicatedRouteArticle
+// predicate (covered in the article package); the mock returns raw fixtures, so page
+// exclusion is intentionally not re-modeled here.
+func TestArticle_PrevNextNeighbors(t *testing.T) {
+	now := time.Now()
+	// Newest-first, matching GetAllArticles' production order.
+	newest := &models.Article{Slug: "newest", Title: "Newest", Date: now}
+	middle := &models.Article{Slug: "middle", Title: "Middle", Date: now.Add(-24 * time.Hour)}
+	oldest := &models.Article{Slug: "oldest", Title: "Oldest", Date: now.Add(-48 * time.Hour)}
+	draft := &models.Article{Slug: "draft", Title: "Draft", Draft: true, Date: now.Add(-36 * time.Hour)}
+
+	tests := []struct {
+		name         string
+		articles     []*models.Article
+		slug         string
+		wantPrev     string // "" means nil
+		wantNext     string // "" means nil
+		wantNeighbor bool
+	}{
+		{"middle has both", []*models.Article{newest, middle, oldest}, "middle", "newest", "oldest", true},
+		{"newest end has only older", []*models.Article{newest, middle, oldest}, "newest", "", "middle", true},
+		{"oldest end has only newer", []*models.Article{newest, middle, oldest}, "oldest", "middle", "", true},
+		{"single article has none", []*models.Article{middle}, "middle", "", "", false},
+		{"draft neighbor skipped", []*models.Article{newest, middle, draft, oldest}, "middle", "newest", "oldest", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			base, svc := createTestBase()
+			svc.articles = tt.articles
+			mockTpl := requireMockTemplateService(t, base)
+			mockTpl.LastData = nil
+
+			router := gin.New()
+			router.GET("/writing/:slug", NewPostHandler(base, svc).Article)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/writing/"+tt.slug, http.NoBody))
+			require.Equal(t, http.StatusOK, w.Code)
+			require.NotNil(t, mockTpl.LastData)
+
+			assert.Equal(t, tt.wantNeighbor, mockTpl.LastData["hasNeighbors"], "hasNeighbors")
+			assertNeighborSlug(t, "prevArticle", mockTpl.LastData["prevArticle"], tt.wantPrev)
+			assertNeighborSlug(t, "nextArticle", mockTpl.LastData["nextArticle"], tt.wantNext)
+		})
+	}
+}
+
+func assertNeighborSlug(t *testing.T, key string, got any, wantSlug string) {
+	t.Helper()
+	if wantSlug == "" {
+		assert.Nil(t, got, "%s should be nil at the list end", key)
+		return
+	}
+	art, ok := got.(*models.Article)
+	require.True(t, ok, "%s should be *models.Article, got %T", key, got)
+	require.NotNil(t, art, "%s should not be nil", key)
+	assert.Equal(t, wantSlug, art.Slug, "%s slug", key)
+}
+
+// TestArticle_PagerRendered verifies the post-footer pager renders real neighbor
+// links through the canonical-URL path (not a hardcoded shape), and that the
+// strict-typed template FuncMap didn't truncate the render — the pager uses only
+// if/permalink/displayTitle, never or/not on non-bools, so the page must complete
+// through </body> and the app.js tag. [[verify-served-outcome-not-artifact]]
+func TestArticle_PagerRendered(t *testing.T) {
+	now := time.Now()
+	cfg := &config.Config{
+		Environment: "test",
+		BaseURL:     "http://localhost:3000",
+		Blog:        config.BlogConfig{Title: "Test Blog", Description: "Test", Author: "Test Author"},
+	}
+	tplSvc, err := services.NewTemplateService("/nonexistent", cfg)
+	require.NoError(t, err, "real TemplateService falls back to embedded templates")
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	base := NewBaseHandler(cfg, logger, tplSvc, &BuildInfo{Version: "test"}, &MockSEOService{})
+	svc := &TestArticleService{articles: []*models.Article{
+		{Slug: "newest", Title: "Newest", Date: now, Content: "n", ProcessedContent: "<p>n</p>"},
+		{Slug: "middle", Title: "Middle", Date: now.Add(-24 * time.Hour), Content: "m", ProcessedContent: "<p>m</p>"},
+		{Slug: "oldest", Title: "Oldest", Date: now.Add(-48 * time.Hour), Content: "o", ProcessedContent: "<p>o</p>"},
+	}}
+
+	router := gin.New()
+	router.GET("/writing/:slug", NewPostHandler(base, svc).Article)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/writing/middle", http.NoBody))
+	require.Equal(t, http.StatusOK, w.Code)
+
+	body := w.Body.String()
+	assert.Contains(t, body, `href="/writing/newest"`, "pager must link to the newer article via canonical path")
+	assert.Contains(t, body, `href="/writing/oldest"`, "pager must link to the older article via canonical path")
+	assert.Contains(t, body, "article-pager", "pager nav must render")
+	// Truncation canary: a strict-FuncMap panic cuts the render before these.
+	assert.Contains(t, body, "</body>", "render must complete (strict-FuncMap truncation guard)")
+	assert.Contains(t, body, "/static/js/app.js", "app.js tag must survive render (truncation guard)")
+}
+
 func TestArticlesListing(t *testing.T) {
 	tests := []struct {
 		name  string

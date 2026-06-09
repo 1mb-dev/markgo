@@ -532,6 +532,20 @@ func TestSecurity(t *testing.T) {
 	assert.Empty(t, w.Header().Get("X-XSS-Protection"), "X-XSS-Protection is deprecated and must not be emitted")
 }
 
+// TestSecurity_CSPAllowsLazyHighlightScript guards the invariant that lazy-loaded
+// highlight.min.js depends on: it's injected at runtime as a same-origin <script>
+// (web/static/js/modules/highlighter-loader.js), so CSP must keep script-src 'self'
+// and must NOT add 'strict-dynamic' — which would ignore 'self' and trust only
+// nonce/hash-loaded scripts (and their descendants), silently breaking syntax
+// highlighting on every code page. A future hardening pass adding strict-dynamic must
+// revisit the loader (e.g. nonce-propagation), not just delete this test.
+func TestSecurity_CSPAllowsLazyHighlightScript(t *testing.T) {
+	assert.Contains(t, cspPolicy, "script-src 'self'",
+		"lazy-loaded highlight.min.js is a same-origin script; script-src 'self' must stay")
+	assert.NotContains(t, cspPolicy, "strict-dynamic",
+		"strict-dynamic ignores 'self' and would silently break runtime-injected highlight.min.js")
+}
+
 // TestSecurity_FOUCScriptHashMatches locks the CSP script-src hash to the
 // actual contents of the inline <script> in base.html. Editing the inline
 // script without updating foucScriptHash in middleware.go fails this test

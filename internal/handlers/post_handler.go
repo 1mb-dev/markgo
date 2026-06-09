@@ -139,12 +139,37 @@ func (h *PostHandler) getArticleData(slug string) (map[string]any, error) {
 		return nil, apperrors.ErrArticleNotFound
 	}
 
-	// Get recent articles for sidebar
+	// Published feed in display order (newest-first). Pages/about are already
+	// excluded by the DedicatedRouteArticle predicate inside GetAllArticles, so a
+	// dedicated-route article simply isn't found below and gets no neighbors.
 	allArticles := h.articleService.GetAllArticles()
-	var recent []*models.Article
+	published := make([]*models.Article, 0, len(allArticles))
 	for _, a := range allArticles {
-		if !a.Draft && a.Slug != slug && len(recent) < 5 {
+		if !a.Draft {
+			published = append(published, a)
+		}
+	}
+
+	// Recent articles for sidebar: up to 5, excluding the current article.
+	var recent []*models.Article
+	for _, a := range published {
+		if a.Slug != slug && len(recent) < 5 {
 			recent = append(recent, a)
+		}
+	}
+
+	// Prev/next neighbors: prev = newer, next = older (matches the feed's
+	// "← Newer / Older →" direction). Nil at the ends of the list.
+	var prev, next *models.Article
+	for i, a := range published {
+		if a.Slug == slug {
+			if i > 0 {
+				prev = published[i-1]
+			}
+			if i < len(published)-1 {
+				next = published[i+1]
+			}
+			break
 		}
 	}
 
@@ -160,6 +185,9 @@ func (h *PostHandler) getArticleData(slug string) (map[string]any, error) {
 		{Name: "Writing", URL: "/writing"},
 		{Name: art.DisplayTitle()},
 	}
+	data["prevArticle"] = prev                        // newer; nil at the newest end
+	data["nextArticle"] = next                        // older; nil at the oldest end
+	data["hasNeighbors"] = prev != nil || next != nil // gates the pager <nav> so it's never rendered empty
 
 	return data, nil
 }
