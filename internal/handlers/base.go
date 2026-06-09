@@ -3,6 +3,8 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -173,17 +175,70 @@ func (h *BaseHandler) renderHTML(c *gin.Context, status int, template string, da
 		h.injectAuthState(c, mapData)
 	}
 
+	// Successful HTML revalidates instead of caching for a fixed window: buffer
+	// the render so we can emit a weak ETag and answer If-None-Match with 304.
+	// no-cache means a new/edited post is never stale, and an unchanged repeat
+	// load costs a 304 (no body) instead of re-sending the page. Error pages
+	// (non-200) keep the streaming path — not worth caching/revalidating.
+	if status == http.StatusOK {
+		html, err := h.templateService.RenderToString(template, data)
+		if err != nil {
+			h.renderFallback(c, template, err)
+			return
+		}
+		etag := weakETag(html)
+		c.Header("ETag", etag)
+		c.Header("Cache-Control", "no-cache")
+		if etagMatches(c.GetHeader("If-None-Match"), etag) {
+			c.Status(http.StatusNotModified)
+			return
+		}
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+		return
+	}
+
 	c.Status(status)
 	if err := h.templateService.Render(c.Writer, template, data); err != nil {
-		h.logger.Error("Template rendering failed", "template", template, "error", err)
-		// Don't call handleError here — it would call renderHTML again, creating
-		// an infinite loop. Render a styled fallback if headers haven't been flushed.
-		if !c.Writer.Written() {
-			c.Data(http.StatusInternalServerError, "text/html; charset=utf-8",
-				[]byte(apperrors.FallbackErrorHTML))
-		}
-		c.Abort()
+		h.renderFallback(c, template, err)
 	}
+}
+
+// renderFallback emits the styled fallback page when a template render fails,
+// without re-entering renderHTML (which would loop via handleError).
+func (h *BaseHandler) renderFallback(c *gin.Context, template string, err error) {
+	h.logger.Error("Template rendering failed", "template", template, "error", err)
+	if !c.Writer.Written() {
+		c.Data(http.StatusInternalServerError, "text/html; charset=utf-8",
+			[]byte(apperrors.FallbackErrorHTML))
+	}
+	c.Abort()
+}
+
+// weakETag returns a weak validator over the rendered body. Weak because the
+// body may be transformed downstream (e.g. proxy compression); byte-identity
+// isn't promised, only semantic equivalence — which is all If-None-Match needs.
+func weakETag(body string) string {
+	sum := sha256.Sum256([]byte(body))
+	return `W/"` + hex.EncodeToString(sum[:16]) + `"`
+}
+
+// etagMatches reports whether an If-None-Match header satisfies etag, using the
+// weak comparison If-None-Match requires (RFC 9110 §8.8.3.2): the W/ prefix is
+// ignored on both sides, and a comma list or "*" is honored.
+func etagMatches(ifNoneMatch, etag string) bool {
+	if ifNoneMatch == "" {
+		return false
+	}
+	if strings.TrimSpace(ifNoneMatch) == "*" {
+		return true
+	}
+	want := strings.TrimPrefix(etag, "W/")
+	for _, candidate := range strings.Split(ifNoneMatch, ",") {
+		if strings.TrimPrefix(strings.TrimSpace(candidate), "W/") == want {
+			return true
+		}
+	}
+	return false
 }
 
 // handleError provides standardized error handling across handlers
