@@ -273,3 +273,57 @@
         font-size: var(--font-size-xl);
     }
 }
+
+/* Prev/next article navigation (post footer). The <nav> is gated server-side on
+   hasNeighbors, so it never renders empty — no whitespace-defeated :empty needed. */
+.article-pager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+    margin-top: var(--spacing-6);
+    padding-top: var(--spacing-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.article-pager-link {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    min-height: 44px;
+    min-width: 0;
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+.article-pager-dir {
+    font-size: var(--font-size-sm);
+    color: var(--color-primary);
+}
+
+.article-pager-title {
+    color: var(--color-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.article-pager-link:hover .article-pager-title {
+    color: var(--color-text-primary);
+}
+
+@media (min-width: 481px) {
+    .article-pager {
+        flex-direction: row;
+        gap: var(--spacing-6);
+    }
+
+    .article-pager-prev,
+    .article-pager-next {
+        flex: 1 1 0;
+    }
+
+    .article-pager-next {
+        text-align: right;
+        align-items: flex-end;
+    }
+}

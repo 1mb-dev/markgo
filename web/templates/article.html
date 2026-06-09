@@ -138,6 +138,12 @@
                     </p>
                     {{ end }}{{ end }}
                 </div>
+                {{ if .hasNeighbors }}
+                <nav class="article-pager" aria-label="More writing">
+                    {{ if .prevArticle }}<a href="{{ permalink .prevArticle }}" class="article-pager-link article-pager-prev" rel="prev"><span class="article-pager-dir">← Newer</span><span class="article-pager-title">{{ displayTitle .prevArticle }}</span></a>{{ end }}
+                    {{ if .nextArticle }}<a href="{{ permalink .nextArticle }}" class="article-pager-link article-pager-next" rel="next"><span class="article-pager-dir">Older →</span><span class="article-pager-title">{{ displayTitle .nextArticle }}</span></a>{{ end }}
+                </nav>
+                {{ end }}
             </footer>
         </div>
     </article>
