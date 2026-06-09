@@ -179,7 +179,11 @@ func (h *BaseHandler) renderHTML(c *gin.Context, status int, template string, da
 	// no-cache means a new/edited post is never stale, and an unchanged repeat
 	// load costs a 304 (no body) instead of re-sending the page. Error pages
 	// (non-200) keep the streaming path — not worth caching/revalidating.
-	if status == http.StatusOK {
+	//
+	// Skip when the response is already no-store (authed admin/compose pages via
+	// NoCache middleware): revalidation is moot for don't-store, and overwriting
+	// Cache-Control here would strip no-store from sensitive pages.
+	if status == http.StatusOK && !strings.Contains(c.Writer.Header().Get("Cache-Control"), "no-store") {
 		html, err := h.templateService.RenderToString(template, data)
 		if err != nil {
 			h.renderFallback(c, template, err)

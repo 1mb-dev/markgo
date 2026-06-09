@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/1mb-dev/markgo/internal/config"
+	"github.com/1mb-dev/markgo/internal/middleware"
 	"github.com/1mb-dev/markgo/internal/models"
 	"github.com/1mb-dev/markgo/internal/services"
 )
@@ -73,6 +74,32 @@ func TestRenderHTML_ETagRevalidation(t *testing.T) {
 	// Different article → different ETag (body-derived validator).
 	w4 := get("b", "")
 	assert.NotEqual(t, etag, w4.Header().Get("ETag"), "different content must yield a different ETag")
+}
+
+// TestRenderHTML_PreservesNoStore — authed pages under NoCache (no-store) must
+// keep no-store and not be downgraded to a revalidating ETag by renderHTML.
+func TestRenderHTML_PreservesNoStore(t *testing.T) {
+	now := time.Now()
+	cfg := &config.Config{
+		Environment: "test",
+		BaseURL:     "http://localhost:3000",
+		Blog:        config.BlogConfig{Title: "Test Blog", Description: "Test", Author: "Test Author"},
+	}
+	tplSvc, err := services.NewTemplateService("/nonexistent", cfg)
+	require.NoError(t, err)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	base := NewBaseHandler(cfg, logger, tplSvc, &BuildInfo{Version: "test"}, &MockSEOService{})
+	svc := &TestArticleService{articles: []*models.Article{
+		{Slug: "a", Title: "A", Date: now, Content: "x", ProcessedContent: "<p>x</p>"},
+	}}
+	router := gin.New()
+	router.GET("/sensitive/:slug", middleware.NoCache(), NewPostHandler(base, svc).Article)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/sensitive/a", http.NoBody))
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Header().Get("Cache-Control"), "no-store", "no-store must survive renderHTML")
+	assert.Empty(t, w.Header().Get("ETag"), "no-store pages must not get a revalidation ETag")
 }
 
 // TestRenderHTML_ErrorPageNoETag — non-200 (error) pages keep the streaming
