@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.23.0] - 2026-06-09
+
+### Added
+
+- Previous/next navigation in the article footer — finishing a post now links
+  straight to the neighbouring writing (newer/older) instead of dead-ending at
+  the back button. Especially helps reading flow on mobile.
+
+### Changed
+
+- Syntax highlighting (highlight.js, ~122 KB) is loaded on demand now, only on
+  pages that actually contain code blocks. Text posts — thoughts, links, the
+  feed — no longer download or parse it, cutting their first-paint cost.
+- The body font (Inter) is preloaded, so it fetches at priority instead of
+  waiting for the stylesheet to parse — faster first text paint on mobile.
+
 ## [3.22.5] - 2026-06-08
 
 ### Fixed
