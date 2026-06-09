@@ -1128,3 +1128,53 @@ func TestTemplateService_CardTitleUsesPermalink(t *testing.T) {
 	assert.Contains(t, out, `href="/p/colophon">Colophon</a>`, "title link must use the canonical path")
 	assert.NotContains(t, out, "/writing/colophon", "no hardcoded /writing/<slug> for a page")
 }
+
+func TestFontPreloadType(t *testing.T) {
+	fn, ok := GetTemplateFuncMap()["fontPreloadType"].(func(string) string)
+	require.True(t, ok, "fontPreloadType must be registered")
+
+	cases := map[string]string{
+		"/static/fonts/inter/inter-latin.woff2": "font/woff2",
+		"/static/fonts/x/face.woff":             "font/woff",
+		"/static/fonts/x/face.ttf":              "font/ttf",
+		"/static/fonts/x/face.otf":              "font/otf",
+		"/static/fonts/x/FACE.WOFF":             "font/woff", // case-insensitive
+		"https://cdn.example.com/font.woff2":    "font/woff2",
+		"/static/fonts/x/noext":                 "font/woff2", // unknown → woff2 default
+	}
+	for url, want := range cases {
+		assert.Equalf(t, want, fn(url), "fontPreloadType(%q)", url)
+	}
+}
+
+// TestBaseHead_FontPreload pins the #124 contract on the real embedded base.html:
+// the preload <link> is driven by FontPreloadURL with an extension-derived type,
+// and is omitted entirely when the config value is empty.
+func TestBaseHead_FontPreload(t *testing.T) {
+	// "/nonexistent/path" → embedded templates (the real base.html). template:"feed"
+	// renders the head (incl. the preload at the top) with an empty post list.
+	render := func(preloadURL string) string {
+		svc, err := NewTemplateService("/nonexistent/path", &config.Config{FontPreloadURL: preloadURL})
+		require.NoError(t, err)
+		out, err := svc.RenderToString("base.html", map[string]any{
+			"title":    "t",
+			"config":   svc.config,
+			"template": "feed",
+		})
+		require.NoError(t, err)
+		return out
+	}
+
+	// Default Inter → preloaded as woff2.
+	out := render("/static/fonts/inter/inter-latin.woff2")
+	assert.Contains(t, out, `<link rel="preload" href="/static/fonts/inter/inter-latin.woff2" as="font" type="font/woff2" crossorigin>`)
+
+	// Swapped face → href + type follow the config, no stray Inter preload.
+	out = render("/static/fonts/space-mono/space-mono.woff2")
+	assert.Contains(t, out, `href="/static/fonts/space-mono/space-mono.woff2"`)
+	assert.NotContains(t, out, "inter-latin.woff2", "swapped preload must not still target Inter")
+
+	// Empty → no preload link at all.
+	out = render("")
+	assert.NotContains(t, out, `rel="preload"`, "empty FONT_PRELOAD_URL must emit no preload")
+}

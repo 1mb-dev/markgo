@@ -971,6 +971,23 @@ var templateFuncs = template.FuncMap{
 	"permalink": func(a *models.Article) string {
 		return article.CanonicalURLFor(a)
 	},
+	// fontPreloadType maps a font URL's extension to its MIME type for the
+	// <link rel=preload as=font type=...> hint. Defaults to woff2 (the only
+	// embedded format); woff/ttf/otf are covered so an operator preloading a
+	// different face via FONT_PRELOAD_URL gets a correct type, not a silently
+	// wrong one (#124). Case-insensitive on the extension.
+	"fontPreloadType": func(u string) string {
+		switch {
+		case strings.HasSuffix(strings.ToLower(u), ".woff"):
+			return "font/woff"
+		case strings.HasSuffix(strings.ToLower(u), ".ttf"):
+			return "font/ttf"
+		case strings.HasSuffix(strings.ToLower(u), ".otf"):
+			return "font/otf"
+		default:
+			return "font/woff2"
+		}
+	},
 }
 
 // Helper function
