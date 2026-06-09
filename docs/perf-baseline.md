@@ -40,7 +40,7 @@ instead of after CSS parse. Code pages are unchanged in bytes but unchanged in c
 | Response class | Before (≤v3.23.0) | After (v3.24.0) |
 |---|---|---|
 | HTML pages | `public, max-age=3600` (stale ≤1h) | `no-cache` + weak ETag → revalidate; `304` when unchanged (session-stable; body includes the `_csrf` token) |
-| Static CSS/JS | `public, max-age=3600`, no validator (stale ≤1h after deploy) | `no-cache` + strong build-version ETag (`"<version>"`) → `304` within a version, fresh after a release |
+| Static CSS/JS | `public, max-age=3600`, no validator (stale ≤1h after deploy) | `no-cache` + strong build-version ETag (`"<version>"`) → `304` within a version, fresh after a release. Embedded assets only — a `STATIC_PATH` overlay deployment keeps `max-age=3600` (an overlay file can change without a version bump, so the version ETag would 304 it stale forever) |
 | Static fonts/images | `public, max-age=3600` | unchanged (not deploy-churned) |
 | Feeds, sitemap | `public, max-age=3600` | unchanged |
 | Admin, compose | `no-cache, no-store` | unchanged |
