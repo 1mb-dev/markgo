@@ -148,6 +148,12 @@
     <!-- Skip when SEO service is enabled — it renders canonical via renderMetaTags -->
     {{ if not .config.SEO.Enabled }}{{ if .canonicalPath }}<link rel="canonical" href="{{ .config.BaseURL }}{{ .canonicalPath }}">{{ end }}{{ end }}
 
+    <!-- Preload body font (Inter) — fetches at priority instead of waiting for CSS parse.
+         crossorigin is required: woff2 is CORS-fetched even same-origin; omitting it double-fetches.
+         Fira Code is intentionally NOT preloaded — it's font-display:swap and only fetches when a
+         code block renders, so preloading it would force a wasted fetch on every text page. -->
+    <link rel="preload" href="/static/fonts/inter/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+
     <!-- Stylesheets — all loaded upfront for SPA content swaps -->
     <link rel="stylesheet" href="/static/css/fonts.css">
     <link rel="stylesheet" href="/static/css/github-dark.min.css">
