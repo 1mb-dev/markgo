@@ -29,6 +29,7 @@ func TestLoad(t *testing.T) {
 	assert.Equal(t, "", cfg.StaticPath)
 	assert.Equal(t, "", cfg.TemplatesPath)
 	assert.Equal(t, "http://localhost:3000", cfg.BaseURL)
+	assert.Equal(t, "/static/fonts/inter/inter-latin.woff2", cfg.FontPreloadURL)
 
 	// Test server config defaults
 	assert.Equal(t, 15*time.Second, cfg.Server.ReadTimeout)
@@ -114,6 +115,7 @@ func TestLoadWithEnvironmentVariables(t *testing.T) {
 	_ = os.Setenv("STATIC_PATH", tmpDir+"/static")
 	_ = os.Setenv("TEMPLATES_PATH", tmpDir+"/templates")
 	_ = os.Setenv("BASE_URL", "https://example.com")
+	_ = os.Setenv("FONT_PRELOAD_URL", "/static/fonts/space-mono/space-mono.woff2")
 
 	_ = os.Setenv("SERVER_READ_TIMEOUT", "30s")
 	_ = os.Setenv("SERVER_WRITE_TIMEOUT", "30s")
@@ -176,6 +178,7 @@ func TestLoadWithEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, tmpDir+"/static", cfg.StaticPath)
 	assert.Equal(t, tmpDir+"/templates", cfg.TemplatesPath)
 	assert.Equal(t, "https://example.com", cfg.BaseURL)
+	assert.Equal(t, "/static/fonts/space-mono/space-mono.woff2", cfg.FontPreloadURL)
 
 	// Test server config
 	assert.Equal(t, 30*time.Second, cfg.Server.ReadTimeout)
@@ -343,7 +346,7 @@ func TestStringSliceParsing(t *testing.T) {
 // Helper function to clear environment variables
 func clearEnvVars() {
 	vars := []string{
-		"ENVIRONMENT", "PORT", "ARTICLES_PATH", "STATIC_PATH", "TEMPLATES_PATH", "BASE_URL",
+		"ENVIRONMENT", "PORT", "ARTICLES_PATH", "STATIC_PATH", "TEMPLATES_PATH", "BASE_URL", "FONT_PRELOAD_URL",
 		"SERVER_READ_TIMEOUT", "SERVER_WRITE_TIMEOUT", "SERVER_IDLE_TIMEOUT", "SHUTDOWN_TIMEOUT",
 		"AMA_PAGE_HEADING", "AMA_PAGE_INTRO", "AMA_FORM_PLACEHOLDER", "AMA_SUBMIT_LABEL", "AMA_THANKYOU_COPY",
 		"ABOUT_REACH_HEADING", "ABOUT_EMAIL_HEADING", "ABOUT_EMAIL_INTRO",
