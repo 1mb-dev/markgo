@@ -35,6 +35,21 @@ Measured on `main` @ v3.22.5 (2026-06-09).
 highlight.min.js entirely (transfer + parse), and Inter starts fetching at preload priority
 instead of after CSS parse. Code pages are unchanged in bytes but unchanged in correctness.
 
+## Cache headers (R2, v3.24.0)
+
+| Response class | Before (≤v3.23.0) | After (v3.24.0) |
+|---|---|---|
+| HTML pages | `public, max-age=3600` (stale ≤1h) | `no-cache` + weak ETag → revalidate; `304` when unchanged (session-stable; body includes the `_csrf` token) |
+| Static CSS/JS | `public, max-age=3600`, no validator (stale ≤1h after deploy) | `no-cache` + strong build-version ETag (`"<version>"`) → `304` within a version, fresh after a release |
+| Static fonts/images | `public, max-age=3600` | unchanged (not deploy-churned) |
+| Feeds, sitemap | `public, max-age=3600` | unchanged |
+| Admin, compose | `no-cache, no-store` | unchanged |
+
+**R2 headline:** new/edited content is never stale (HTML revalidates), and a deploy's CSS/JS is
+picked up on the next request instead of after an arbitrary hour — without URL versioning
+(deferred: `?v=`/path-prefix doesn't propagate through ES-module imports, and `immutable`'s
+zero-request win is marginal behind Caddy HTTP/2 + the service worker).
+
 ## CWV (lab) — to measure
 
 Clear SW caches first. Fill both passes; non-gating.
