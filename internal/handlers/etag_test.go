@@ -18,25 +18,6 @@ import (
 	"github.com/1mb-dev/markgo/internal/services"
 )
 
-func TestETagMatches(t *testing.T) {
-	const etag = `W/"abc123"`
-	cases := []struct {
-		ifNoneMatch string
-		want        bool
-	}{
-		{"", false},
-		{"*", true},
-		{`W/"abc123"`, true},
-		{`"abc123"`, true}, // strong form — If-None-Match uses weak comparison
-		{`W/"other"`, false},
-		{`W/"x", W/"abc123"`, true},    // comma list
-		{`  W/"abc123" , W/"y"`, true}, // list with surrounding spaces
-	}
-	for _, c := range cases {
-		assert.Equalf(t, c.want, etagMatches(c.ifNoneMatch, etag), "If-None-Match=%q", c.ifNoneMatch)
-	}
-}
-
 // TestRenderHTML_ETagRevalidation locks the HTML conditional-GET contract:
 // successful pages emit a weak ETag + Cache-Control: no-cache; a matching
 // If-None-Match returns 304 with no body; a stale one returns the full page;

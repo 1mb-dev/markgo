@@ -3,8 +3,6 @@
 package handlers
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -14,6 +12,7 @@ import (
 
 	"github.com/1mb-dev/markgo/internal/config"
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
+	"github.com/1mb-dev/markgo/internal/etag"
 	"github.com/1mb-dev/markgo/internal/middleware"
 	"github.com/1mb-dev/markgo/internal/models"
 	"github.com/1mb-dev/markgo/internal/services"
@@ -186,10 +185,10 @@ func (h *BaseHandler) renderHTML(c *gin.Context, status int, template string, da
 			h.renderFallback(c, template, err)
 			return
 		}
-		etag := weakETag(html)
-		c.Header("ETag", etag)
+		tag := etag.Weak([]byte(html))
+		c.Header("ETag", tag)
 		c.Header("Cache-Control", "no-cache")
-		if etagMatches(c.GetHeader("If-None-Match"), etag) {
+		if etag.Matches(c.GetHeader("If-None-Match"), tag) {
 			c.Status(http.StatusNotModified)
 			return
 		}
@@ -212,33 +211,6 @@ func (h *BaseHandler) renderFallback(c *gin.Context, template string, err error)
 			[]byte(apperrors.FallbackErrorHTML))
 	}
 	c.Abort()
-}
-
-// weakETag returns a weak validator over the rendered body. Weak because the
-// body may be transformed downstream (e.g. proxy compression); byte-identity
-// isn't promised, only semantic equivalence — which is all If-None-Match needs.
-func weakETag(body string) string {
-	sum := sha256.Sum256([]byte(body))
-	return `W/"` + hex.EncodeToString(sum[:16]) + `"`
-}
-
-// etagMatches reports whether an If-None-Match header satisfies etag, using the
-// weak comparison If-None-Match requires (RFC 9110 §8.8.3.2): the W/ prefix is
-// ignored on both sides, and a comma list or "*" is honored.
-func etagMatches(ifNoneMatch, etag string) bool {
-	if ifNoneMatch == "" {
-		return false
-	}
-	if strings.TrimSpace(ifNoneMatch) == "*" {
-		return true
-	}
-	want := strings.TrimPrefix(etag, "W/")
-	for _, candidate := range strings.Split(ifNoneMatch, ",") {
-		if strings.TrimPrefix(strings.TrimSpace(candidate), "W/") == want {
-			return true
-		}
-	}
-	return false
 }
 
 // handleError provides standardized error handling across handlers
