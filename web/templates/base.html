@@ -148,11 +148,13 @@
     <!-- Skip when SEO service is enabled — it renders canonical via renderMetaTags -->
     {{ if not .config.SEO.Enabled }}{{ if .canonicalPath }}<link rel="canonical" href="{{ .config.BaseURL }}{{ .canonicalPath }}">{{ end }}{{ end }}
 
-    <!-- Preload body font (Inter) — fetches at priority instead of waiting for CSS parse.
-         crossorigin is required: woff2 is CORS-fetched even same-origin; omitting it double-fetches.
-         Fira Code is intentionally NOT preloaded — it's font-display:swap and only fetches when a
-         code block renders, so preloading it would force a wasted fetch on every text page. -->
-    <link rel="preload" href="/static/fonts/inter/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Preload the body font — fetches at priority instead of waiting for CSS parse.
+         href is FONT_PRELOAD_URL (default: embedded Inter). A STATIC_PATH deployment that overlays
+         fonts.css to swap the body font repoints this to match (or sets it empty to disable), so the
+         preload never targets a face the page doesn't render (#124). crossorigin is required: woff2
+         is CORS-fetched even same-origin; omitting it double-fetches. Fira Code is intentionally NOT
+         preloaded — it's font-display:swap and only fetches when a code block renders. -->
+    {{ if .config.FontPreloadURL }}<link rel="preload" href="{{ .config.FontPreloadURL }}" as="font" type="{{ fontPreloadType .config.FontPreloadURL }}" crossorigin>{{ end }}
 
     <!-- Stylesheets — all loaded upfront for SPA content swaps -->
     <link rel="stylesheet" href="/static/css/fonts.css">

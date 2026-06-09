@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.24.1] - 2026-06-09
+
+### Fixed
+
+- Font preload ignored a swapped body font. The high-priority preload added in
+  v3.23.0 was hardcoded to Inter, so a deployment that overlays `css/fonts.css`
+  via `STATIC_PATH` to use a different face preloaded Inter (unused) on every
+  page while the real font went unpreloaded. The preload is now driven by a new
+  `FONT_PRELOAD_URL` setting (defaults to Inter; set empty to disable), and the
+  server warns at startup if the URL doesn't resolve in your static assets.
+
 ## [3.24.0] - 2026-06-09
 
 ### Fixed

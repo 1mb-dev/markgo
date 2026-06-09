@@ -378,11 +378,56 @@ func mountStatic(router *gin.Engine, staticSub fs.FS, cfg *config.Config, logger
 		logger.Info("Using embedded static assets", "checked_path", cfg.StaticPath)
 	}
 
+	verifyFontPreloadResolves(staticFS, cfg.FontPreloadURL, logger)
+
 	staticGroup := router.Group("/static")
 	if !overlayActive {
 		staticGroup.Use(staticRevalidate(swCacheVersion(constants.AppVersion)))
 	}
 	staticGroup.StaticFS("/", &gin.OnlyFilesFS{FileSystem: staticFS})
+}
+
+// verifyFontPreloadResolves warns once at startup when FONT_PRELOAD_URL won't
+// actually load the preloaded <link rel=preload> in <head> — a URL that 404s
+// wastes the high-priority hint and, on a font-swap overlay deployment, leaves
+// the real font unpreloaded (#124). Empty disables the preload, so nothing is
+// checked. Three failure shapes are caught:
+//
+//   - A relative URL (no leading slash, no scheme) resolves against the current
+//     page URL, so it 404s off the homepage — always wrong for a <head> hint.
+//   - A /static URL that the static FS (the exact overlay-first/embedded FS the
+//     browser fetches from) can't open. This checks resolution, not intent: an
+//     Inter-keeping overlay that only tweaks unicode-range still carries the
+//     default URL, whose embedded file resolves, so it stays silent.
+//   - A /static URL resolving to a directory — Open succeeds but gin's
+//     OnlyFilesFS 404s directories at serve time.
+//
+// An absolute or root-relative non-/static URL (CDN, proxy-served path) is the
+// operator's to verify and is left silent.
+func verifyFontPreloadResolves(staticFS http.FileSystem, preloadURL string, logger *slog.Logger) {
+	if preloadURL == "" {
+		return
+	}
+	if !strings.HasPrefix(preloadURL, "/") && !strings.Contains(preloadURL, "://") {
+		logger.Warn("FONT_PRELOAD_URL must be a root-relative (/static/...) or absolute URL — a relative path 404s off the homepage",
+			"font_preload_url", preloadURL)
+		return
+	}
+	const prefix = "/static/"
+	if !strings.HasPrefix(preloadURL, prefix) {
+		return
+	}
+	f, err := staticFS.Open("/" + strings.TrimPrefix(preloadURL, prefix))
+	if err != nil {
+		logger.Warn("FONT_PRELOAD_URL does not resolve in static assets; the preload will 404 — point it at your body font (matching fonts.css) or set it empty to disable",
+			"font_preload_url", preloadURL, "error", err)
+		return
+	}
+	defer func() { _ = f.Close() }()
+	if st, sErr := f.Stat(); sErr == nil && st.IsDir() {
+		logger.Warn("FONT_PRELOAD_URL resolves to a directory, not a font file — the preload will 404 at serve time",
+			"font_preload_url", preloadURL)
+	}
 }
 
 func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middleware.SessionStore, secureCookie bool, cfg *config.Config, logger *slog.Logger) { //nolint:funlen // route wiring is inherently long

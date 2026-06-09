@@ -37,6 +37,15 @@ type Config struct {
 	TemplatesPath string `json:"templates_path"`
 	BaseURL       string `json:"base_url"`
 
+	// FontPreloadURL is the body font preloaded at high priority in <head>
+	// (first-paint optimization, v3.23.0). Defaults to the embedded Inter face.
+	// It must match the @font-face src in the active fonts.css: a STATIC_PATH
+	// deployment that overlays fonts.css to swap the body font must repoint this
+	// (or set it empty to disable), else the preload fetches a font the page
+	// never renders while the real one goes unpreloaded (#124). Empty disables
+	// the preload entirely.
+	FontPreloadURL string `json:"font_preload_url"`
+
 	// TrustedProxies is the set of normalized CIDRs (bare IPs widened to /32 or
 	// /128) from which X-Forwarded-For / X-Real-IP may be trusted. Parsed and
 	// validated from TRUSTED_PROXIES at load (fail-loud on malformed). nil when
@@ -257,6 +266,14 @@ func Load() (*Config, error) {
 			"Invalid TRUSTED_PROXIES (expect comma-separated CIDRs and/or bare IPs)", err)
 	}
 
+	// FONT_PRELOAD_URL honors an explicit empty value (the documented way to
+	// disable the preload), so it uses LookupEnv — getEnv would treat "" as
+	// unset and fall back to the Inter default, making "disable" unreachable.
+	fontPreloadURL := "/static/fonts/inter/inter-latin.woff2"
+	if v, ok := os.LookupEnv("FONT_PRELOAD_URL"); ok {
+		fontPreloadURL = v
+	}
+
 	cfg := &Config{
 		Environment:    environment,
 		Port:           getEnvInt("PORT", 3000),
@@ -265,6 +282,7 @@ func Load() (*Config, error) {
 		StaticPath:     getEnv("STATIC_PATH", ""),
 		TemplatesPath:  getEnv("TEMPLATES_PATH", ""),
 		BaseURL:        getEnv("BASE_URL", "http://localhost:3000"),
+		FontPreloadURL: fontPreloadURL,
 
 		Server: ServerConfig{
 			ReadTimeout:     getEnvDuration("SERVER_READ_TIMEOUT", 15*time.Second),
