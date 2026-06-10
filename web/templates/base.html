@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <script>try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);var c=localStorage.getItem("colorTheme");if(c)document.documentElement.setAttribute("data-color-theme",c)}catch(e){}</script>
+    <script>try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);var c=localStorage.getItem("colorTheme");if(c)document.documentElement.setAttribute("data-color-theme",c);var f=localStorage.getItem("fontSize");if(f==="s"||f==="l")document.documentElement.setAttribute("data-font-size",f)}catch(e){}</script>
 
     <!-- Blog identity for JS (install banner, storage namespacing) -->
     <meta name="application-name" content="{{ .config.Blog.Title }}">
@@ -353,6 +353,14 @@
                             <button class="color-swatch" role="radio" aria-checked="false" data-color="forest" aria-label="Forest green" title="Forest"></button>
                             <button class="color-swatch" role="radio" aria-checked="false" data-color="sunset" aria-label="Sunset orange" title="Sunset"></button>
                             <button class="color-swatch" role="radio" aria-checked="false" data-color="berry" aria-label="Berry purple" title="Berry"></button>
+                        </div>
+                    </div>
+                    <div class="theme-section">
+                        <div class="theme-section-label">Text size</div>
+                        <div class="theme-mode-group" id="font-size-group" role="radiogroup" aria-label="Reading text size">
+                            <button class="theme-mode-btn font-size-btn" role="radio" aria-checked="false" data-size="s" aria-label="Small text">A</button>
+                            <button class="theme-mode-btn font-size-btn" role="radio" aria-checked="true" data-size="m" aria-label="Medium text">A</button>
+                            <button class="theme-mode-btn font-size-btn" role="radio" aria-checked="false" data-size="l" aria-label="Large text">A</button>
                         </div>
                     </div>
                 </div>

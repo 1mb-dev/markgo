@@ -503,7 +503,12 @@ async function handleSubmit(isDraft) {
         clearDraft();
         close();
         if (!isDraft) prependCard(result.data, content, title);
-        showToast(result.data.message || (isDraft ? 'Saved as draft' : 'Published!'), 'success');
+        // Published posts offer a "View post" link for orientation (where did it
+        // go?); drafts have no public URL. The toast persists until dismissed so
+        // the link is reachable.
+        const msg = result.data.message || (isDraft ? 'Saved as draft' : 'Published!');
+        const opts = (!isDraft && result.data.url) ? { action: { label: 'View post', href: result.data.url } } : {};
+        showToast(msg, 'success', opts);
     } else {
         showToast(result.error || 'Failed to save', 'error');
         resetButtons();

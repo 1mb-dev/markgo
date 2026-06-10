@@ -182,9 +182,12 @@ function showInstallBanner() {
 // ── Offline indicator ────────────────────────────────────────────────────────
 
 let offlineToast = null;
-window.addEventListener('offline', () => {
-    offlineToast = showToast('You are offline', 'warning', { duration: 0 });
-});
+function showOffline() {
+    if (!offlineToast) {
+        offlineToast = showToast('You are offline', 'warning', { duration: 0 });
+    }
+}
+window.addEventListener('offline', showOffline);
 window.addEventListener('online', () => {
     if (offlineToast) {
         offlineToast.dismiss();
@@ -192,6 +195,9 @@ window.addEventListener('online', () => {
     }
     showToast('Back online', 'success');
 });
+// The 'offline' event only fires on transition, so a page loaded while already
+// offline would show nothing — surface the current state at startup.
+if (!navigator.onLine) showOffline();
 
 document.addEventListener('DOMContentLoaded', () => {
     // Shell modules — run once, persist across navigations
