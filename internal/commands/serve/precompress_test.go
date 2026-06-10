@@ -3,6 +3,7 @@ package serve
 import (
 	"compress/gzip"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -43,8 +44,25 @@ func newStaticRouter(fsys fstest.MapFS, version string) *gin.Engine {
 	r.Use(middleware.DiscardBodyOnHEAD())
 	table := buildPrecompressTable(fsys, version, discardLogger())
 	g := r.Group("/static")
-	g.Use(precompressedStatic(table))
+	g.Use(precompressedStatic(table, nil)) // embedded-only: no overlay
 	g.StaticFS("/", &gin.OnlyFilesFS{FileSystem: http.FS(fsys)})
+	return r
+}
+
+// newOverlayStaticRouter mirrors mountStatic's overlay mode: an embedded table
+// plus an overlayFS(local, embedded) used both for the shadow check (in the
+// handler) and the StaticFS fall-through — the same instance, so the shadow
+// decision and the served bytes can't disagree.
+func newOverlayStaticRouter(embedded, local fstest.MapFS, version string) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(middleware.SmartCacheHeaders())
+	r.Use(middleware.DiscardBodyOnHEAD())
+	table := buildPrecompressTable(embedded, version, discardLogger())
+	overlay := newOverlayFS(http.FS(local), http.FS(embedded), discardLogger())
+	g := r.Group("/static")
+	g.Use(precompressedStatic(table, overlay))
+	g.StaticFS("/", &gin.OnlyFilesFS{FileSystem: overlay})
 	return r
 }
 
@@ -336,5 +354,108 @@ func TestParseAcceptEncoding(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("accepts(%q, %q)=%v want %v", tc.header, tc.coding, got, tc.want)
 		}
+	}
+}
+
+// --- overlay mode (#128): per-file shadow check ---
+
+// THE load-bearing guard. A path the operator overlays must serve the OPERATOR's
+// bytes (which differ from the embedded file), uncompressed, with no version
+// ETag — never the embedded precompressed variant. Routes through the real gin
+// group + StaticFS + overlayFS, so it also proves the shadow-check name form
+// matches what StaticFS feeds overlayFS.Open. If it regresses, this fails loud.
+func TestPrecompressedStatic_OverlayShadowedServesOperatorBytes(t *testing.T) {
+	const operatorCSS = "/* OPERATOR OVERRIDE */body{color:hotpink}"
+	embedded := fstest.MapFS{"css/main.css": {Data: []byte(bigCSS)}}
+	local := fstest.MapFS{"css/main.css": {Data: []byte(operatorCSS)}}
+	r := newOverlayStaticRouter(embedded, local, "3.25.1")
+
+	w := req(r, http.MethodGet, "/static/css/main.css", map[string]string{"Accept-Encoding": "br, gzip"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("code=%d", w.Code)
+	}
+	if w.Body.String() != operatorCSS {
+		t.Errorf("shadowed path served wrong bytes:\n got %q\nwant operator override", w.Body.String())
+	}
+	if got := w.Header().Get("Content-Encoding"); got != "" {
+		t.Errorf("operator file must be served uncompressed, got Content-Encoding=%q", got)
+	}
+	if got := w.Header().Get("ETag"); strings.HasPrefix(got, `"3.25.1`) {
+		t.Errorf("operator file must not carry the version ETag, got %q", got)
+	}
+}
+
+// An embedded css/js the operator did NOT override still gets compression + the
+// version ETag in overlay mode — the whole point of #128.
+func TestPrecompressedStatic_OverlayUnshadowedServesVariant(t *testing.T) {
+	embedded := fstest.MapFS{"css/main.css": {Data: []byte(bigCSS)}}
+	local := fstest.MapFS{"img/logo.svg": {Data: []byte("<svg/>")}} // overrides something else
+	r := newOverlayStaticRouter(embedded, local, "3.25.1")
+
+	w := req(r, http.MethodGet, "/static/css/main.css", map[string]string{"Accept-Encoding": "br"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("code=%d", w.Code)
+	}
+	if got := w.Header().Get("Content-Encoding"); got != "br" {
+		t.Errorf("unshadowed embedded css must stay brotli in overlay mode, got %q", got)
+	}
+	if got := w.Header().Get("ETag"); got != `"3.25.1-br"` {
+		t.Errorf("ETag=%q want version br ETag", got)
+	}
+	if got := unbrotli(t, w.Body.Bytes()); string(got) != bigCSS {
+		t.Error("served brotli variant does not decode to embedded css")
+	}
+}
+
+// The shadow check is per request, not a startup snapshot: an overlay file added
+// after the table is built is honored on the next hit.
+func TestPrecompressedStatic_OverlayLiveAddDetected(t *testing.T) {
+	const operatorCSS = "body{color:hotpink}"
+	embedded := fstest.MapFS{"css/main.css": {Data: []byte(bigCSS)}}
+	local := fstest.MapFS{} // empty at startup
+	r := newOverlayStaticRouter(embedded, local, "3.25.1")
+
+	if got := req(r, http.MethodGet, "/static/css/main.css",
+		map[string]string{"Accept-Encoding": "br"}).Header().Get("Content-Encoding"); got != "br" {
+		t.Fatalf("pre-add: want brotli variant, got %q", got)
+	}
+
+	local["css/main.css"] = &fstest.MapFile{Data: []byte(operatorCSS)} // operator adds override live
+
+	w := req(r, http.MethodGet, "/static/css/main.css", map[string]string{"Accept-Encoding": "br"})
+	if w.Body.String() != operatorCSS {
+		t.Errorf("post-add: live overlay not detected, got %q want operator bytes", w.Body.String())
+	}
+	if got := w.Header().Get("Content-Encoding"); got != "" {
+		t.Errorf("post-add: operator file must serve uncompressed, got %q", got)
+	}
+}
+
+// permErrFS returns a non-ENOENT error for every Open (simulates EACCES).
+type permErrFS struct{}
+
+func (permErrFS) Open(string) (http.File, error) { return nil, fs.ErrPermission }
+
+// A non-ENOENT overlay error counts as a claim: the handler must NOT serve the
+// embedded variant; it falls through so overlayFS.Open emits its single warning
+// and serves the embedded file uncompressed.
+func TestPrecompressedStatic_OverlayNonENOENTFallsThrough(t *testing.T) {
+	embedded := fstest.MapFS{"css/main.css": {Data: []byte(bigCSS)}}
+	table := buildPrecompressTable(embedded, "3.25.1", discardLogger())
+	overlay := newOverlayFS(permErrFS{}, http.FS(embedded), discardLogger())
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(middleware.SmartCacheHeaders())
+	g := r.Group("/static")
+	g.Use(precompressedStatic(table, overlay))
+	g.StaticFS("/", &gin.OnlyFilesFS{FileSystem: overlay})
+
+	w := req(r, http.MethodGet, "/static/css/main.css", map[string]string{"Accept-Encoding": "br"})
+	if got := w.Header().Get("Content-Encoding"); got != "" {
+		t.Errorf("non-ENOENT overlay error must fall through to uncompressed, got Content-Encoding=%q", got)
+	}
+	if w.Body.String() != bigCSS {
+		t.Error("expected embedded bytes served uncompressed on overlay read error")
 	}
 }

@@ -181,12 +181,23 @@ func logPrecompressSummary(logger *slog.Logger, table precompressTable) {
 // table, negotiated against Accept-Encoding, with a per-variant strong ETag and
 // 304 support. Requests for files not in the table (fonts, images, or a CSS/JS
 // file that failed precompute) fall through untouched to gin StaticFS.
-func precompressedStatic(table precompressTable) gin.HandlerFunc {
+//
+// overlay is the live *overlayFS when STATIC_PATH is active, else nil. When set,
+// a path the operator overlay claims is served from the operator's file (via the
+// StaticFS fall-through) rather than the embedded variant — the table holds only
+// embedded bytes, so serving a variant for a shadowed path would serve stale
+// content. The check is per request, mirroring overlayFS.Open, so an overlay
+// file added after startup is honored on the next hit. Unshadowed embedded
+// css/js still get full compression + the version ETag even in overlay mode.
+func precompressedStatic(table precompressTable, overlay *overlayFS) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		key := strings.TrimPrefix(c.Request.URL.Path, staticURLPrefix+"/")
 		a, ok := table[key]
 		if !ok {
 			return // not a precompressed asset — gin StaticFS handles it
+		}
+		if overlay != nil && overlay.localClaims("/"+key) {
+			return // operator overrides this path — StaticFS serves their file
 		}
 		v := negotiateVariant(a, c.GetHeader("Accept-Encoding"))
 

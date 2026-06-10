@@ -1,0 +1,7 @@
+Tracked dotfile fixture for web/embed_test.go (TestAssetsExcludeDotfiles).
+
+embed.go must use `//go:embed templates static` (NOT `all:`), so dot- and
+underscore-prefixed files are excluded from the binary. This file is committed
+so the test has a dotfile present even in a clean CI checkout (where .DS_Store
+is absent) — if someone restores the `all:` prefix, this file gets embedded and
+the test fails. Do not delete; the test asserts it exists on disk.
