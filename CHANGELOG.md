@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.27.0] - 2026-06-10
+
+### Fixed
+
+- The filter row on the home page no longer pushes the whole page sideways on
+  narrow phones — it wraps instead of overflowing.
+
+### Changed
+
+- Touch targets across the app are now comfortably sized on mobile. Buttons,
+  filters, tag links, and the appearance controls meet a 44px tap target, so
+  they're easier to hit on a phone. Reading text and inline links are unchanged.
+
 ## [3.26.0] - 2026-06-10
 
 ### Added
