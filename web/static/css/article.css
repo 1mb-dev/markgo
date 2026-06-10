@@ -144,8 +144,8 @@
    (set on <html> by data-font-size; see main.css). Every .article-content rule
    below references these tokens, so all reading text scales together from one
    place; chrome keeps the global :root tokens. At the default scale of 1 these
-   resolve to the original values exactly. em-based children inherit the scale.
-   Kept in sync with the :root font-size token list in main.css. */
+   resolve to the original values exactly. Covers the tokens reading content
+   actually uses (xs–3xl); add one here if prose starts using a larger token. */
 .article-content,
 .article-content-thought {
     --font-size-xs: calc(0.75rem * var(--reading-scale, 1));
