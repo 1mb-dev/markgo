@@ -47,6 +47,26 @@ func (o *overlayFS) Open(name string) (http.File, error) {
 	return o.embedded.Open(name)
 }
 
+// localClaims reports whether the operator overlay owns name — i.e. whether Open
+// would serve a local file (or fail with a non-ENOENT error) rather than fall
+// through to the embedded asset. precompressedStatic uses this to decide, before
+// serving, whether an embedded pre-compressed variant would shadow an operator
+// override; on a claim it defers to Open's serving path instead.
+//
+// Kept in lockstep with Open's local-first policy: same o.local, same error
+// classification (a non-ENOENT error counts as a claim so the operator's intent
+// to override wins and Open emits the single warning). This method does NOT log
+// — Open owns the one warning per failed read, so a claim followed by Open never
+// double-logs.
+func (o *overlayFS) localClaims(name string) bool {
+	f, err := o.local.Open(name)
+	if err == nil {
+		_ = f.Close()
+		return true
+	}
+	return !errors.Is(err, fs.ErrNotExist)
+}
+
 // serveSwJs serves sw.js with overlay precedence: an operator-supplied
 // <STATIC_PATH>/sw.js (localFS) wins as raw bytes; otherwise the embedded
 // copy with __MARKGO_CACHE_VERSION__ substituted at startup is served from

@@ -372,9 +372,10 @@ func registerGET(r gin.IRoutes, path string, handlerFuncs ...gin.HandlerFunc) {
 func mountStatic(router *gin.Engine, staticSub fs.FS, cfg *config.Config, logger *slog.Logger) {
 	embeddedFS := http.FS(staticSub)
 	staticFS := embeddedFS
-	overlayActive := dirExists(cfg.StaticPath)
-	if overlayActive {
-		staticFS = newOverlayFS(http.Dir(cfg.StaticPath), embeddedFS, logger)
+	var overlay *overlayFS // non-nil only when an operator overlay is active
+	if dirExists(cfg.StaticPath) {
+		overlay = newOverlayFS(http.Dir(cfg.StaticPath), embeddedFS, logger)
+		staticFS = overlay
 		logger.Info("Static overlay enabled", "local_path", cfg.StaticPath)
 	} else {
 		logger.Info("Using embedded static assets", "checked_path", cfg.StaticPath)
@@ -382,11 +383,13 @@ func mountStatic(router *gin.Engine, staticSub fs.FS, cfg *config.Config, logger
 
 	verifyFontPreloadResolves(staticFS, cfg.FontPreloadURL, logger)
 
+	// Precompression runs in both modes: in overlay mode the handler defers to
+	// the operator's file per shadowed path (overlay.localClaims), so embedded
+	// css/js the operator did NOT override still gets gzip/brotli + the version
+	// ETag instead of dropping the whole tree to uncompressed (#128).
+	table := buildPrecompressTable(staticSub, swCacheVersion(constants.AppVersion), logger)
 	staticGroup := router.Group(staticURLPrefix)
-	if !overlayActive {
-		table := buildPrecompressTable(staticSub, swCacheVersion(constants.AppVersion), logger)
-		staticGroup.Use(precompressedStatic(table))
-	}
+	staticGroup.Use(precompressedStatic(table, overlay))
 	staticGroup.StaticFS("/", &gin.OnlyFilesFS{FileSystem: staticFS})
 }
 
