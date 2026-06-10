@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.25.1] - 2026-06-10
+
+### Fixed
+
+- Pre-compression is no longer lost across the whole site when you override a
+  static asset. v3.25.0 disabled gzip/brotli for *every* embedded stylesheet and
+  script the moment `STATIC_PATH` overlaid any single file (a logo, a colour) —
+  so a bare-binary deployment that tweaks one asset silently went back to serving
+  the full uncompressed `main.css`. Compression is now decided per file: an asset
+  you override is served as-is, while everything you didn't override keeps its
+  compressed variants and revalidation. Overriding a file live (without a
+  restart) is still picked up on the next request.
+
+### Changed
+
+- Build hygiene: a stray local `.DS_Store` under `web/static` can no longer be
+  baked into a development build (release builds were never affected).
+
 ## [3.25.0] - 2026-06-10
 
 ### Added
