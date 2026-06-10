@@ -46,6 +46,25 @@ Nothing Playwright is committed; install it ad hoc if you want to automate.
       the toast does not auto-dismiss; the link opens the published post.
 - [ ] Save Draft: success toast has **no** "View post" link (drafts have no public URL).
 
+## Mobile-first (320px)
+
+Emulate iPhone-SE (320×568) and sweep every top-level page (`/`, `/writing`, an
+article, `/tags`, a tag detail, `/categories`, `/search`, a results page,
+`/about`, `/contact`):
+
+- [ ] **No page-level horizontal scroll** anywhere: `document.documentElement.scrollWidth ≤ clientWidth`. (The feed-filter row wraps; it must not scroll the page.)
+- [ ] **Primary controls are ≥44px** on the tap axis: nav-action buttons, feed
+      filters, tag-cloud items, page back-link, search-clear, feed-card
+      permalink, theme-popover segmented buttons (mode + text size), article pager.
+- [ ] **Dense secondary controls are ≥24px (AA)**: color swatches (24px visual,
+      ~44px vertical hit-area), metadata tag chips.
+- [ ] **Inline text links unchanged** (breadcrumbs, in-prose links, footer links —
+      WCAG 2.5.8 inline exception; do not force 44px).
+- [ ] Theme popover fits the viewport at 320px with all three sections.
+
+`/tmp/r4-accept/sweep.js` automates the overflow + tap-target measurement
+(session Playwright; not committed — see the note below).
+
 ## Guardrails (don't regress)
 
 - Editing the `<head>` FOUC inline script changes its CSP hash —

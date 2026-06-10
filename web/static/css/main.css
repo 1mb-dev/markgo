@@ -52,6 +52,14 @@
     --font-size-4xl: 2.25rem; /* 36px */
     --font-size-5xl: 3rem; /* 48px */
 
+    /* Touch targets (mobile-first). Primary nav/action controls meet --tap-target
+       (44px, WCAG 2.5.5 AAA / mobile comfort). Dense secondary controls (color
+       swatches, metadata tag chips) may use --tap-target-min (24px, WCAG 2.5.8
+       AA) with adequate separation. Inline text links are exempt (2.5.8 inline).
+       See docs/design-language.md. */
+    --tap-target: 2.75rem; /* 44px */
+    --tap-target-min: 1.5rem; /* 24px */
+
     /* Spacing */
     --spacing-1: 0.25rem; /* 4px */
     --spacing-2: 0.5rem; /* 8px */
@@ -621,8 +629,8 @@ html {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: var(--tap-target);
+    height: var(--tap-target);
     background: none;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
@@ -679,6 +687,7 @@ html {
     display: inline-flex;
     align-items: center;
     gap: var(--spacing-1);
+    min-block-size: var(--tap-target);
     color: var(--color-text-muted);
     text-decoration: none;
     font-size: var(--font-size-sm);
@@ -1183,6 +1192,10 @@ html {
 
 .theme-mode-btn {
     flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: var(--tap-target);
     padding: var(--spacing-1) var(--spacing-2);
     border: none;
     background: none;
@@ -1225,6 +1238,7 @@ html {
 }
 
 .color-swatch {
+    position: relative;
     width: 24px;
     height: 24px;
     border-radius: var(--radius-full);
@@ -1232,6 +1246,16 @@ html {
     cursor: pointer;
     padding: 0;
     transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+/* Vertical-only invisible hit-area: the swatch stays a dense 24px circle but is
+   comfortably tappable (24×44). Expanded on the block axis only — inline
+   expansion would overlap adjacent swatches in the tight row. */
+.color-swatch::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    inset-block: calc((100% - var(--tap-target)) / 2);
 }
 
 .color-swatch:hover {
