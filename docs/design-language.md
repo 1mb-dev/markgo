@@ -73,5 +73,6 @@ stays `rem`-based so browser zoom/font settings compose.
 |------|----------|-----------|
 | 2026-06-10 | `--tap-target` 44 / `--tap-target-min` 24 tokens; tiered standard | A 320px audit found ad-hoc tap sizing (24–40px) because no token existed; codify so it stops drifting. |
 | 2026-06-10 | Wrap `.feed-filters`, don't scroll-chip | Only page-overflow at 320px; wrap keeps all filters visible + honors no-custom-scrollbars. |
+| 2026-06-10 | Authed UI (compose/admin) tap-target adoption deferred | v3.27.0 hardened the audited public surfaces; compose/admin buttons (40px) adopt `--tap-target` in a later pass. |
 | 2026-06-09 | Reader font-size scales prose only (not root) | Root scaling would widen the rem-based 42rem measure; container token-redefine keeps the measure fixed. |
 | 2026-06-09 | `theme`/`colorTheme`/`fontSize` are bare localStorage keys | Read by the `<head>` FOUC script before modules load. |
