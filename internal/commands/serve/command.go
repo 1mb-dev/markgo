@@ -364,9 +364,11 @@ func registerGET(r gin.IRoutes, path string, handlerFuncs ...gin.HandlerFunc) {
 // mountStatic wires /static: the per-file STATIC_PATH overlay (operator files
 // take precedence, missing paths fall through to embedded), wrapped in
 // OnlyFilesFS to suppress directory listings. For embedded-only deployments it
-// also installs staticRevalidate so CSS/JS revalidate on a build-version ETag;
-// overlay deployments are skipped — an operator can change an overlay file
-// without a version bump, which the version ETag would then 304 stale forever.
+// also installs precompressedStatic, which serves gzip/brotli pre-encoded CSS/JS
+// (negotiated per request) and owns their build-version ETag revalidation;
+// overlay deployments are skipped — operator overlay files aren't known at
+// startup and an operator can change one without a version bump, which the
+// version ETag would then 304 stale forever (and the precompute can't see it).
 func mountStatic(router *gin.Engine, staticSub fs.FS, cfg *config.Config, logger *slog.Logger) {
 	embeddedFS := http.FS(staticSub)
 	staticFS := embeddedFS
@@ -380,9 +382,10 @@ func mountStatic(router *gin.Engine, staticSub fs.FS, cfg *config.Config, logger
 
 	verifyFontPreloadResolves(staticFS, cfg.FontPreloadURL, logger)
 
-	staticGroup := router.Group("/static")
+	staticGroup := router.Group(staticURLPrefix)
 	if !overlayActive {
-		staticGroup.Use(staticRevalidate(swCacheVersion(constants.AppVersion)))
+		table := buildPrecompressTable(staticSub, swCacheVersion(constants.AppVersion), logger)
+		staticGroup.Use(precompressedStatic(table))
 	}
 	staticGroup.StaticFS("/", &gin.OnlyFilesFS{FileSystem: staticFS})
 }
