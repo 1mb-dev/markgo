@@ -58,6 +58,19 @@ function createToast(message, type, options) {
     msg.textContent = message;
     el.appendChild(msg);
 
+    // Action link (optional) — a focusable affordance, e.g. "View post". The
+    // href drives navigation (SPA router intercepts same-origin links); clicking
+    // also dismisses the toast. When an action is present the toast defaults to
+    // no auto-dismiss (see duration below) so keyboard/AT users can reach it.
+    if (options.action && options.action.href && options.action.label) {
+        const action = document.createElement('a');
+        action.className = 'toast-action';
+        action.href = options.action.href;
+        action.textContent = options.action.label;
+        action.addEventListener('click', () => dismissToast(el));
+        el.appendChild(action);
+    }
+
     // Close button
     if (options.dismissible !== false) {
         const btn = document.createElement('button');
@@ -69,8 +82,9 @@ function createToast(message, type, options) {
         el.appendChild(btn);
     }
 
-    // Auto-dismiss timer
-    const duration = options.duration ?? DEFAULT_DURATION;
+    // Auto-dismiss timer. A toast with an action persists by default so the
+    // action stays reachable (WCAG 2.2.1) unless the caller sets a duration.
+    const duration = options.duration ?? (options.action ? 0 : DEFAULT_DURATION);
     if (duration > 0) {
         el._timer = setTimeout(() => dismissToast(el), duration);
     }
@@ -140,8 +154,10 @@ export function init() {
  * @param {string} message - Text to display
  * @param {'success'|'error'|'warning'|'info'} [type='info']
  * @param {Object} [options]
- * @param {number} [options.duration=5000] - Auto-dismiss ms (0 = manual only)
+ * @param {number} [options.duration=5000] - Auto-dismiss ms (0 = manual only;
+ *   defaults to 0 when options.action is set so the action stays reachable)
  * @param {boolean} [options.dismissible=true] - Show close button
+ * @param {{label: string, href: string}} [options.action] - Optional focusable link
  * @returns {{ dismiss: () => void }}
  */
 export function showToast(message, type = 'info', options = {}) {
