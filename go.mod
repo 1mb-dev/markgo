@@ -7,6 +7,7 @@ toolchain go1.26.4
 require (
 	github.com/1mb-dev/goflow v1.5.1
 	github.com/1mb-dev/obcache-go/v2 v2.0.2
+	github.com/andybalholm/brotli v1.2.1
 	github.com/dustin/go-humanize v1.0.1
 	github.com/gin-gonic/gin v1.12.0
 	github.com/joho/godotenv v1.5.1
