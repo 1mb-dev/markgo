@@ -70,6 +70,9 @@
 }
 
 .feed-tag {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--tap-target-min); /* dense metadata chip — 24px AA floor */
     font-size: var(--font-size-xs);
     color: var(--color-primary);
     text-decoration: none;
@@ -121,6 +124,7 @@
     display: inline-flex;
     align-items: center;
     gap: var(--spacing-1);
+    min-block-size: var(--tap-target);
     color: var(--color-text-muted);
     text-decoration: none;
     padding-block: var(--spacing-1);

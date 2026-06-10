@@ -51,7 +51,9 @@
 }
 
 .search-clear {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--tap-target);
     margin-top: var(--spacing-2);
     color: var(--color-text-muted);
     text-decoration: none;
