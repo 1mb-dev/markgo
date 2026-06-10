@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.25.0] - 2026-06-10
+
+### Added
+
+- The binary now serves its own pre-compressed CSS and JS. At startup it gzip-
+  and brotli-compresses the embedded stylesheets and scripts once, then serves
+  the best variant your browser accepts — so a first visit (or any cold cache)
+  downloads far less: the main stylesheet drops from 35 KB to about 6 KB over
+  brotli. This needs no compressing reverse proxy in front, so a bare-binary
+  deployment gets the same transfer savings a proxied one would. Each encoding
+  carries its own validator, so revalidation stays correct across the compressed
+  and uncompressed forms. Deployments that override static assets via
+  `STATIC_PATH` are unchanged (those files are served as-is), and HTML
+  compression remains the proxy's job.
+
 ## [3.24.1] - 2026-06-09
 
 ### Fixed
