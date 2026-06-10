@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.26.0] - 2026-06-10
+
+### Added
+
+- Reader text-size control. The theme popover now has a Small / Medium / Large
+  switch that scales the article reading text (not the page chrome, and the line
+  width stays fixed). Your choice is remembered and applied before the page
+  paints, so there's no flash of the old size on reload. It layers on top of
+  your browser's own zoom and font settings rather than replacing them.
+- A "View post →" link on the success message after you publish, so you can jump
+  straight to the live post.
+
+### Fixed
+
+- The offline indicator now appears when you open the app while already offline,
+  not only when the connection drops mid-session.
+
 ## [3.25.1] - 2026-06-10
 
 ### Fixed
