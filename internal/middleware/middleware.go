@@ -27,7 +27,7 @@ import (
 // external file without reintroducing the flash. The hash is locked by
 // TestSecurity_FOUCScriptHashMatches; editing the inline script without
 // updating this constant fails the test before reaching users' browsers.
-const foucScriptHash = "sha256-0pz7XU3iscvI1rWHhJ8OyLJ4xXNoivNIt1N5xpF6GUg="
+const foucScriptHash = "sha256-a5WrXwKmbsymAk3URteorxaIUb1TkQMRH7x8FSsnOt8="
 
 // cspPolicy is the Content-Security-Policy emitted by Security(). Keep
 // directives alphabetically ordered to make diffs reviewable.

@@ -73,8 +73,43 @@ function updateSwatchActive(container, preset) {
 // ---------------------------------------------------------------------------
 
 function updateModeActive(container, mode) {
-    container.querySelectorAll('.theme-mode-btn').forEach((btn) => {
+    container.querySelectorAll('.theme-mode-btn[data-mode]').forEach((btn) => {
         const isActive = btn.dataset.mode === (mode || 'auto');
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-checked', isActive);
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Reader font-size — scales prose only via data-font-size on <html> (see
+// main.css --reading-scale + article.css). "m" is the default, stored as the
+// absence of the attribute so the calc() fallback of 1 keeps prose untouched.
+// The bare "fontSize" key matches theme/colorTheme so the FOUC inline script can
+// apply it before render. Apply-on-click only (no hover preview — reflow jars);
+// the role=radio aria-checked toggle is the screen-reader announcement.
+// ---------------------------------------------------------------------------
+
+function applyFontSize(size) {
+    const html = document.documentElement;
+    if (size === 's' || size === 'l') {
+        html.setAttribute('data-font-size', size);
+    } else {
+        html.removeAttribute('data-font-size');
+    }
+}
+
+function setFontSize(size) {
+    applyFontSize(size);
+    try { localStorage.setItem('fontSize', size || 'm'); } catch (e) { /* ignore */ }
+}
+
+function persistedFontSize() {
+    try { return localStorage.getItem('fontSize') || 'm'; } catch (e) { return 'm'; }
+}
+
+function updateFontSizeActive(container, size) {
+    container.querySelectorAll('.font-size-btn').forEach((btn) => {
+        const isActive = btn.dataset.size === (size || 'm');
         btn.classList.toggle('active', isActive);
         btn.setAttribute('aria-checked', isActive);
     });
@@ -99,9 +134,14 @@ export function init() {
         try { savedColor = localStorage.getItem('colorTheme') || 'default'; } catch (e) { /* ignore */ }
         setColorTheme(savedColor);
 
+        // Restore saved reader font-size (FOUC script already applied s/l)
+        const savedFontSize = persistedFontSize();
+        applyFontSize(savedFontSize);
+
         // Set initial active states
         updateModeActive(popover, savedMode || 'auto');
         updateSwatchActive(popover, savedColor);
+        updateFontSizeActive(popover, savedFontSize);
 
         // Popover toggle
         function openPopover() {
@@ -171,9 +211,18 @@ export function init() {
             }
         });
 
-        // Mode selection
+        // Mode / font-size / color selection
         popover.addEventListener('click', (e) => {
-            const modeBtn = e.target.closest('.theme-mode-btn');
+            // Font-size buttons share .theme-mode-btn styling — match them first
+            // by .font-size-btn so the mode handler ([data-mode]) never sees them.
+            const fontBtn = e.target.closest('.font-size-btn');
+            if (fontBtn) {
+                setFontSize(fontBtn.dataset.size);
+                updateFontSizeActive(popover, fontBtn.dataset.size);
+                return;
+            }
+
+            const modeBtn = e.target.closest('.theme-mode-btn[data-mode]');
             if (modeBtn) {
                 const mode = modeBtn.dataset.mode;
                 if (mode === 'auto') {

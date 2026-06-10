@@ -132,8 +132,29 @@
 
 /* Article Content */
 .article-content {
+    /* Explicit base so body paragraphs (which don't set their own font-size)
+       inherit the reader-scaled token below, not the global one. At scale 1 this
+       resolves to the same 1rem as before. */
+    font-size: var(--font-size-base);
     line-height: 1.8;
     margin-bottom: var(--spacing-6);
+}
+
+/* Reader font-size — redefine the prose font tokens scaled by --reading-scale
+   (set on <html> by data-font-size; see main.css). Every .article-content rule
+   below references these tokens, so all reading text scales together from one
+   place; chrome keeps the global :root tokens. At the default scale of 1 these
+   resolve to the original values exactly. em-based children inherit the scale.
+   Kept in sync with the :root font-size token list in main.css. */
+.article-content,
+.article-content-thought {
+    --font-size-xs: calc(0.75rem * var(--reading-scale, 1));
+    --font-size-sm: calc(0.875rem * var(--reading-scale, 1));
+    --font-size-base: calc(1rem * var(--reading-scale, 1));
+    --font-size-lg: calc(1.125rem * var(--reading-scale, 1));
+    --font-size-xl: calc(1.25rem * var(--reading-scale, 1));
+    --font-size-2xl: calc(1.5rem * var(--reading-scale, 1));
+    --font-size-3xl: calc(1.875rem * var(--reading-scale, 1));
 }
 
 .article-content h1,

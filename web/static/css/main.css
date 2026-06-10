@@ -120,6 +120,14 @@
     --max-content-width: 42rem;
 }
 
+/* Reader font-size presets — data-font-size on <html>, set by the FOUC inline
+   script before render (bare localStorage key "fontSize"). Only --reading-scale
+   is exposed; article.css multiplies the prose font tokens by it, so chrome and
+   the 42rem measure are untouched. "m" (and unset) leaves it at the calc()
+   fallback of 1, pixel-identical to before. */
+:root[data-font-size="s"] { --reading-scale: 0.9; }
+:root[data-font-size="l"] { --reading-scale: 1.15; }
+
 /* Dark mode variables — system preference (auto)
    Theme files set --theme-* dark overrides; main.css provides fallbacks.
    --color-primary lifted to blue-400 (#60a5fa) so links hit WCAG AA 4.5:1
@@ -1200,6 +1208,14 @@ html {
     color: var(--color-text-primary);
     box-shadow: var(--shadow-sm);
 }
+
+/* Reader text-size control reuses the segmented .theme-mode-group/.theme-mode-btn.
+   The data-size variants size the "A" glyph as a visual affordance; the
+   accessible name comes from each button's aria-label. These live in chrome (not
+   .article-content), so --reading-scale never applies — the control stays fixed. */
+.font-size-btn[data-size="s"] { font-size: var(--font-size-xs); }
+.font-size-btn[data-size="m"] { font-size: var(--font-size-base); }
+.font-size-btn[data-size="l"] { font-size: var(--font-size-xl); }
 
 /* Color swatches */
 .theme-color-group {

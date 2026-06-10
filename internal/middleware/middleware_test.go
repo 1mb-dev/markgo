@@ -527,7 +527,7 @@ func TestSecurity(t *testing.T) {
 	assert.Equal(t, "strict-origin-when-cross-origin", w.Header().Get("Referrer-Policy"))
 	assert.Equal(t, "max-age=31536000; includeSubDomains", w.Header().Get("Strict-Transport-Security"))
 	assert.Contains(t, w.Header().Get("Content-Security-Policy"), "default-src 'self'")
-	assert.Contains(t, w.Header().Get("Content-Security-Policy"), "'sha256-0pz7XU3iscvI1rWHhJ8OyLJ4xXNoivNIt1N5xpF6GUg='")
+	assert.Contains(t, w.Header().Get("Content-Security-Policy"), "'sha256-a5WrXwKmbsymAk3URteorxaIUb1TkQMRH7x8FSsnOt8='")
 	assert.Contains(t, w.Header().Get("Permissions-Policy"), "interest-cohort=()")
 	assert.Empty(t, w.Header().Get("X-XSS-Protection"), "X-XSS-Protection is deprecated and must not be emitted")
 }
