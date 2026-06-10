@@ -16,9 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Touch targets across the app are now comfortably sized on mobile. Buttons,
-  filters, tag links, and the appearance controls meet a 44px tap target, so
-  they're easier to hit on a phone. Reading text and inline links are unchanged.
+- Touch targets across the app are now comfortably sized on mobile — buttons,
+  filters, tag and appearance controls are easier to hit on a phone. Reading
+  text and inline links are unchanged.
 
 ## [3.26.0] - 2026-06-10
 
