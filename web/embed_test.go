@@ -2,15 +2,30 @@ package web
 
 import (
 	"io/fs"
+	"os"
 	"strings"
 	"testing"
 )
 
-// TestAssetsExcludeDotfiles guards the embed directive: it must not use the
-// `all:` form, which would bake dot-prefixed cruft (notably a local .DS_Store
-// under web/static) into dev builds. A real asset is also asserted present so a
-// pattern typo that embeds nothing is caught too.
+// embedProbe is a tracked dotfile that must stay excluded from the embed. It
+// makes this test bite in a clean CI checkout, where .DS_Store is absent: without
+// a committed dotfile, a restored `all:` prefix would embed nothing to catch and
+// the test would pass vacuously.
+const embedProbe = "static/.embed-probe"
+
+// TestAssetsExcludeDotfiles guards the embed directive against the `all:` form,
+// which would bake dot/underscore-prefixed cruft (a local .DS_Store, editor
+// swap files) into the binary. It asserts the probe is present on disk (so the
+// guard can't be silently defanged by deleting it), absent from the embed, and
+// that a real asset is embedded (catching a pattern typo that embeds nothing).
 func TestAssetsExcludeDotfiles(t *testing.T) {
+	if _, err := os.Stat(embedProbe); err != nil {
+		t.Fatalf("embed probe %s missing on disk — re-create it (see web/embed.go): %v", embedProbe, err)
+	}
+	if _, err := fs.Stat(Assets, embedProbe); err == nil {
+		t.Errorf("%s is embedded — embed.go must exclude dotfiles (drop the all: prefix)", embedProbe)
+	}
+
 	var sawRealAsset bool
 	err := fs.WalkDir(Assets, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

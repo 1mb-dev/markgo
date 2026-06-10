@@ -34,6 +34,9 @@ func newOverlayFS(local, embedded http.FileSystem, logger *slog.Logger) *overlay
 }
 
 // Open returns the local file if present, otherwise the embedded file.
+//
+// localClaims mirrors this local-first decision (file present, or non-ENOENT
+// error → operator owns the path); keep the two in sync if this policy changes.
 func (o *overlayFS) Open(name string) (http.File, error) {
 	f, err := o.local.Open(name)
 	if err == nil {
