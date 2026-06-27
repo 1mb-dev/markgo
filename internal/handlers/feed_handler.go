@@ -29,7 +29,7 @@ var feedTypeDisplayNames = map[string]string{
 	"ama":     "AMA",
 }
 
-// isValidFeedType reports whether t is a recognised feed type filter value.
+// isValidFeedType reports whether t is a recognized feed type filter value.
 // Empty string is valid (represents the unfiltered All view).
 func isValidFeedType(t string) bool {
 	return t == "" || feedVisibleTypes[t]
