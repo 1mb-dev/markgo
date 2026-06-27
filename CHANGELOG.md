@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.29.0] - 2026-06-27
+
+### Added
+
+- Footer nav is now two rows: content discovery (Home, Writing, Tags, Categories,
+  Pages) above author/connection (About, Subscribe). Home link resolves #137.
+
+## [3.28.0] - 2026-06-27
+
+### Added
+
+- Clean type routes — `/thought`, `/link`, `/article`, `/ama` as first-class
+  paths. Filter pills and pagination emit these URLs instead of `/?type=X`.
+
 ## [3.27.0] - 2026-06-10
 
 ### Fixed
