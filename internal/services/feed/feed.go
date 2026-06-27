@@ -159,6 +159,10 @@ func (s *Service) GenerateSitemap() (string, error) {
 		{Loc: s.config.BaseURL + "/categories", ChangeFreq: "weekly", Priority: 0.6},
 		{Loc: s.config.BaseURL + "/about", ChangeFreq: "yearly", Priority: 0.5},
 		{Loc: s.config.BaseURL + "/p", ChangeFreq: "monthly", Priority: 0.5},
+		{Loc: s.config.BaseURL + "/thought", ChangeFreq: "weekly", Priority: 0.6},
+		{Loc: s.config.BaseURL + "/link", ChangeFreq: "weekly", Priority: 0.6},
+		{Loc: s.config.BaseURL + "/article", ChangeFreq: "weekly", Priority: 0.6},
+		{Loc: s.config.BaseURL + "/ama", ChangeFreq: "weekly", Priority: 0.6},
 	}
 
 	// Accumulate taxonomy terms from the same published articles we emit, so the

@@ -610,7 +610,9 @@ func TestHomePageAMAFilter(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest("GET", "/?type=ama", http.NoBody))
-	assert.Equal(t, http.StatusOK, w.Code)
+	// Query-param form redirects to clean canonical path.
+	assert.Equal(t, http.StatusMovedPermanently, w.Code)
+	assert.Equal(t, "/ama", w.Header().Get("Location"))
 }
 
 func TestHomePageInvalidFilter(t *testing.T) {

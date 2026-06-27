@@ -512,6 +512,10 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 
 	// Public routes
 	registerGET(router, "/", h.Feed.Home)
+	registerGET(router, "/thought", h.Feed.Type)
+	registerGET(router, "/link", h.Feed.Type)
+	registerGET(router, "/article", h.Feed.Type)
+	registerGET(router, "/ama", h.Feed.Type)
 	registerGET(router, "/writing", h.Post.Articles)
 	registerGET(router, "/writing/:slug", h.Post.Article)
 	registerGET(router, "/p", h.Post.Pages)
