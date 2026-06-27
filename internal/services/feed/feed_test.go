@@ -190,6 +190,10 @@ func TestGenerateSitemap(t *testing.T) {
 	assert.Contains(t, sitemap, "http://localhost:3000/writing/second-post")
 	assert.Contains(t, sitemap, "http://localhost:3000/about", "static /about entry")
 	assert.Contains(t, sitemap, "http://localhost:3000/p", "static /p index entry")
+	assert.Contains(t, sitemap, "http://localhost:3000/thought", "static /thought entry")
+	assert.Contains(t, sitemap, "http://localhost:3000/link", "static /link entry")
+	assert.Contains(t, sitemap, "http://localhost:3000/article", "static /article entry")
+	assert.Contains(t, sitemap, "http://localhost:3000/ama", "static /ama entry")
 	assert.NotContains(t, sitemap, "draft")
 
 	// testArticles' tags are all single-use → excluded by the ≥2-article gate.
@@ -199,8 +203,9 @@ func TestGenerateSitemap(t *testing.T) {
 	var sm models.Sitemap
 	xmlContent := strings.TrimPrefix(sitemap, `<?xml version="1.0" encoding="UTF-8"?>`+"\n")
 	require.NoError(t, xml.Unmarshal([]byte(xmlContent), &sm))
-	// 6 static + 2 published articles; no term pages (all tags single-use) = 8.
-	assert.Equal(t, 8, len(sm.URLs))
+	// 6 static + 4 type-page static + 2 published articles; no term
+	// pages (all tags single-use) = 12.
+	assert.Equal(t, 12, len(sm.URLs))
 
 	byLoc := map[string]models.SitemapURL{}
 	for _, u := range sm.URLs {
