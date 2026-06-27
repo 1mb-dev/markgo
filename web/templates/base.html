@@ -463,12 +463,17 @@
     <footer class="site-footer">
         <div class="container">
             <nav class="footer-nav" aria-label="Footer navigation">
-                <a href="/feed.xml" class="footer-link footer-subscribe">Subscribe</a>
-                <a href="/tags" class="footer-link">Tags</a>
-                <a href="/categories" class="footer-link">Categories</a>
-                <a href="/p" class="footer-link">Pages</a>
-                <a href="/about" class="footer-link">About</a>
-                <a href="/writing" class="footer-link">Writing</a>
+                <div class="footer-nav-row">
+                    <a href="/" class="footer-link">Home</a>
+                    <a href="/writing" class="footer-link">Writing</a>
+                    <a href="/tags" class="footer-link">Tags</a>
+                    <a href="/categories" class="footer-link">Categories</a>
+                    <a href="/p" class="footer-link">Pages</a>
+                </div>
+                <div class="footer-nav-row">
+                    <a href="/about" class="footer-link">About</a>
+                    <a href="/feed.xml" class="footer-link footer-subscribe">Subscribe</a>
+                </div>
             </nav>
             <p class="footer-colophon">
                 &copy; {{ now.Year }} {{ .config.Blog.Author }} · Written in Markdown, published with <a href="https://github.com/1mb-dev/markgo" target="_blank" rel="noopener">MarkGo</a> · <span class="footer-version">{{ .app_version }}</span>

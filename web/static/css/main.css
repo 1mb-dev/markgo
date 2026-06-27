@@ -859,11 +859,18 @@ html {
 }
 
 .footer-nav {
+    margin-bottom: var(--spacing-4);
+}
+
+.footer-nav-row {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: var(--spacing-2) var(--spacing-4);
-    margin-bottom: var(--spacing-4);
+}
+
+.footer-nav-row + .footer-nav-row {
+    margin-top: var(--spacing-2);
 }
 
 .footer-link {

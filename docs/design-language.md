@@ -76,3 +76,4 @@ stays `rem`-based so browser zoom/font settings compose.
 | 2026-06-10 | Authed UI (compose/admin) tap-target adoption deferred | v3.27.0 hardened the audited public surfaces; compose/admin buttons (40px) adopt `--tap-target` in a later pass. |
 | 2026-06-09 | Reader font-size scales prose only (not root) | Root scaling would widen the rem-based 42rem measure; container token-redefine keeps the measure fixed. |
 | 2026-06-09 | `theme`/`colorTheme`/`fontSize` are bare localStorage keys | Read by the `<head>` FOUC script before modules load. |
+| 2026-06-27 | Footer nav: two rows, content/connect split | Row 1 (content discovery): Home, Writing, Tags, Categories, Pages. Row 2 (author/connection): About, Subscribe. Readers at the bottom scan for "more to read?" or "who is this?" — two rows create a binary choice cheaper than scanning 7 undifferentiated links. Social links deferred; Row 2 accommodates them later. |
