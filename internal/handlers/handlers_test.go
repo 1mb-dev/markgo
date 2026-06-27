@@ -528,3 +528,63 @@ func TestHealth_Unhealthy_Returns503(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "unhealthy", svcStatus["articles"])
 }
+
+// TestTypeRoutes verifies that every feed-visible type surface at its clean
+// path returns 200, and that an unknown path returns 404.
+func TestTypeRoutes(t *testing.T) {
+	cfg := createTestConfig()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	seoMock := &MockSEOService{}
+	base := NewBaseHandler(cfg, logger, &MockTemplateService{}, &BuildInfo{Version: "test"}, seoMock)
+	handler := NewFeedHandler(base, &MockArticleService{})
+
+	router := gin.New()
+	for _, typ := range []string{"thought", "link", "article", "ama"} {
+		router.GET("/"+typ, handler.Type)
+	}
+
+	for _, typ := range []string{"thought", "link", "article", "ama"} {
+		req := httptest.NewRequest("GET", "/"+typ, http.NoBody)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code, "route /%s should return 200", typ)
+	}
+
+	// Unknown type returns 404.
+	req := httptest.NewRequest("GET", "/bogus", http.NoBody)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusNotFound, w.Code, "unknown type should return 404")
+}
+
+// TestHomeTypeRedirect verifies that GET /?type=X 301-redirects to the clean
+// path, preserving non-type query params.
+func TestHomeTypeRedirect(t *testing.T) {
+	cfg := createTestConfig()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	seoMock := &MockSEOService{}
+	base := NewBaseHandler(cfg, logger, &MockTemplateService{}, &BuildInfo{Version: "test"}, seoMock)
+	handler := NewFeedHandler(base, &MockArticleService{})
+
+	router := gin.New()
+	router.GET("/", handler.Home)
+
+	tests := []struct {
+		name    string
+		path    string
+		wantLoc string
+	}{
+		{"bare type", "/?type=thought", "/thought"},
+		{"type with page", "/?type=thought&page=2", "/thought?page=2"},
+		{"type with unrelated param", "/?type=link&foo=bar", "/link?foo=bar"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tc.path, http.NoBody)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusMovedPermanently, w.Code)
+			assert.Equal(t, tc.wantLoc, w.Header().Get("Location"))
+		})
+	}
+}

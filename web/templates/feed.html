@@ -3,7 +3,7 @@
     <div class="container">
         <!-- Feed Header -->
         <header class="feed-header">
-            <h1 class="sr-only">{{ .config.Blog.Title }} — Feed</h1>
+            <h1 class="sr-only">{{ if .feedPath }}{{ .title }}{{ else }}{{ .config.Blog.Title }} — Feed{{ end }}</h1>
             {{ if .config.Blog.Tagline }}
             <p class="feed-tagline">{{ .config.Blog.Tagline }}</p>
             {{ else if .config.Blog.Description }}
@@ -14,10 +14,10 @@
         <!-- Feed Type Filters -->
         <nav class="feed-filters" aria-label="Filter by type">
             <a href="/" class="feed-filter{{ if eq .activeFilter "" }} active{{ end }}">All</a>
-            <a href="/?type=thought" class="feed-filter{{ if eq .activeFilter "thought" }} active{{ end }}">Thoughts</a>
-            <a href="/?type=link" class="feed-filter{{ if eq .activeFilter "link" }} active{{ end }}">Links</a>
-            <a href="/?type=article" class="feed-filter{{ if eq .activeFilter "article" }} active{{ end }}">Articles</a>
-            <a href="/?type=ama" class="feed-filter{{ if eq .activeFilter "ama" }} active{{ end }}">AMA</a>
+            <a href="/thought" class="feed-filter{{ if eq .activeFilter "thought" }} active{{ end }}">Thoughts</a>
+            <a href="/link" class="feed-filter{{ if eq .activeFilter "link" }} active{{ end }}">Links</a>
+            <a href="/article" class="feed-filter{{ if eq .activeFilter "article" }} active{{ end }}">Articles</a>
+            <a href="/ama" class="feed-filter{{ if eq .activeFilter "ama" }} active{{ end }}">AMA</a>
         </nav>
 
         <!-- Feed Stream -->
@@ -40,15 +40,15 @@
         <!-- Pagination -->
         {{ if .pagination }}
         {{ $p := .pagination }}
-        {{ $f := .activeFilter }}
+        {{ $fp := .feedPath }}
         {{ if or $p.HasPrevious $p.HasNext }}
         <nav class="simple-pagination" aria-label="Feed pagination">
             {{ if $p.HasPrevious }}
-            <a href="/?page={{ $p.PreviousPage }}{{ if $f }}&type={{ $f | urlquery }}{{ end }}" class="simple-pagination-link">← Newer</a>
+            <a href="{{ if $fp }}{{ $fp }}{{ else }}/{{ end }}?page={{ $p.PreviousPage }}" class="simple-pagination-link">← Newer</a>
             {{ end }}
             <span class="pagination-info">Page {{ $p.CurrentPage }} of {{ $p.TotalPages }}</span>
             {{ if $p.HasNext }}
-            <a href="/?page={{ $p.NextPage }}{{ if $f }}&type={{ $f | urlquery }}{{ end }}" class="simple-pagination-link">Older →</a>
+            <a href="{{ if $fp }}{{ $fp }}{{ else }}/{{ end }}?page={{ $p.NextPage }}" class="simple-pagination-link">Older →</a>
             {{ end }}
         </nav>
         {{ end }}
