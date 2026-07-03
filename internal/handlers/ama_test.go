@@ -357,6 +357,28 @@ func TestAMAAnswer(t *testing.T) {
 		assert.False(t, input.Draft)
 		assert.Contains(t, input.Content, "Go, because it's simple and powerful.")
 	})
+
+	t.Run("oversized body returns 413", func(t *testing.T) {
+		dir := t.TempDir()
+		cfg := createTestConfig()
+		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		base := NewBaseHandler(cfg, logger, &MockTemplateService{}, &BuildInfo{Version: "test"}, &MockSEOService{})
+
+		composeService := compose.NewService(dir, "Test Author")
+		handler := NewAMAHandler(base, composeService, &AMAArticleService{})
+
+		router := gin.New()
+		router.POST("/admin/ama/:slug/answer", handler.Answer)
+
+		largeBody := `{"answer": "` + strings.Repeat("x", 128<<10) + `"}`
+		req := httptest.NewRequest("POST", "/admin/ama/healthy-slug/answer", bytes.NewBufferString(largeBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+	})
 }
 
 func TestAMAAnswer_NotFound(t *testing.T) {

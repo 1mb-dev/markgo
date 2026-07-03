@@ -1952,3 +1952,56 @@ func TestHandleSubmit_PageMode(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }
+
+// Regression test: oversized compose submission body is rejected.
+func TestHandleSubmit_OversizedBody(t *testing.T) {
+	handler, _ := createFormComposeHandler(t)
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("csrf_secure", false)
+		c.Next()
+	})
+	router.POST("/compose", handler.HandleSubmit)
+
+	largeContent := strings.Repeat("x", 2<<20) // 2MB, exceeds 1MB limit
+	form := url.Values{
+		"content": {largeContent},
+		"title":   {"Test"},
+		"_csrf":   {"test-token"},
+	}
+	req := httptest.NewRequest("POST", "/compose", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+}
+
+// Regression test: oversized compose edit body is rejected.
+func TestHandleEdit_OversizedBody(t *testing.T) {
+	handler, tmpDir := createFormComposeHandler(t)
+	writeDraftArticle(t, tmpDir, "existing-post", false)
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("csrf_secure", false)
+		c.Next()
+	})
+	router.POST("/compose/edit/:slug", handler.HandleEdit)
+
+	largeContent := strings.Repeat("x", 2<<20) // 2MB, exceeds 1MB limit
+	form := url.Values{
+		"content": {largeContent},
+		"title":   {"Updated Title"},
+		"_csrf":   {"test-token"},
+	}
+	req := httptest.NewRequest("POST", "/compose/edit/existing-post", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+}
