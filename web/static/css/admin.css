@@ -79,7 +79,7 @@ a.admin-stat-link:hover {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 40px;
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-4);
     border-radius: var(--radius-base);
     font-size: var(--font-size-sm);
@@ -189,7 +189,7 @@ a.admin-stat-link:hover {
 }
 
 .draft-publish-btn {
-    min-height: 40px;
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-3);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-sm);

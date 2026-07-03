@@ -123,6 +123,7 @@
 }
 
 .login-popover-input {
+    min-block-size: var(--tap-target);
     width: 100%;
     padding: var(--spacing-2) var(--spacing-3);
     font-size: var(--font-size-sm);
@@ -143,6 +144,7 @@
 }
 
 .login-popover-submit {
+    min-block-size: var(--tap-target);
     width: 100%;
     padding: var(--spacing-2) var(--spacing-3);
     font-size: var(--font-size-sm);
@@ -233,7 +235,9 @@
 }
 
 .admin-popover-link {
-    display: block;
+    display: flex;
+    align-items: center;
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-4);
     font-size: var(--font-size-sm);
     color: var(--color-text-primary);

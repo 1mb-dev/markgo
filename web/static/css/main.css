@@ -314,6 +314,7 @@ pre code {
     position: absolute;
     top: var(--spacing-2);
     right: var(--spacing-2);
+    min-block-size: var(--tap-target-min);
     padding: var(--spacing-1) var(--spacing-2);
     background: var(--color-bg-secondary);
     color: var(--color-text-secondary);
@@ -454,6 +455,28 @@ hr {
     border: none;
     height: 1px;
     background-color: var(--color-border);
+}
+
+/* Shared sheet close button — used by compose-sheet and ama-sheet overlays */
+.sheet-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--tap-target);
+    height: var(--tap-target);
+    background: none;
+    border: none;
+    font-size: var(--font-size-xl);
+    line-height: 1;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 0;
+    border-radius: var(--radius-base);
+}
+
+.sheet-close:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-tertiary);
 }
 
 /* ==========================================================================
@@ -723,6 +746,9 @@ html {
 }
 
 .simple-pagination a {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--tap-target);
     color: var(--color-primary);
     text-decoration: none;
     font-weight: 500;
@@ -779,6 +805,7 @@ html {
 .tag,
 .category {
     display: inline-block;
+    min-block-size: var(--tap-target-min);
     padding: var(--spacing-1) var(--spacing-3);
     background-color: var(--color-bg-tertiary);
     color: var(--color-text-primary);
@@ -811,6 +838,7 @@ html {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-block-size: var(--tap-target);
     padding: var(--spacing-3) var(--spacing-6);
     border-radius: var(--radius-lg);
     font-weight: 500;
@@ -1409,6 +1437,7 @@ html {
 }
 
 .install-banner-btn {
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-4);
     background: var(--color-primary);
     color: var(--color-text-inverse);
@@ -1421,6 +1450,7 @@ html {
 }
 
 .install-banner-dismiss {
+    min-block-size: var(--tap-target-min);
     padding: var(--spacing-1);
     background: none;
     border: none;

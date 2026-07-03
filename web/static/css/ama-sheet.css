@@ -59,26 +59,7 @@
     color: var(--color-text-primary);
 }
 
-.ama-sheet-close {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    background: none;
-    border: none;
-    font-size: var(--font-size-xl);
-    line-height: 1;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    padding: 0;
-    border-radius: var(--radius-base);
-}
-
-.ama-sheet-close:hover {
-    color: var(--color-text-primary);
-    background: var(--color-bg-tertiary);
-}
+/* Close button styling — see main.css .sheet-close */
 
 /* --------------------------------------------------------------------------
    Intro paragraph (operator-overridable via AMA_PAGE_INTRO)

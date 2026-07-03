@@ -108,6 +108,7 @@
 }
 
 .ama-publish-btn {
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-4);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-sm);
@@ -130,6 +131,7 @@
 }
 
 .ama-delete-btn {
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-4);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-sm);

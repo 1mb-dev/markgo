@@ -62,7 +62,7 @@ function buildOverlay() {
     heading.textContent = copy.heading;
 
     const closeBtn = document.createElement('button');
-    closeBtn.className = 'ama-sheet-close';
+    closeBtn.className = 'sheet-close';
     closeBtn.setAttribute('aria-label', 'Close');
     closeBtn.textContent = '\u00D7';
     closeBtn.addEventListener('click', close);

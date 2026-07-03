@@ -58,26 +58,7 @@
     color: var(--color-text-primary);
 }
 
-.compose-sheet-close {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    background: none;
-    border: none;
-    font-size: var(--font-size-xl);
-    line-height: 1;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    padding: 0;
-    border-radius: var(--radius-base);
-}
-
-.compose-sheet-close:hover {
-    color: var(--color-text-primary);
-    background: var(--color-bg-tertiary);
-}
+/* Close button styling — see main.css .sheet-close */
 
 /* --------------------------------------------------------------------------
    Title toggle + input
@@ -88,6 +69,7 @@
 }
 
 .compose-sheet-title-toggle {
+    min-block-size: var(--tap-target-min);
     background: none;
     border: none;
     font-size: var(--font-size-sm);
@@ -232,6 +214,7 @@
 }
 
 .compose-sheet-save-draft {
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-5);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-sm);
@@ -256,6 +239,7 @@
 }
 
 .compose-sheet-publish-link {
+    min-block-size: var(--tap-target-min);
     padding: var(--spacing-1) var(--spacing-2);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-xs);

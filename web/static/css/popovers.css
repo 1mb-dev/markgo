@@ -35,6 +35,7 @@
 
 .search-popover-input {
     flex: 1;
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-3);
     font-size: var(--font-size-sm);
     font-family: var(--font-family-sans);
@@ -108,6 +109,7 @@
 .subscribe-popover-btn {
     display: flex;
     align-items: center;
+    min-block-size: var(--tap-target-min);
     gap: var(--spacing-3);
     width: 100%;
     padding: var(--spacing-2) var(--spacing-4);

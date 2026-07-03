@@ -137,6 +137,7 @@
 }
 
 .compose-submit {
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-6);
     background-color: var(--color-primary);
     color: var(--color-text-inverse);
@@ -163,6 +164,7 @@
 }
 
 .compose-submit-secondary {
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-6);
     background-color: transparent;
     color: var(--color-text-secondary);
@@ -200,6 +202,7 @@
 }
 
 .compose-preview-btn {
+    min-block-size: var(--tap-target-min);
     padding: var(--spacing-1) var(--spacing-3);
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
@@ -242,7 +245,7 @@
 
 /* Upload Controls */
 .compose-upload-btn {
-    min-height: 40px;
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-3);
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
@@ -298,7 +301,7 @@
 
 .compose-banner-upload-btn,
 .compose-banner-remove-btn {
-    min-height: 40px;
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-3);
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
