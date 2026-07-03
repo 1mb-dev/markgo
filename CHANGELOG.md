@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.30.0] - 2026-07-03
+
+### Fixed
+
+- All interactive elements on authed surfaces (compose, admin, drafts, AMA) and
+  six missed public surfaces now use the `--tap-target` (44px) and
+  `--tap-target-min` (24px) design tokens introduced in v3.27.0. Form inputs
+  classified as primary interactive controls. Shared `.sheet-close` class
+  extracted from duplicated compose/ama-sheet CSS.
+- Compose submit/edit and AMA answer handlers gained `MaxBytesReader` limits.
+  These were the only POST handlers missing body-size caps.
+
 ## [3.29.0] - 2026-06-27
 
 ### Added
