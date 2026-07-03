@@ -58,26 +58,7 @@
     color: var(--color-text-primary);
 }
 
-.compose-sheet-close {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: var(--tap-target);
-    height: var(--tap-target);
-    background: none;
-    border: none;
-    font-size: var(--font-size-xl);
-    line-height: 1;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    padding: 0;
-    border-radius: var(--radius-base);
-}
-
-.compose-sheet-close:hover {
-    color: var(--color-text-primary);
-    background: var(--color-bg-tertiary);
-}
+/* Close button styling — see main.css .sheet-close */
 
 /* --------------------------------------------------------------------------
    Title toggle + input

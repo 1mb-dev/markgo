@@ -97,7 +97,7 @@ function buildOverlay() {
     heading.textContent = 'Quick compose';
 
     const closeBtn = document.createElement('button');
-    closeBtn.className = 'compose-sheet-close';
+    closeBtn.className = 'sheet-close';
     closeBtn.setAttribute('aria-label', 'Close');
     closeBtn.textContent = '\u00D7';
     closeBtn.addEventListener('click', close);
