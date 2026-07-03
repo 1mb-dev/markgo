@@ -62,8 +62,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: var(--tap-target);
+    height: var(--tap-target);
     background: none;
     border: none;
     font-size: var(--font-size-xl);
@@ -88,6 +88,7 @@
 }
 
 .compose-sheet-title-toggle {
+    min-block-size: var(--tap-target-min);
     background: none;
     border: none;
     font-size: var(--font-size-sm);
@@ -232,6 +233,7 @@
 }
 
 .compose-sheet-save-draft {
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-5);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-sm);
@@ -256,6 +258,7 @@
 }
 
 .compose-sheet-publish-link {
+    min-block-size: var(--tap-target-min);
     padding: var(--spacing-1) var(--spacing-2);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-xs);

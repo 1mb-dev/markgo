@@ -63,8 +63,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: var(--tap-target);
+    height: var(--tap-target);
     background: none;
     border: none;
     font-size: var(--font-size-xl);

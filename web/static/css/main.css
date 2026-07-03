@@ -314,6 +314,7 @@ pre code {
     position: absolute;
     top: var(--spacing-2);
     right: var(--spacing-2);
+    min-block-size: var(--tap-target-min);
     padding: var(--spacing-1) var(--spacing-2);
     background: var(--color-bg-secondary);
     color: var(--color-text-secondary);
@@ -723,6 +724,9 @@ html {
 }
 
 .simple-pagination a {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--tap-target);
     color: var(--color-primary);
     text-decoration: none;
     font-weight: 500;
@@ -779,6 +783,7 @@ html {
 .tag,
 .category {
     display: inline-block;
+    min-block-size: var(--tap-target-min);
     padding: var(--spacing-1) var(--spacing-3);
     background-color: var(--color-bg-tertiary);
     color: var(--color-text-primary);
@@ -811,6 +816,7 @@ html {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-block-size: var(--tap-target);
     padding: var(--spacing-3) var(--spacing-6);
     border-radius: var(--radius-lg);
     font-weight: 500;
@@ -1409,6 +1415,7 @@ html {
 }
 
 .install-banner-btn {
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-4);
     background: var(--color-primary);
     color: var(--color-text-inverse);
@@ -1421,6 +1428,7 @@ html {
 }
 
 .install-banner-dismiss {
+    min-block-size: var(--tap-target-min);
     padding: var(--spacing-1);
     background: none;
     border: none;

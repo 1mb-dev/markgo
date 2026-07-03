@@ -59,7 +59,7 @@
 .error-link {
     display: inline-flex;
     align-items: center;
-    min-height: 40px;
+    min-block-size: var(--tap-target);
     padding: var(--spacing-2) var(--spacing-3);
     color: var(--color-text-secondary);
     text-decoration: none;

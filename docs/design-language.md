@@ -52,6 +52,12 @@ Defined in `main.css :root`. Highlights (full set in the file):
   `.color-swatch::after` vertical hit-area).
 - **Inline text links are exempt** (WCAG 2.5.8 inline exception): breadcrumbs,
   links inside prose, footer link lists. Forcing 44px there bloats text layout.
+- **Interactive form controls meet `--tap-target` (44px)** — `min-block-size` on
+  `<input>` (text, email, url, password, search), `<select>`, and submit/action
+  `<button>` elements. Form inputs are primary interactive controls — the user
+  must tap to engage. Textareas with `min-height` ≥ 80px satisfy this
+  implicitly (the content area is the tap target). File inputs triggered via
+  button proxy inherit the button's sizing.
 
 ### Horizontal overflow
 
@@ -73,7 +79,9 @@ stays `rem`-based so browser zoom/font settings compose.
 |------|----------|-----------|
 | 2026-06-10 | `--tap-target` 44 / `--tap-target-min` 24 tokens; tiered standard | A 320px audit found ad-hoc tap sizing (24–40px) because no token existed; codify so it stops drifting. |
 | 2026-06-10 | Wrap `.feed-filters`, don't scroll-chip | Only page-overflow at 320px; wrap keeps all filters visible + honors no-custom-scrollbars. |
-| 2026-06-10 | Authed UI (compose/admin) tap-target adoption deferred | v3.27.0 hardened the audited public surfaces; compose/admin buttons (40px) adopt `--tap-target` in a later pass. |
+| 2026-06-10 | Authed UI (compose/admin) tap-target adoption deferred | v3.27.0 hardened the audited public surfaces; compose/admin buttons (40px) adopt `--tap-target` in a later pass. Closed 2026-07-03 — v3.30.0, see below. |
 | 2026-06-09 | Reader font-size scales prose only (not root) | Root scaling would widen the rem-based 42rem measure; container token-redefine keeps the measure fixed. |
 | 2026-06-09 | `theme`/`colorTheme`/`fontSize` are bare localStorage keys | Read by the `<head>` FOUC script before modules load. |
 | 2026-06-27 | Footer nav: two rows, content/connect split | Row 1 (content discovery): Home, Writing, Tags, Categories, Pages. Row 2 (author/connection): About, Subscribe. Readers at the bottom scan for "more to read?" or "who is this?" — two rows create a binary choice cheaper than scanning 7 undifferentiated links. Social links deferred; Row 2 accommodates them later. |
+| 2026-07-03 | Public-surface touch target audit closed — 6 remaining elements adopt `--tap-target` | v3.27.0 missed bottom-nav FAB icons, error-page nav, AMA sheet controls, install banner, toast close, search-popover input, and subscribe-popover buttons. Same rationale as original audit (primary interactive elements, mobile comfort, WCAG 2.5.5). Bottom-nav FAB excluded — tap target is the 56px bar. |
+| 2026-07-03 | Authed UI (compose/admin) tap-target adoption | Closes v3.27.0 deferral. Compose upload/banner buttons, admin action buttons, draft publish, compose-sheet close, login-popover inputs, admin-popover links, and AMA publish/delete all adopt `--tap-target` or `--tap-target-min`. Form inputs classified as primary interactive controls (44px). |
