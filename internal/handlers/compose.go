@@ -21,6 +21,7 @@ import (
 const (
 	templateCompose    = "compose"
 	maxPreviewBodySize = 1 << 20 // 1MB
+	maxComposeBodySize = 1 << 20 // 1MB
 )
 
 // MarkdownRenderer renders markdown to HTML.
@@ -198,6 +199,15 @@ func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 		return
 	}
 
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxComposeBodySize)
+
+	if err := c.Request.ParseForm(); err != nil {
+		if isBodyTooLarge(err) {
+			c.String(http.StatusRequestEntityTooLarge, "Request too large.")
+			return
+		}
+	}
+
 	input := compose.Input{
 		Content:     c.PostForm("content"),
 		Title:       c.PostForm("title"),
@@ -274,6 +284,15 @@ func (h *ComposeHandler) HandleEdit(c *gin.Context) {
 
 // HandleSubmit processes the compose form submission.
 func (h *ComposeHandler) HandleSubmit(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxComposeBodySize)
+
+	if err := c.Request.ParseForm(); err != nil {
+		if isBodyTooLarge(err) {
+			c.String(http.StatusRequestEntityTooLarge, "Request too large.")
+			return
+		}
+	}
+
 	input := compose.Input{
 		Content:     c.PostForm("content"),
 		Title:       c.PostForm("title"),

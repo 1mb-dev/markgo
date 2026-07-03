@@ -115,6 +115,8 @@ func (h *AMAHandler) ListPending(c *gin.Context) {
 
 // Answer publishes an AMA by writing the author's answer and removing draft status.
 func (h *AMAHandler) Answer(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxPublicFormBody)
+
 	slug := c.Param("slug")
 	if !slugutil.WellFormed(slug) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid slug"})
@@ -125,6 +127,10 @@ func (h *AMAHandler) Answer(c *gin.Context) {
 		Answer string `json:"answer" binding:"required,min=1"`
 	}
 	if err := c.ShouldBindJSON(&form); err != nil {
+		if isBodyTooLarge(err) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Request too large"})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Answer is required",
 			"details": err.Error(),
