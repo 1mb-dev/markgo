@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.30.1] - 2026-07-03
+
+### Fixed
+
+- JSON error responses no longer expose server paths via `err.Error()` details.
+  Errors are logged server-side; responses carry the user-facing message only.
+- Compose preview now sanitizes markdown output through bluemonday UGC policy,
+  matching the published-page rendering path.
+
 ## [3.30.0] - 2026-07-03
 
 ### Fixed
