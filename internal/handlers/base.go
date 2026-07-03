@@ -248,9 +248,8 @@ func (h *BaseHandler) handleError(c *gin.Context, err error, defaultMsg string) 
 
 	if h.shouldReturnJSON(c) {
 		c.JSON(httpStatus, gin.H{
-			"error":   message,
-			"status":  httpStatus,
-			"details": err.Error(),
+			"error":  message,
+			"status": httpStatus,
 		})
 		return
 	}

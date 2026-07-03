@@ -39,8 +39,7 @@ func (h *AMAHandler) Submit(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid submission",
-			"details": err.Error(),
+			"error": "Invalid submission",
 		})
 		return
 	}
@@ -132,8 +131,7 @@ func (h *AMAHandler) Answer(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Answer is required",
-			"details": err.Error(),
+			"error": "Answer is required",
 		})
 		return
 	}

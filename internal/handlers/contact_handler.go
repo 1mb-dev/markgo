@@ -42,8 +42,7 @@ func (h *ContactHandler) Submit(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid form data",
-			"details": err.Error(),
+			"error": "Invalid form data",
 		})
 		return
 	}

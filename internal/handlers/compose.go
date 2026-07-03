@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/microcosm-cc/bluemonday"
 
 	apperrors "github.com/1mb-dev/markgo/internal/errors"
 	"github.com/1mb-dev/markgo/internal/models"
@@ -382,8 +383,7 @@ func (h *ComposeHandler) HandleSubmit(c *gin.Context) {
 }
 
 // Preview renders markdown content as HTML for the compose preview panel.
-// Returns an HTML fragment (not a full page). Self-XSS via html.WithUnsafe()
-// is acceptable — compose is behind session auth (admin-only).
+// Returns an HTML fragment (not a full page).
 func (h *ComposeHandler) Preview(c *gin.Context) {
 	// Limit request body before Gin parses the form (defense in depth)
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, int64(maxPreviewBodySize))
@@ -409,7 +409,8 @@ func (h *ComposeHandler) Preview(c *gin.Context) {
 		return
 	}
 
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+	safeHTML := bluemonday.UGCPolicy().Sanitize(html)
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(safeHTML))
 }
 
 // HandleQuickPublish creates a post from a JSON request body.
