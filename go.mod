@@ -2,7 +2,7 @@ module github.com/1mb-dev/markgo
 
 go 1.26.0
 
-toolchain go1.26.4
+toolchain go1.26.5
 
 require (
 	github.com/1mb-dev/goflow v1.5.1
