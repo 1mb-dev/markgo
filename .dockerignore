@@ -1,6 +1,7 @@
 # Build artifacts
 build/
 dist/
+.tools/
 *.exe
 *.dll
 *.so

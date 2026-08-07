@@ -3,13 +3,26 @@ package main
 
 import (
 	"fmt"
+	"net"
+	"net/http"
 	"os"
+	"time"
 
 	initcmd "github.com/1mb-dev/markgo/internal/commands/init"
 	"github.com/1mb-dev/markgo/internal/commands/new"
 	"github.com/1mb-dev/markgo/internal/commands/serve"
 	"github.com/1mb-dev/markgo/internal/constants"
 )
+
+// healthCheckTimeout stays under the Dockerfile HEALTHCHECK --timeout (3s) so the
+// probe reports a failure itself rather than being killed mid-request, which reads
+// as a timeout rather than an unhealthy service.
+const healthCheckTimeout = 2 * time.Second
+
+// defaultHealthCheckPort mirrors the PORT default in internal/config. The probe runs
+// as a separate process from the server, so it cannot read the loaded config and has
+// to re-derive the port from the same environment the server saw.
+const defaultHealthCheckPort = "3000"
 
 func main() {
 	// If no arguments provided, default to serve
@@ -24,6 +37,12 @@ func main() {
 	if command == "-h" || command == "--help" || command == "help" {
 		showHelp()
 		return
+	}
+
+	// Container HEALTHCHECK and docker-compose invoke this. The runtime image is
+	// FROM scratch — no shell, no curl — so the binary has to probe itself.
+	if command == "--health-check" || command == "health-check" {
+		os.Exit(runHealthCheck())
 	}
 
 	if command == "-v" || command == "--version" || command == "version" {
@@ -52,6 +71,31 @@ func main() {
 	}
 }
 
+// runHealthCheck probes the local server's /health endpoint and returns a process
+// exit code: 0 healthy, 1 otherwise. The endpoint answers 503 when the article
+// service is degraded, so a reachable-but-unhealthy server must still fail here.
+func runHealthCheck() int {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = defaultHealthCheckPort
+	}
+
+	url := "http://" + net.JoinHostPort("127.0.0.1", port) + "/health"
+	client := &http.Client{Timeout: healthCheckTimeout}
+	resp, err := client.Get(url)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "health check failed: %v\n", err)
+		return 1
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Fprintf(os.Stderr, "health check failed: %s returned %d\n", url, resp.StatusCode)
+		return 1
+	}
+	return 0
+}
+
 func showHelp() {
 	fmt.Printf(`MarkGo %s - File-based blog engine
 
@@ -64,6 +108,9 @@ COMMANDS:
     new         Create a new article
     version     Show version information
     help        Show this help message
+
+FLAGS:
+    --health-check   Probe the running server's /health endpoint; exit 0 if healthy
 
 ALIASES:
     server, start    → serve

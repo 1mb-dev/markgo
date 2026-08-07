@@ -14,3 +14,40 @@ jobs:
       lint-go-version: "1.26.5"
       golangci-lint-version: "v2.11.4"
       build-binary: "./cmd/markgo"
+
+  # The image is a shipped artifact that nothing else builds — the Go jobs above compile
+  # the binary, not the container. A broken HEALTHCHECK sat in main undetected because no
+  # job ever ran the image; building is not enough, the container has to be observed
+  # reaching healthy for that class of bug to be caught.
+  docker:
+    name: Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build image
+        run: docker build -t markgo:ci .
+
+      - name: Container must reach healthy
+        run: |
+          docker run -d --name markgo-ci markgo:ci
+          for _ in $(seq 1 24); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' markgo-ci)
+            case "$status" in
+              healthy)
+                echo "Container reported healthy."
+                exit 0
+                ;;
+              unhealthy)
+                echo "Container reported unhealthy."
+                docker inspect --format='{{json .State.Health}}' markgo-ci
+                docker logs markgo-ci
+                exit 1
+                ;;
+            esac
+            sleep 5
+          done
+          echo "Health status never resolved (stuck at: $status)."
+          docker inspect --format='{{json .State.Health}}' markgo-ci
+          docker logs markgo-ci
+          exit 1
