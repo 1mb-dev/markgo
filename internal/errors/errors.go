@@ -165,11 +165,19 @@ func HandleCLIError(err error, cleanup func()) {
 
 	var exitCode = 1
 	var message string
+	// The wrapped cause is what says which subsystem failed. Dropping it leaves the
+	// operator with "Failed to set up server" and no next action. This is stderr on
+	// the operator's own machine, not an HTTP response body — the error-disclosure
+	// hardening that strips causes from JSON responses does not apply here, and
+	// gating this on ENVIRONMENT would withhold it from exactly the person whose
+	// production server will not boot.
+	var cause error
 
 	var cliErr *CLIError
 	if errors.As(err, &cliErr) {
 		exitCode = cliErr.ExitCode
 		message = cliErr.Message
+		cause = cliErr.Unwrap()
 	} else {
 		message = err.Error()
 	}
@@ -178,7 +186,10 @@ func HandleCLIError(err error, cleanup func()) {
 		cleanup()
 	}
 	if message != "" {
-		fmt.Printf("Error: %s\n", message)
+		fmt.Fprintf(os.Stderr, "Error: %s\n", message)
+	}
+	if cause != nil && cause.Error() != message {
+		fmt.Fprintf(os.Stderr, "Cause: %v\n", cause)
 	}
 	os.Exit(exitCode)
 }

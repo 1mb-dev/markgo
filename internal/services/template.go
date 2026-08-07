@@ -141,6 +141,18 @@ func NewTemplateService(templatesPath string, cfg *config.Config) (*TemplateServ
 
 func (t *TemplateService) loadTemplates(templatesPath string) error {
 	funcMap := t.funcMap()
+
+	// An unset TEMPLATES_PATH means embedded, and must not reach the glob:
+	// filepath.Join("", "*.html") is "*.html", which globs the process working
+	// directory. Any unrelated .html file there would then be parsed as the
+	// template set, and boot fails with a set missing every name it needs — a
+	// failure that depends on files having nothing to do with markgo, in a
+	// directory the operator may not have chosen.
+	if templatesPath == "" {
+		slog.Info("TEMPLATES_PATH unset, using embedded templates")
+		return t.loadEmbeddedTemplates(funcMap)
+	}
+
 	pattern := filepath.Join(templatesPath, "*.html")
 
 	// Check if filesystem templates exist before parsing
@@ -161,6 +173,10 @@ func (t *TemplateService) loadTemplates(templatesPath string) error {
 
 	// No filesystem templates — fall back to embedded
 	slog.Info("Filesystem templates not found, using embedded templates", "path", templatesPath)
+	return t.loadEmbeddedTemplates(funcMap)
+}
+
+func (t *TemplateService) loadEmbeddedTemplates(funcMap template.FuncMap) error {
 	embeddedFS, subErr := fs.Sub(web.Assets, "templates")
 	if subErr != nil {
 		return apperrors.NewHTTPError(500, fmt.Sprintf("Failed to access embedded templates: %v", subErr), apperrors.ErrTemplateParseError)

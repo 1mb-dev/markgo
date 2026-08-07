@@ -1178,3 +1178,32 @@ func TestBaseHead_FontPreload(t *testing.T) {
 	out = render("")
 	assert.NotContains(t, out, `rel="preload"`, "empty FONT_PRELOAD_URL must emit no preload")
 }
+
+// An unset TEMPLATES_PATH must resolve to embedded templates regardless of what
+// happens to be in the process working directory. filepath.Join("", "*.html") is
+// "*.html", so before the fix an unrelated .html file in CWD was parsed as the
+// template set and boot failed with a set missing every name it needs.
+func TestLoadTemplates_EmptyPathIgnoresStrayHTMLInWorkingDir(t *testing.T) {
+	strayDir := t.TempDir()
+	require.NoError(t, os.WriteFile(
+		filepath.Join(strayDir, "unrelated.html"),
+		[]byte(`<html><body>nothing to do with markgo</body></html>`),
+		0o600,
+	))
+
+	// Run with the stray file in CWD, restoring afterwards.
+	origWD, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(strayDir))
+	t.Cleanup(func() { _ = os.Chdir(origWD) })
+
+	service, err := NewTemplateService("", &config.Config{})
+	require.NoError(t, err, "empty TEMPLATES_PATH must fall back to embedded, not glob CWD")
+	require.NotNil(t, service.templates)
+
+	// The embedded set is what got loaded, not the stray file.
+	assert.NotNil(t, service.templates.Lookup("base.html"),
+		"embedded base.html must be present")
+	assert.Nil(t, service.templates.Lookup("unrelated.html"),
+		"a stray CWD file must never enter the template set")
+}
