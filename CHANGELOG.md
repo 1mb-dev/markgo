@@ -65,6 +65,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Unauthenticated read of `/admin/stats` and `/admin/metrics` is fixed.** `SoftSessionAuth`
+  decided between the login overlay and a hard 401 by testing the request for
+  `Accept: application/json`. A caller sending anything non-committal — `*/*`, or no
+  Accept header at all, which is curl's default — matched neither branch and fell
+  through to the handler, which returned its payload in full: Go version, goroutine
+  count, heap and GC statistics, uptime, and article/draft/tag counts. Present since
+  the endpoints moved under `/admin`; affects any deployment with `ADMIN_USERNAME` and
+  `ADMIN_PASSWORD` set. No article content, credentials, or session data was reachable,
+  and write paths were never exposed. Fixed twice over: soft-fail now requires an
+  explicit `text/html` Accept, and the two JSON-only endpoints moved to hard
+  `SessionAuth`, which has no fall-through path at all. Browser behaviour is unchanged.
 - Go toolchain 1.26.4 → 1.26.5 for GO-2026-5856.
 - `golang.org/x/crypto` 0.48.0 → 0.52.0, `golang.org/x/net` 0.51.0 → 0.55.0,
   `golang.org/x/sys` 0.41.0 → 0.45.0, `golang.org/x/text` 0.38.0 → 0.40.0.

@@ -594,8 +594,19 @@ func setupRoutes(router *gin.Engine, h *handlers.Router, sessionStore *middlewar
 		registerGET(adminGroup, "/writing", h.Admin.Writing)
 		registerGET(adminGroup, "/drafts", h.Admin.Drafts)
 		adminGroup.POST("/cache/clear", h.ClearCache)
-		registerGET(adminGroup, "/stats", h.Admin.Stats)
-		registerGET(adminGroup, "/metrics", h.Admin.Metrics)
+		// JSON-only endpoints take hard auth, not soft. Soft auth exists so an HTML
+		// page can render the login overlay in place; a handler that always answers
+		// JSON has no overlay to render, so soft-failing it can only ever mean
+		// returning the data. Belt and braces with the Accept check in
+		// SoftSessionAuth — neither should be the only thing standing here.
+		adminJSONGroup := router.Group("/admin")
+		adminJSONGroup.Use(
+			middleware.RecoveryWithErrorHandler(logger),
+			middleware.SessionAuth(sessionStore),
+			middleware.NoCache(),
+		)
+		registerGET(adminJSONGroup, "/stats", h.Admin.Stats)
+		registerGET(adminJSONGroup, "/metrics", h.Admin.Metrics)
 		adminGroup.POST("/articles/reload", h.Admin.ReloadArticles)
 
 		// AMA moderation routes

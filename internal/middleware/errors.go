@@ -26,6 +26,17 @@ func wantsJSON(c *gin.Context) bool {
 	return strings.Contains(accept, "application/json")
 }
 
+// acceptsHTML reports whether the caller explicitly asked for HTML.
+//
+// Deliberately not the negation of wantsJSON. Use this to decide whether a caller
+// can be shown an HTML affordance such as the login overlay: the answer must be no
+// for `Accept: */*`, an absent Accept header, or anything else non-committal, so
+// that a caller which cannot render the affordance is refused rather than handed
+// whatever the handler would have produced.
+func acceptsHTML(c *gin.Context) bool {
+	return strings.Contains(c.GetHeader("Accept"), "text/html")
+}
+
 // errorHTML returns a minimal self-contained HTML error page.
 // Does not use the template engine — middleware must be dependency-free.
 func errorHTML(status int, message string) string {
