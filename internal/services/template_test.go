@@ -9,6 +9,7 @@ import (
 	"testing"
 	"testing/fstest"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1206,4 +1207,64 @@ func TestLoadTemplates_EmptyPathIgnoresStrayHTMLInWorkingDir(t *testing.T) {
 		"embedded base.html must be present")
 	assert.Nil(t, service.templates.Lookup("unrelated.html"),
 		"a stray CWD file must never enter the template set")
+}
+
+func TestExtractLinkDisplay(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		// The bare-domain posts must render byte-identical to the host-only
+		// behaviour they had before, or this fix regresses seven cards to fix two.
+		{"bare host", "https://aipolicy.1mb.dev", "aipolicy.1mb.dev"},
+		{"bare host trailing slash", "https://geetanjaliapp.com/", "geetanjaliapp.com"},
+		{"www stripped", "https://www.example.com/", "example.com"},
+
+		// The defect: two platform links that both rendered "github.com".
+		{"platform path kept", "https://github.com/rupa/z", "github.com/rupa/z"},
+		{"platform path kept, longer", "https://github.com/mattn/go-sqlite3", "github.com/mattn/go-sqlite3"},
+
+		{"fragment dropped", "https://go.dev/ref/mod#go-mod-file-retract", "go.dev/ref/mod"},
+
+		// Query deliberately not shown — it cannot fit the mobile pill, and the
+		// card title carries primary identity.
+		{"query dropped", "https://news.ycombinator.com/item?id=12345", "news.ycombinator.com/item"},
+
+		// Over the cap: whole segments are dropped, never a mid-word cut.
+		{
+			"deep path drops whole segments",
+			"https://example.com/a/very/deep/path/that/keeps/going/and/going/forever",
+			"example.com/a/very/deep/path",
+		},
+
+		// Degenerate inputs keep the previous passthrough behaviour.
+		{"not a url", "not a url", "not a url"},
+		{"no host", "/relative/path", "/relative/path"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, extractLinkDisplay(tc.in))
+		})
+	}
+}
+
+// Whatever the helper emits must fit the pill's character budget on its own. The
+// CSS ellipsis is the safety net for pathological input; it should not be what
+// keeps ordinary links readable.
+func TestExtractLinkDisplay_StaysWithinPillBudget(t *testing.T) {
+	longs := []string{
+		"https://example.com/a/very/deep/path/that/keeps/going/and/going/forever",
+		"https://github.com/some-org/some-really-long-repository-name-here",
+		"https://news.ycombinator.com/item?id=12345",
+		"https://go.dev/ref/mod#go-mod-file-retract",
+	}
+	for _, u := range longs {
+		got := extractLinkDisplay(u)
+		assert.LessOrEqual(t, utf8.RuneCountInString(got), linkDisplayCap,
+			"%q rendered %q, over the %d-char pill budget", u, got, linkDisplayCap)
+		assert.NotContains(t, got, "…",
+			"segments are dropped whole, so no ellipsis should reach the template")
+	}
 }

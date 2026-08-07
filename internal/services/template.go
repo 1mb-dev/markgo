@@ -967,17 +967,7 @@ var templateFuncs = template.FuncMap{
 			return t.Format("Jan 2")
 		}
 	},
-	"extractDomain": func(urlStr string) string {
-		u, err := url.Parse(urlStr)
-		if err != nil {
-			return urlStr
-		}
-		host := u.Hostname()
-		if host == "" {
-			return urlStr
-		}
-		return strings.TrimPrefix(host, "www.")
-	},
+	"extractDomain": extractLinkDisplay,
 	"displayTitle": func(a *models.Article) string {
 		return a.DisplayTitle()
 	},
@@ -1005,6 +995,54 @@ var templateFuncs = template.FuncMap{
 			return "font/woff2"
 		}
 	},
+}
+
+// linkDisplayCap bounds the link pill's text. The 320px card leaves the pill about
+// 218px of text room once container padding, card padding, the pill's own padding,
+// the gap and the arrow are subtracted — roughly 32 characters at --font-size-sm.
+// CSS truncation is the structural guarantee that the pill never wraps; this cap is
+// what keeps the text readable, because it drops whole path segments instead of
+// cutting a word in half.
+const linkDisplayCap = 32
+
+// extractLinkDisplay renders a link target as display text for the link pill.
+//
+// The host alone is not enough when the host is a platform: two github.com links
+// render identically and the path carries the entire identity. So the path is kept,
+// and trailing segments are dropped whole until the result fits — a truncated
+// segment reads worse than a shorter path. Scheme, "www.", fragment and trailing
+// slash are always dropped.
+//
+// Query strings are deliberately not shown. A query wide enough to distinguish
+// (news.ycombinator.com/item?id=12345) overflows the mobile card, and the card's
+// title already carries primary identity — the pill is secondary context.
+//
+// Registered as "extractDomain" because operator templates loaded via
+// TEMPLATES_PATH call it by that name; renaming would break them at render time.
+func extractLinkDisplay(urlStr string) string {
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return urlStr
+	}
+	host := strings.TrimPrefix(u.Hostname(), "www.")
+	if host == "" {
+		return urlStr
+	}
+
+	segments := strings.FieldsFunc(
+		strings.TrimSuffix(u.EscapedPath(), "/"),
+		func(r rune) bool { return r == '/' },
+	)
+	for len(segments) > 0 {
+		candidate := host + "/" + strings.Join(segments, "/")
+		if utf8.RuneCountInString(candidate) <= linkDisplayCap {
+			return candidate
+		}
+		segments = segments[:len(segments)-1]
+	}
+	// Host alone may still exceed the cap; CSS truncates it rather than this
+	// returning something that isn't a real hostname.
+	return host
 }
 
 // Helper function
