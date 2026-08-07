@@ -280,6 +280,9 @@ func TestSoftSessionAuth_NoSession_GET(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/compose", http.NoBody)
+	// A browser is the only caller that can render the overlay, and a browser always
+	// sends this. Without it the request is non-committal and must be refused.
+	c.Request.Header.Set("Accept", "text/html,application/xhtml+xml")
 
 	handler := SoftSessionAuth(store, false)
 	handler(c)
@@ -324,6 +327,7 @@ func TestSoftSessionAuth_InvalidToken_GET(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/admin", http.NoBody)
+	c.Request.Header.Set("Accept", "text/html,application/xhtml+xml")
 	c.Request.AddCookie(&http.Cookie{Name: "_session", Value: "bogus"})
 
 	handler := SoftSessionAuth(store, false)
@@ -345,6 +349,7 @@ func TestSoftSessionAuth_HEAD_Request(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodHead, "/compose", http.NoBody)
+	c.Request.Header.Set("Accept", "text/html,application/xhtml+xml")
 
 	handler := SoftSessionAuth(store, false)
 	handler(c)
@@ -467,7 +472,12 @@ func TestSoftSessionAuth_NoSession_JSON_AcceptVariants(t *testing.T) {
 		{"with charset", "application/json; charset=utf-8", true, http.StatusUnauthorized},
 		{"q-weighted multi", "text/html;q=0.9, application/json;q=1.0", true, http.StatusUnauthorized},
 		{"html only", "text/html", false, 0}, // falls through to soft-fail
-		{"empty", "", false, 0},              // falls through to soft-fail
+		// A caller that does not commit to HTML cannot render the overlay, so it is
+		// refused rather than handed whatever the handler produces. This case used to
+		// fall through, which is how an unauthenticated `curl /admin/metrics` — no
+		// Accept header at all — got a 200 with full runtime metrics.
+		{"empty", "", true, http.StatusUnauthorized},
+		{"wildcard only", "*/*", true, http.StatusUnauthorized},
 	}
 
 	for _, tc := range cases {
@@ -564,4 +574,48 @@ func TestShutdownRateLimiters_StopsAllCleanupGoroutines(t *testing.T) {
 
 	// Idempotency: second call should be a no-op.
 	assert.NotPanics(t, ShutdownRateLimiters)
+}
+
+// The bypass this pins is the one an attacker actually runs: plain `curl` against a
+// JSON admin endpoint. curl sends no Accept header, which was neither "wants JSON"
+// nor anything the old check refused, so the request fell through to the handler and
+// came back 200 with the payload. Exercised through a real router with a real
+// handler, because the leak was never in the middleware's own response — it was in
+// what ran after the middleware declined to stop it.
+func TestSoftSessionAuth_NonCommittalAccept_DoesNotReachHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, tc := range []struct {
+		name   string
+		accept string
+	}{
+		{"no accept header at all (curl default)", ""},
+		{"wildcard", "*/*"},
+		{"unrelated type", "application/xml"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := NewSessionStore()
+			router := gin.New()
+			handlerRan := false
+			router.Use(SoftSessionAuth(store, false))
+			router.GET("/admin/metrics", func(c *gin.Context) {
+				handlerRan = true
+				c.JSON(http.StatusOK, gin.H{"goroutines": 25, "memory": gin.H{"heap_alloc": 51403288}})
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/admin/metrics", http.NoBody)
+			if tc.accept != "" {
+				req.Header.Set("Accept", tc.accept)
+			}
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.False(t, handlerRan, "handler must not run for an unauthenticated non-HTML caller")
+			assert.Equal(t, http.StatusUnauthorized, w.Code)
+			for _, leaked := range []string{"goroutines", "heap_alloc", "memory"} {
+				assert.NotContains(t, w.Body.String(), leaked,
+					"response must not carry admin payload key %q", leaked)
+			}
+		})
+	}
 }

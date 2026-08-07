@@ -197,8 +197,18 @@ func SoftSessionAuth(store *SessionStore, secureCookie bool) gin.HandlerFunc {
 		//                  fall-through would leak handler data (see GHSA / #42).
 		// Do NOT collapse this asymmetry without revisiting the bypass class.
 		if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead {
-			if wantsJSON(c) {
-				slog.Warn("Unauthenticated JSON request", "method", c.Request.Method, "path", c.Request.URL.Path)
+			// Fail closed. Soft-fail hands the request to the handler so an HTML page
+			// can render the login overlay in place, so it is only safe for a caller
+			// that both prefers HTML and can render it. Testing wantsJSON alone left
+			// `Accept: */*` — curl's default, and most scripts — falling through to
+			// the handler, which for the JSON-only admin endpoints meant returning
+			// their data in full to an unauthenticated caller.
+			//
+			// Order matters: a client that lists both still gets 401 when it prefers
+			// JSON, so this tightens the non-committal case without loosening any
+			// case that already refused.
+			if wantsJSON(c) || !acceptsHTML(c) {
+				slog.Warn("Unauthenticated non-HTML request", "method", c.Request.Method, "path", c.Request.URL.Path)
 				abortWithError(c, http.StatusUnauthorized, "Authentication required")
 				return
 			}
