@@ -20,6 +20,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An unset `TEMPLATES_PATH` no longer globs the working directory. `filepath.Join("",
+  "*.html")` is `"*.html"`, so any unrelated `.html` file in the directory markgo happened
+  to start in was parsed as the template set, and boot failed with a set missing every
+  name it needed — a failure that appeared as a recipe breaking with no version or config
+  change, as the directory accumulated files. Empty now means embedded without touching
+  the filesystem.
+- CLI errors print the wrapped cause. `Error: Failed to set up server` with the cause
+  dropped gave no indication of which subsystem failed; errors now go to stderr with a
+  `Cause:` line. This is the operator's own terminal, not an HTTP response body — the
+  v3.30.1 error-disclosure hardening applies to the latter.
+- `.env.example` no longer ships `STATIC_PATH=./web/static` and
+  `TEMPLATES_PATH=./web/templates`. Both are documented as defaulting to empty, and the
+  example contradicted that: `cp .env.example .env` (per `docs/configuration.md`) put every
+  static asset behind the overlay, where shadowed files lose their pre-compressed variants
+  and build-version ETag — `main.css` served 38,725 bytes instead of 6,385, with no
+  validator to revalidate against.
 - Container health check works. The `HEALTHCHECK` directive carried a trailing
   `|| exit 1`, which makes Docker parse it as `CMD-SHELL` — unrunnable on a `scratch`
   image with no `/bin/sh` — and the `--health-check` flag it invoked was never

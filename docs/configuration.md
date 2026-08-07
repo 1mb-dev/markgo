@@ -35,8 +35,8 @@ Everything else has sensible defaults for development.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ARTICLES_PATH` | `./articles` | Directory containing markdown files. |
-| `STATIC_PATH` | *(empty)* | Overlay directory for static assets. When set and the directory exists, each request checks this path first and falls back to embedded assets per file. When unset or missing, all assets serve from the embedded FS. Set `LOG_LEVEL=debug` to log each overlay hit. Use atomic writes (write to a temp file, then `mv`) for in-place updates to avoid serving partial content. |
-| `TEMPLATES_PATH` | *(empty)* | HTML templates directory. Optional — falls back to embedded templates if unset or missing. |
+| `STATIC_PATH` | *(empty)* | Overlay directory for static assets. When set and the directory exists, each request checks this path first and falls back to embedded assets per file. When unset or missing, all assets serve from the embedded FS. **Overriding a file costs its compression and ETag** — embedded assets ship pre-compressed brotli/gzip variants with a build-version ETag that answers 304, and a shadowed file gets neither (`main.css` measures 6,385 bytes embedded vs 38,725 shadowed). Override only the files you actually change; never point this at a full copy of `web/static`. Set `LOG_LEVEL=debug` to log each overlay hit. Use atomic writes (write to a temp file, then `mv`) for in-place updates to avoid serving partial content. |
+| `TEMPLATES_PATH` | *(empty)* | HTML templates directory. **Replace mode, not overlay** — if the directory contains any `*.html`, it must provide *every* template; embedded templates are not consulted for the gaps, so a version that adds a template will fail to render against a stale directory. Falls back to embedded when unset or when the directory holds no `*.html`. |
 
 ## Upload
 
