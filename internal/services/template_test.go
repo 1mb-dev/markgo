@@ -1227,6 +1227,17 @@ func TestExtractLinkDisplay(t *testing.T) {
 
 		{"fragment dropped", "https://go.dev/ref/mod#go-mod-file-retract", "go.dev/ref/mod"},
 
+		// Percent-escapes are decoded for display; the reader sees the character,
+		// not its wire encoding.
+		{"unicode path decoded", "https://exämple.de/über", "exämple.de/über"},
+		{"escaped space decoded", "https://example.com/a%20b/c", "example.com/a b/c"},
+		// Decoding happens after the split, so an encoded slash cannot invent a
+		// segment boundary.
+		{"encoded slash stays in its segment", "https://example.com/a%2Fb", "example.com/a/b"},
+
+		{"port dropped", "https://example.com:8443/path", "example.com/path"},
+		{"empty path segments collapse", "https://example.com//double//slash", "example.com/double/slash"},
+
 		// Query deliberately not shown — it cannot fit the mobile pill, and the
 		// card title carries primary identity.
 		{"query dropped", "https://news.ycombinator.com/item?id=12345", "news.ycombinator.com/item"},
@@ -1250,9 +1261,9 @@ func TestExtractLinkDisplay(t *testing.T) {
 	}
 }
 
-// Whatever the helper emits must fit the pill's character budget on its own. The
-// CSS ellipsis is the safety net for pathological input; it should not be what
-// keeps ordinary links readable.
+// Anything the helper can shorten by dropping segments must fit the pill's budget
+// on its own. The CSS ellipsis is the safety net for input the helper cannot
+// shorten; it should not be what keeps ordinary links readable.
 func TestExtractLinkDisplay_StaysWithinPillBudget(t *testing.T) {
 	longs := []string{
 		"https://example.com/a/very/deep/path/that/keeps/going/and/going/forever",
@@ -1267,4 +1278,15 @@ func TestExtractLinkDisplay_StaysWithinPillBudget(t *testing.T) {
 		assert.NotContains(t, got, "…",
 			"segments are dropped whole, so no ellipsis should reach the template")
 	}
+}
+
+// A hostname longer than the budget is returned whole and left to the CSS
+// ellipsis. Truncating it here would emit something that is not a hostname, which
+// reads worse than a visibly clipped one — so this documents the one input class
+// where CSS is genuinely load-bearing.
+func TestExtractLinkDisplay_LongHostExceedsBudgetByDesign(t *testing.T) {
+	got := extractLinkDisplay("https://a.very.long.subdomain.chain.example.co.uk/x")
+	assert.Equal(t, "a.very.long.subdomain.chain.example.co.uk", got)
+	assert.Greater(t, utf8.RuneCountInString(got), linkDisplayCap,
+		"if this now fits, the cap changed and the CSS-fallback rationale needs revisiting")
 }
