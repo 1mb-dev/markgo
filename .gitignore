@@ -55,6 +55,7 @@ tmp/
 temp/
 cache/
 .cache/
+.tools/
 
 # Project binaries
 /markgo

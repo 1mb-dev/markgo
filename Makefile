@@ -14,7 +14,14 @@ GOTEST=$(GOCMD) test
 GOMOD=$(GOCMD) mod
 GOFMT=gofmt
 GOBIN=$(shell $(GOCMD) env GOBIN)
-GOLINT=$(or $(shell command -v golangci-lint 2>/dev/null),$(GOBIN)/golangci-lint)
+
+# golangci-lint is derived from the CI pin in .github/workflows/ci.yml, never hardcoded
+# here — a second copy of the version is what lets local lint drift from CI lint. A
+# newer binary than the pin reports issues CI does not (goconst floods untouched files).
+# The version is baked into the binary path so bumping the CI pin forces a reinstall.
+GOLANGCI_VERSION=$(shell sed -n 's/.*golangci-lint-version:[[:space:]]*"\(v[0-9][0-9.]*\)".*/\1/p' .github/workflows/ci.yml)
+TOOLS_DIR=.tools
+GOLINT=$(TOOLS_DIR)/golangci-lint-$(GOLANGCI_VERSION)
 
 # Build flags
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "v2.0.0")
@@ -89,15 +96,21 @@ fmt: ## Format code with gofmt
 	$(GOCMD) fmt ./...
 	@echo "✓ Code formatted"
 
-lint: ## Run linter (requires golangci-lint)
-	@echo "Running linter..."
-	@if [ ! -x "$(GOLINT)" ] && ! command -v golangci-lint > /dev/null 2>&1; then \
-		echo "Error: golangci-lint not found."; \
-		echo "Install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest"; \
+lint: $(GOLINT) ## Run linter (golangci-lint, version pinned to CI)
+	@echo "Running linter ($(GOLANGCI_VERSION))..."
+	@$(GOLINT) run
+	@echo "✓ Lint complete"
+
+$(GOLINT):
+	@if [ -z "$(GOLANGCI_VERSION)" ]; then \
+		echo "Error: no golangci-lint-version found in .github/workflows/ci.yml"; \
+		echo "The lint target reads the CI pin from that file — check its format."; \
 		exit 1; \
 	fi
-	$(GOLINT) run
-	@echo "✓ Lint complete"
+	@echo "Installing golangci-lint $(GOLANGCI_VERSION) (CI pin)..."
+	@mkdir -p $(TOOLS_DIR)
+	@GOBIN=$(abspath $(TOOLS_DIR)) $(GOCMD) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION)
+	@mv $(TOOLS_DIR)/golangci-lint $(GOLINT)
 
 # Dependency management
 tidy: ## Tidy and verify dependencies
