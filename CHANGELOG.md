@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Link cards show what distinguishes the link, not just its host. The display text was
+  the hostname alone, so every link to a platform rendered identically — two posts
+  pointing at different repositories both read `github.com`. The path is now kept, with
+  whole trailing segments dropped until it fits the pill, so a long path shortens rather
+  than truncating mid-word. Bare-domain links are unaffected. Applies to the feed card
+  and the article detail page, which share the helper.
+- The link pill can no longer wrap to a second line or widen the page. It was
+  `width: fit-content` with no bound, so a long enough target grew past its card;
+  it now caps at its container with a single-line ellipsis, verified down to a 60px
+  container on both surfaces.
 - An unset `TEMPLATES_PATH` no longer globs the working directory. `filepath.Join("",
   "*.html")` is `"*.html"`, so any unrelated `.html` file in the directory markgo happened
   to start in was parsed as the template set, and boot failed with a set missing every

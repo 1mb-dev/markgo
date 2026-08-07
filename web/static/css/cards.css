@@ -159,6 +159,10 @@
     background-color: var(--color-bg-tertiary);
     border-radius: var(--radius-md);
     width: fit-content;
+    /* fit-content grows to the text, so without this a long target widens the pill
+       past the card and scrolls the page. The link helper caps its output, but CSS
+       is the guarantee — no input can wrap the pill to a second line. */
+    max-width: 100%;
     transition: background-color var(--transition-fast);
 }
 
@@ -169,11 +173,19 @@
 
 .feed-card-domain {
     font-weight: 500;
+    /* min-width:0 is load-bearing — a flex item defaults to min-width:auto, which
+       refuses to shrink below its content and defeats the ellipsis entirely. */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .feed-card-external-icon {
     font-size: var(--font-size-xs);
     opacity: 0.7;
+    /* The arrow is the affordance; the text yields to it, never the reverse. */
+    flex-shrink: 0;
 }
 
 /* AMA Card */

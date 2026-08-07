@@ -90,6 +90,9 @@
     padding: var(--spacing-1) var(--spacing-3);
     background-color: var(--color-bg-tertiary);
     border-radius: var(--radius-md);
+    /* Bounds the pill to its container so a long target cannot widen the page.
+       See .feed-card-link-url — same contract, same reason. */
+    max-width: 100%;
     transition: background-color var(--transition-fast);
 }
 
@@ -100,11 +103,18 @@
 
 .article-link-domain {
     font-weight: 500;
+    /* min-width:0 defeats the flex default of min-width:auto, without which the
+       item refuses to shrink below its content and the ellipsis never applies. */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .article-link-arrow {
     font-size: var(--font-size-xs);
     opacity: 0.7;
+    flex-shrink: 0;
 }
 
 /* AMA type — question is the header, answer is the body */
