@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `markgo --health-check` probes the running server's `/health` endpoint and exits 0
+  when healthy, 1 otherwise. The runtime image is `FROM scratch` with no shell or curl,
+  so the binary has to be able to check itself.
+- CI builds the Docker image and waits for the container to report healthy. The Go jobs
+  compile the binary, not the container, which is how a broken health check survived
+  eleven months in a shipped artifact.
+- `release.yml` accepts `workflow_dispatch` for a publish-free dry run, so an action or
+  toolchain bump can be exercised before a tag is pushed rather than during one.
+
+### Fixed
+
+- Container health check works. The `HEALTHCHECK` directive carried a trailing
+  `|| exit 1`, which makes Docker parse it as `CMD-SHELL` — unrunnable on a `scratch`
+  image with no `/bin/sh` — and the `--health-check` flag it invoked was never
+  implemented. Every image published since v1.0.0 reported unhealthy, stalling any
+  `depends_on: service_healthy` and orchestrator readiness gate.
+
+### Changed
+
+- `make lint` installs and runs the golangci-lint version pinned in `ci.yml` rather than
+  whatever is on `PATH`, so local lint results match CI instead of reporting issues CI
+  passes.
+- Docker builds drop `-a`, `-installsuffix cgo`, and `-extldflags "-static"` — all
+  no-ops under `CGO_ENABLED=0`, and `-a` forced a full standard-library rebuild every
+  time — and gain `-trimpath`. Output architecture is an overridable `ARG TARGETARCH`
+  defaulting to amd64, so buildx can target arm64 without changing what the current
+  builder produces.
+
+### Security
+
+- Go toolchain 1.26.4 → 1.26.5 for GO-2026-5856.
+- `golang.org/x/crypto` 0.48.0 → 0.52.0, `golang.org/x/net` 0.51.0 → 0.55.0,
+  `golang.org/x/sys` 0.41.0 → 0.45.0, `golang.org/x/text` 0.38.0 → 0.40.0.
+- `github.com/yuin/goldmark` 1.8.2 → 1.8.5, `github.com/andybalholm/brotli` 1.2.1 → 1.2.2.
+
 ## [3.30.1] - 2026-07-03
 
 ### Fixed
