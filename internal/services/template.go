@@ -1033,6 +1033,16 @@ func extractLinkDisplay(urlStr string) string {
 		strings.TrimSuffix(u.EscapedPath(), "/"),
 		func(r rune) bool { return r == '/' },
 	)
+	// Percent-escapes belong on the wire, not in display text — a reader should see
+	// "über", not "%C3%BCber". Decode after splitting, so an encoded %2F cannot
+	// invent a segment boundary, and before measuring, so the cap counts the
+	// characters that actually reach the pill.
+	for i, seg := range segments {
+		if decoded, decErr := url.PathUnescape(seg); decErr == nil {
+			segments[i] = decoded
+		}
+	}
+
 	for len(segments) > 0 {
 		candidate := host + "/" + strings.Join(segments, "/")
 		if utf8.RuneCountInString(candidate) <= linkDisplayCap {
