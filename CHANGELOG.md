@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Bump `golang.org/x/net` from v0.55.0 to v0.60.0 (GO-2026-6617, -6612, -6611, -6610,
+  -6603: HTTP/2 server crash and resource exhaustion, reachable from the server). The
+  module is indirect, so Dependabot version updates never raised it.
+
 ## [3.31.0] - 2026-08-07
 
 ### Added
