@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- CI also runs on main daily and on manual dispatch. A Dependabot auto-merge is pushed by
+  `GITHUB_TOKEN`, which starts no CI run, so main could sit on a commit CI had never seen.
+
 ### Fixed
 
 - The pre-commit secret check scans only the lines a commit adds. It grepped whole staged
