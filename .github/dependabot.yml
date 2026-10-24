@@ -58,3 +58,7 @@ updates:
     commit-message:
       prefix: "chore(docker)"
       include: "scope"
+    # Go 1.27 -> 1.28 is a semver minor to Dependabot; majors move with 1mb-dev/.github.
+    ignore:
+      - dependency-name: "golang"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
