@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The pre-commit secret check scans only the lines a commit adds. It grepped whole staged
+  files, so a message-only amend, or any edit to a file already holding a secret-like line
+  or a `${{ secrets.* }}` reference, reported secrets, and a staged file whose name held a
+  space or a non-ASCII character was never scanned.
+
 ## [3.31.1] - 2026-10-24
 
 ### Security
