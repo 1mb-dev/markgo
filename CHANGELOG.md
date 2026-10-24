@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - CI also runs on main daily and on manual dispatch. A Dependabot auto-merge is pushed by
   `GITHUB_TOKEN`, which starts no CI run, so main could sit on a commit CI had never seen.
+- `Dockerfile.dev` installs air v1.67.4 and delve v1.27.2 instead of `@latest`, so a
+  rebuild changes tools only when a commit does. Dependabot does not raise `go install`
+  pins; they move by hand.
 
 ### Fixed
 
