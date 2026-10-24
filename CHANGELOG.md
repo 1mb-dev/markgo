@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.31.1] - 2026-10-24
+
 ### Security
 
 - Bump `golang.org/x/net` from v0.55.0 to v0.60.0 (GO-2026-6617, -6612, -6611, -6610,
