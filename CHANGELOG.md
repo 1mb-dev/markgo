@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- CI also runs on main daily and on manual dispatch. A Dependabot auto-merge is pushed by
+  `GITHUB_TOKEN`, which starts no CI run, so main could sit on a commit CI had never seen.
+- `Dockerfile.dev` installs air v1.67.4 and delve v1.27.2 instead of `@latest`, so a
+  rebuild changes tools only when a commit does. Dependabot does not raise `go install`
+  pins; they move by hand.
+
+### Fixed
+
+- The pre-commit secret check scans only the lines a commit adds. It grepped whole staged
+  files, so a message-only amend, or any edit to a file already holding a secret-like line
+  or a `${{ secrets.* }}` reference, reported secrets, and a staged file whose name held a
+  space or a non-ASCII character was never scanned.
+
 ## [3.31.1] - 2026-10-24
 
 ### Security

@@ -18,7 +18,20 @@ FAILED=0
 # 1. Security check - detect potential secrets
 echo "🔐 Checking for secrets..."
 patterns="password\s*[=:]\s*['\"][^'\"]{8,}['\"]|secret\s*[=:]\s*['\"][^'\"]{16,}['\"]|token\s*[=:]\s*['\"][^'\"]{20,}['\"]"
-if git diff --cached --name-only | xargs grep -lE "$patterns" 2>/dev/null; then
+# Scan only added lines, read from hunk bodies (`^+[^+]` would skip added content starting
+# with `+`), with `${{ ... }}` expressions stripped so a workflow's secret reference is not a hit.
+# -z: without it non-ASCII paths come back quoted and match nothing. A rename is diffed with
+# both paths so only its added lines are read; the new path alone reads as a whole new file.
+# `|| true`: the loop's status is its last grep's, and set -e would exit on it silently.
+hits=$(git diff --cached --name-status -z --diff-filter=ACMR |
+    while IFS= read -r -d '' st && IFS= read -r -d '' f; do
+        paths=("$f")
+        if [[ $st == R* ]]; then IFS= read -r -d '' f; paths+=("$f"); fi
+        git diff --cached -U0 -M -- "${paths[@]}" | awk '/^@@/ { body = 1; next } body && /^\+/' |
+            sed 's/\${{[^}]*}}//g' | grep -qE "$patterns" && echo "$f"
+    done || true)
+if [ -n "$hits" ]; then
+    echo "$hits"
     echo -e "${RED}✗ Potential secrets detected in commit${NC}"
     echo "Review files and remove sensitive data"
     FAILED=1

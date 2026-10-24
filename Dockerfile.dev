@@ -5,10 +5,10 @@ FROM golang:1.27.3-alpine@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e8835
 RUN apk add --no-cache ca-certificates git tzdata make
 
 # Install Air for hot reload
-RUN go install github.com/air-verse/air@latest
+RUN go install github.com/air-verse/air@v1.67.4
 
 # Install Delve for debugging (optional)
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.27.2
 
 # Set working directory
 WORKDIR /app

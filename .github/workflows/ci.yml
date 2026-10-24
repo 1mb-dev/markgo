@@ -2,9 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
+  # A Dependabot auto-merge is pushed by GITHUB_TOKEN, which starts no push run, so main is
+  # unverified until the next daily run. Dispatch verifies it on demand.
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   ci:
@@ -20,7 +28,7 @@ jobs:
     name: Docker
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Build image
         run: docker build -t markgo:ci .
